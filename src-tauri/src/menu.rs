@@ -79,8 +79,8 @@ pub fn build(app: &App) -> tauri::Result<Menu<Wry>> {
             &MenuItem::with_id(
                 app,
                 "session:import-plan",
-                "Import Plan…",
-                true,
+                "Import Plan… (unavailable)",
+                false,
                 None::<&str>,
             )?,
             &MenuItem::with_id(

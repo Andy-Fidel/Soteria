@@ -35,10 +35,10 @@ function clamp(v: number, lo: number, hi: number): number {
 
 /** Clamp each side to [0, 0.4] and ensure opposite pairs sum <= 0.8. */
 export function clampInsets(insets: CalibrationInsets): CalibrationInsets {
-  let top = clamp(insets.top, 0, MAX_SIDE)
+  const top = clamp(insets.top, 0, MAX_SIDE)
   let right = clamp(insets.right, 0, MAX_SIDE)
   let bottom = clamp(insets.bottom, 0, MAX_SIDE)
-  let left = clamp(insets.left, 0, MAX_SIDE)
+  const left = clamp(insets.left, 0, MAX_SIDE)
 
   if (top + bottom > MAX_PAIR) {
     bottom -= top + bottom - MAX_PAIR

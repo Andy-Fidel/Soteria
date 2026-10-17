@@ -29,17 +29,10 @@ import {
   SparklesIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
-  CheckIcon,
   SearchIcon,
   PlusIcon,
   PlayIcon,
 } from "lucide-react"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { useBible, bibleActions } from "@/hooks/use-bible"
 import { queueVerseToRenderData, toVerseRenderData } from "@/hooks/use-broadcast"
 import { switchTranslation } from "@/lib/switch-translation"
@@ -726,12 +719,8 @@ export function SearchPanel() {
                           useQueueStore.getState().setActive(index)
                           if (wasEmpty) {
                             useBroadcastStore.getState().setPreviewVerse(
-                              item.kind === "verse"
-                                ? queueVerseToRenderData(
-                                    item,
-                                    useBibleStore.getState().translations
-                                      .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV",
-                                  )
+                              item?.kind === "verse"
+                                ? queueVerseToRenderData(item)
                                 : null,
                             )
                           }
@@ -864,12 +853,8 @@ export function SearchPanel() {
                           useQueueStore.getState().setActive(index)
                           if (wasEmpty) {
                             useBroadcastStore.getState().setPreviewVerse(
-                              item.kind === "verse"
-                                ? queueVerseToRenderData(
-                                    item,
-                                    useBibleStore.getState().translations
-                                      .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV",
-                                  )
+                              item?.kind === "verse"
+                                ? queueVerseToRenderData(item)
                                 : null,
                             )
                           }

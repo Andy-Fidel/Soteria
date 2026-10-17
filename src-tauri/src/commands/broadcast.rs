@@ -299,13 +299,15 @@ pub fn close_broadcast_window(
 
 #[tauri::command]
 pub fn start_ndi(
+    app: tauri::AppHandle,
     output_id: String,
     runtime: State<'_, Mutex<NdiRuntime>>,
     request: NdiStartRequest,
 ) -> Result<NdiSessionInfo, String> {
+    let resource_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
     let mut runtime = runtime.lock().map_err(|e| e.to_string())?;
     runtime
-        .start(output_id, request)
+        .start(output_id, request, &resource_dir)
         .map_err(|e| e.to_string())
 }
 

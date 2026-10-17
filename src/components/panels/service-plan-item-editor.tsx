@@ -19,43 +19,28 @@ interface Props {
 }
 
 export function ServicePlanItemEditor({ item, onClose }: Props) {
-  const { updateItem } = useServicePlan()
-  const [title, setTitle] = useState("")
-  const [body, setBody] = useState("")
-  const [announcementMode, setAnnouncementMode] = useState<"ticker" | "slide">("slide")
-  const [announcementDuration, setAnnouncementDuration] = useState<number | null>(null)
-  const [label, setLabel] = useState("")
-  const [autoAdvance, setAutoAdvance] = useState<string>("")
-  const [blankShowLogo, setBlankShowLogo] = useState(true)
-  const [blankImageUrl, setBlankImageUrl] = useState<string | undefined>(undefined)
-  const [blankImageLabel, setBlankImageLabel] = useState("")
-
+  const parsed = item ? parsePlanItem(item) : null
   useEffect(() => {
-    if (!item) return
-    const parsed = parsePlanItem(item)
-    // Announcements use the shared AnnouncementDialog — redirect there and
-    // close this editor immediately so we never render the legacy fields.
-    if (parsed?.type === "announcement") {
+    if (item && parsed?.type === "announcement") {
       useAnnouncementDialogStore.getState().openAnnouncementForEdit(item)
       onClose()
-      return
     }
-    if (parsed?.type === "section") {
-      setLabel(parsed.label)
-    } else if (parsed?.type === "blank") {
-      setBlankShowLogo(parsed.showLogo)
-      setBlankImageUrl(parsed.imageUrl)
-      setBlankImageLabel(parsed.imageLabel ?? "")
-    }
-    setAutoAdvance(item.autoAdvanceSeconds?.toString() ?? "")
-  }, [item])
+  }, [item, parsed?.type, onClose])
+  if (!item || !parsed || parsed.type === "announcement") return null
+  return <ItemEditor key={item.id} item={item} parsed={parsed} onClose={onClose} />
+}
 
-  if (!item) return null
-  const parsed = parsePlanItem(item)
-  if (!parsed) return null
-  // Announcements are handled by AnnouncementDialog (redirected in useEffect
-  // above). Render nothing to avoid a one-frame flash of the old editor.
-  if (parsed.type === "announcement") return null
+function ItemEditor({ item, parsed, onClose }: {
+  item: PlanItem
+  parsed: Exclude<PlanItemPayload, { type: "announcement" }>
+  onClose: () => void
+}) {
+  const { updateItem } = useServicePlan()
+  const [label, setLabel] = useState(parsed.type === "section" ? parsed.label : "")
+  const [autoAdvance, setAutoAdvance] = useState(item.autoAdvanceSeconds?.toString() ?? "")
+  const [blankShowLogo, setBlankShowLogo] = useState(parsed.type === "blank" ? parsed.showLogo : true)
+  const [blankImageUrl, setBlankImageUrl] = useState(parsed.type === "blank" ? parsed.imageUrl : undefined)
+  const [blankImageLabel, setBlankImageLabel] = useState(parsed.type === "blank" ? parsed.imageLabel ?? "" : "")
 
   const pickImage = () => {
     const input = document.createElement("input")
@@ -73,15 +58,7 @@ export function ServicePlanItemEditor({ item, onClose }: Props) {
 
   const save = async () => {
     let payload: PlanItemPayload
-    if (parsed.type === "announcement") {
-      payload = {
-        type: "announcement",
-        title,
-        body,
-        mode: announcementMode,
-        duration: announcementDuration,
-      }
-    } else if (parsed.type === "section") {
+    if (parsed.type === "section") {
       payload = { type: "section", label }
     } else if (parsed.type === "blank") {
       payload = {
@@ -104,84 +81,11 @@ export function ServicePlanItemEditor({ item, onClose }: Props) {
       <DrawerContent className="left-1/2 right-auto max-h-[85vh] w-full max-w-2xl -translate-x-1/2">
         <DrawerHeader>
           <DrawerTitle>
-            Edit {parsed.type === "announcement" ? "announcement" : parsed.type === "blank" ? "blank slide" : "section"}
+            Edit {parsed.type === "blank" ? "blank slide" : "section"}
           </DrawerTitle>
         </DrawerHeader>
         <div className="flex flex-col gap-3 overflow-y-auto px-4 pb-2">
-          {parsed.type === "announcement" ? (
-            <>
-              <div>
-                <label className="text-xs font-medium">Title</label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs font-medium">Body</label>
-                <textarea
-                  className="mt-1 min-h-[100px] w-full rounded-md border bg-transparent p-2 text-sm"
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium">Display mode</label>
-                <div className="mt-1 grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setAnnouncementMode("ticker")}
-                    className={`rounded-md border px-3 py-2 text-left text-xs transition-colors ${
-                      announcementMode === "ticker"
-                        ? "border-primary bg-primary/10 text-foreground"
-                        : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                    }`}
-                  >
-                    <div className="font-medium">Ticker</div>
-                    <div className="text-[10px]">Scrolls at bottom; slide stays visible</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAnnouncementMode("slide")}
-                    className={`rounded-md border px-3 py-2 text-left text-xs transition-colors ${
-                      announcementMode === "slide"
-                        ? "border-primary bg-primary/10 text-foreground"
-                        : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                    }`}
-                  >
-                    <div className="font-medium">Full slide</div>
-                    <div className="text-[10px]">Takes over screen, left-aligned</div>
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-medium">Auto-dismiss</label>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {[
-                    { label: "10s", value: 10 },
-                    { label: "30s", value: 30 },
-                    { label: "1m", value: 60 },
-                    { label: "2m", value: 120 },
-                    { label: "Manual", value: null },
-                  ].map((d) => {
-                    const active =
-                      (d.value ?? "manual") === (announcementDuration ?? "manual")
-                    return (
-                      <button
-                        key={d.label}
-                        type="button"
-                        onClick={() => setAnnouncementDuration(d.value)}
-                        className={`rounded-full px-3 py-1 text-xs transition-colors ${
-                          active
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground hover:bg-muted/60"
-                        }`}
-                      >
-                        {d.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            </>
-          ) : parsed.type === "section" ? (
+          {parsed.type === "section" ? (
             <div>
               <label className="text-xs font-medium">Label</label>
               <Input value={label} onChange={(e) => setLabel(e.target.value)} />

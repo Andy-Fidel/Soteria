@@ -32,7 +32,6 @@ function ElapsedTimer({ startMs }: { startMs: number }) {
   const [elapsed, setElapsed] = useState(() => formatElapsed(startMs))
 
   useEffect(() => {
-    setElapsed(formatElapsed(startMs))
     const interval = setInterval(() => {
       setElapsed(formatElapsed(startMs))
     }, 1000)
@@ -143,7 +142,7 @@ export function Toolbar() {
               </span>
             </div>
             {isLive && transcribingStartedAt != null && (
-              <ElapsedTimer startMs={transcribingStartedAt} />
+              <ElapsedTimer key={transcribingStartedAt} startMs={transcribingStartedAt} />
             )}
             <Badge variant="outline" className="capitalize text-[0.625rem]">
               {modeCopy.toolbarLabel}

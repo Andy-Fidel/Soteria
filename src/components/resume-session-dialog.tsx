@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { useSessionStore, useTranscriptStore, useSettingsStore } from "@/stores"
+import { useTranscriptStore, useSettingsStore } from "@/stores"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { AlertCircleIcon } from "lucide-react"
 import type { SermonSession } from "@/types/session"
+import { restoreLiveSession } from "@/lib/restore-live-session"
 
 /**
  * On app startup, checks for any sessions still marked as "live"
@@ -37,10 +38,9 @@ export function ResumeSessionDialog() {
 
   const handleResume = async () => {
     if (orphanedSession) {
-      useSessionStore.getState().setActiveSession(orphanedSession)
-
       // Start transcription automatically
       try {
+        if (!await restoreLiveSession(orphanedSession)) return
         useTranscriptStore.getState().setConnectionStatus("connecting")
         const settings = useSettingsStore.getState()
         const providerKey =

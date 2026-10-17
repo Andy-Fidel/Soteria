@@ -20,9 +20,7 @@ function renderQueueItemAt(index: number) {
     return songStanzaToRenderData(item, song)
   }
   if (item.kind === "verse") {
-    const trans = useBibleStore.getState().translations
-      .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-    return queueVerseToRenderData(item, trans)
+    return queueVerseToRenderData(item)
   }
   return null
 }
@@ -51,31 +49,22 @@ export function BroadcastMonitor() {
     const queue = useQueueStore.getState()
     const activeItem = queue.activeIndex === null ? null : queue.items[queue.activeIndex]
     if (activeItem?.kind !== "verse" || !liveVerse) return
-    const translation = translations.find((item) => item.id === activeTranslationId)?.abbreviation ?? "KJV"
-    if (queueVerseToRenderData(activeItem, translation).reference === liveVerse.reference) {
+    if (queueVerseToRenderData(activeItem).reference === liveVerse.reference) {
       queue.updateVerseHighlights(activeItem.id, highlights)
     }
   }
 
-  // Session timer
-  const [elapsed, setElapsed] = useState("00:00:00")
+  // Read the clock in a timer callback; derive the label from the active session.
+  const [now, setNow] = useState(Date.now)
   useEffect(() => {
-    if (!activeSession?.startedAt || activeSession.status !== "live") {
-      setElapsed("00:00:00")
-      return
-    }
-    const start = new Date(activeSession.startedAt).getTime()
-    const tick = () => {
-      const diff = Date.now() - start
-      const h = Math.floor(diff / 3600000).toString().padStart(2, "0")
-      const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, "0")
-      const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, "0")
-      setElapsed(`${h}:${m}:${s}`)
-    }
-    tick()
-    const interval = setInterval(tick, 1000)
+    const interval = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(interval)
-  }, [activeSession?.startedAt, activeSession?.status])
+  }, [])
+  const diff = activeSession?.startedAt && activeSession.status === "live"
+    ? Math.max(0, now - new Date(activeSession.startedAt).getTime())
+    : 0
+  const elapsed = [Math.floor(diff / 3600000), Math.floor((diff % 3600000) / 60000), Math.floor((diff % 60000) / 1000)]
+    .map((value) => String(value).padStart(2, "0")).join(":")
 
   const parseRef = (ref: string) => {
     const match = ref.match(/^(.+?)\s+(\d+):(\d+)/)
@@ -453,7 +442,8 @@ function AnnouncementControl({
         <button
           onClick={() => {
             const b = useBroadcastStore.getState()
-            announcement.paused ? b.resumeAnnouncement() : b.pauseAnnouncement()
+            if (announcement.paused) b.resumeAnnouncement()
+            else b.pauseAnnouncement()
           }}
           className="rounded p-0.5 text-amber-400 hover:bg-amber-500/20"
           title={announcement.paused ? "Resume announcement" : "Pause announcement"}

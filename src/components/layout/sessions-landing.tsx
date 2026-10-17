@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useSession } from "@/hooks/use-session"
+import { restoreLiveSession } from "@/lib/restore-live-session"
 import { useSessionStore, useBroadcastStore, useSettingsStore } from "@/stores"
 import { resolveBrandAsset, resolveChurchName } from "@/lib/brand"
 import { useProjectorPicker } from "@/lib/projector-picker"
@@ -42,6 +43,7 @@ interface SessionRowStats {
 }
 
 interface MonitorInfo {
+  is_primary: boolean
   name: string
   width: number
   height: number
@@ -198,12 +200,15 @@ export function SessionsLanding() {
     closeSessions()
   }
 
-  const handleOpenPast = (session: SermonSession) => {
+  const handleOpenPast = async (session: SermonSession) => {
     // Live sessions aren't finished — drop user into the workspace so they
     // can keep operating, not into the review detail.
     if (session.status === "live") {
-      useSessionStore.getState().setActiveSession(session)
-      closeSessions()
+      try {
+        if (await restoreLiveSession(session)) closeSessions()
+      } catch (error) {
+        console.error("[landing] resume session failed:", error)
+      }
       return
     }
     openSessionInMode({ id: session.id, title: session.title, tab: "summary" })

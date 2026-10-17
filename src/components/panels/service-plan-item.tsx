@@ -187,7 +187,8 @@ function AnnouncementInlineControls({
         <button
           onClick={() => {
             const b = useBroadcastStore.getState()
-            announcement.paused ? b.resumeAnnouncement() : b.pauseAnnouncement()
+            if (announcement.paused) b.resumeAnnouncement()
+            else b.pauseAnnouncement()
           }}
           className="rounded p-0.5 text-amber-400 hover:bg-amber-500/20"
           title={announcement.paused ? "Resume announcement" : "Pause announcement"}

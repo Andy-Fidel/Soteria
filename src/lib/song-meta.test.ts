@@ -16,6 +16,7 @@ const base: Song = {
   meter: null,
   scriptureRef: null,
   category: null,
+    createdAt: 0,
 }
 
 const verse: SongStanza = { id: "v1", kind: "verse", lines: [] }

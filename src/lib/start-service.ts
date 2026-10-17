@@ -5,6 +5,8 @@ import {
   useTranscriptStore,
 } from "@/stores"
 
+import type { SermonSession } from "@/types"
+
 interface StartServiceOptions {
   onMissingApiKey?: () => void
 }
@@ -30,7 +32,7 @@ export async function startServiceFlow(opts: StartServiceOptions = {}): Promise<
         minute: "2-digit",
         hour12: true,
       })
-      const session = await invoke<any>("create_session", {
+      const session = await invoke<SermonSession>("create_session", {
         request: {
           title: `${date} — ${time}`,
           date: now.toISOString().split("T")[0],
@@ -44,7 +46,7 @@ export async function startServiceFlow(opts: StartServiceOptions = {}): Promise<
     // which the elapsed timer keys off. We only do this here so the timer
     // begins precisely when the operator confirms Start Service.
     if (active && active.status !== "live") {
-      const started = await invoke<any>("start_session", { id: active.id })
+      const started = await invoke<SermonSession>("start_session", { id: active.id })
       useSessionStore.getState().setActiveSession(started)
     }
 

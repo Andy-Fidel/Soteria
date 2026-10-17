@@ -1035,9 +1035,7 @@ function renderVerseImpl(
   const referenceRect = metrics.referenceRect
   const verseRect = metrics.verseRect
   const scale = options?.scale ?? 1
-  const divider = (scaledTheme as Record<string, unknown>).divider as
-    | { style: string; color: string; width: number; opacity: number; dotCount: number; dotSize: number }
-    | undefined
+  const divider = scaledTheme.divider
   const resolvedDivider = divider ?? { style: "none" as const, color: "#fff", width: 0, opacity: 0, dotCount: 0, dotSize: 0 }
 
   let dividerOffset = 0

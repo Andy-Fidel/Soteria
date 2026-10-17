@@ -1,7 +1,7 @@
 // src/components/panels/service-plan-panel.tsx
 import { useState, useEffect } from "react"
 import { CalendarDaysIcon, FolderIcon } from "lucide-react"
-import { DragDropProvider } from "@dnd-kit/react"
+import { DragDropProvider, type DragEndEvent } from "@dnd-kit/react"
 import { useSortable, isSortable } from "@dnd-kit/react/sortable"
 import { useServicePlan } from "@/hooks/use-service-plan"
 import { useServicePlanStore } from "@/stores/service-plan-store"
@@ -93,11 +93,11 @@ export function ServicePlanPanel() {
     return () => store.cancelPendingAdvance()
   }, [plan, activeItemId])
 
-  const handleDragEnd = (event: { canceled: boolean; operation: { source: unknown } }) => {
+  const handleDragEnd = (event: Parameters<DragEndEvent>[0]) => {
     if (event.canceled || !plan) return
     const source = event.operation.source
     if (!isSortable(source)) return
-    const { initialIndex, index } = source
+    const { initialIndex, index } = source.sortable
     if (initialIndex === index) return
     const dragged = plan.items[initialIndex]
     if (!dragged) return

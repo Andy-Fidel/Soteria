@@ -193,7 +193,7 @@ interface AnnouncementPayload {
   paused?: boolean
 }
 
-function BroadcastCanvas() {
+export function BroadcastCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const latestData = useRef<BroadcastPayload | null>(null)
   const announcementRef = useRef<AnnouncementPayload | null>(null)
@@ -541,7 +541,7 @@ function BroadcastCanvas() {
         clearTimeout(announcementTimerRef.current)
       }
     }
-  }, [draw, logDebug, preloadBackgroundImage, pushNdiFrame, pushNdiBurst])
+  }, [draw, logDebug, preloadBackgroundImage, preloadImage, pushNdiFrame, pushNdiBurst])
 
   // Slow keepalive: push one frame every 2s if idle (prevents NDI receivers from dropping the source)
   useEffect(() => {

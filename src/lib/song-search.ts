@@ -69,7 +69,7 @@ export function searchSongs(songs: Song[], query: string): Song[] {
       const fuzzy = index
         .search(q)
         .map((r) => songs.find((s) => s.id === r.id))
-        .filter((s): s is Song => Boolean(s) && s.id !== direct.id)
+        .filter((s): s is Song => s !== undefined && s.id !== direct.id)
       return [direct, ...fuzzy]
     }
   }

@@ -276,6 +276,17 @@ mod tests {
     }
 
     #[test]
+    fn handle_message_rejects_opacity_without_emitting() {
+        let sink = MockSink::new();
+        let msg = OscMessage {
+            addr: "/rhema/opacity".into(),
+            args: vec![rosc::OscType::Float(0.5)],
+        };
+        handle_message(&msg, &sink);
+        assert_eq!(sink.command_count(), 0);
+    }
+
+    #[test]
     fn handle_message_ignores_unknown_address() {
         let sink = MockSink::new();
         let msg = OscMessage {

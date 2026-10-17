@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { searchSongs } from "@/lib/song-search"
@@ -11,13 +11,14 @@ export function SongJumpDialog({
   open: boolean
   onOpenChange: (v: boolean) => void
 }) {
+  if (!open) return null
+  return <SongJumpContent onOpenChange={onOpenChange} />
+}
+
+function SongJumpContent({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const songs = useSongStore((s) => s.songs)
   const jumpLive = useQueueStore((s) => s.jumpLiveSong)
   const [query, setQuery] = useState("")
-
-  useEffect(() => {
-    if (!open) setQuery("")
-  }, [open])
 
   const hits = useMemo(() => searchSongs(songs, query).slice(0, 8), [songs, query])
 
@@ -27,7 +28,7 @@ export function SongJumpDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md p-0 gap-0">
         <Input
           autoFocus

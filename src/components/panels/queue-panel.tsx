@@ -20,16 +20,23 @@ import { useQueueStore, useBroadcastStore, useBibleStore, useSongStore } from "@
 import { queueVerseToRenderData } from "@/hooks/use-broadcast"
 import { bibleActions } from "@/hooks/use-bible"
 import { songStanzaToRenderData } from "@/lib/song-to-render"
-import type { QueueItem, Verse } from "@/types"
+import { queueItemTranslation } from "@/lib/queue-translation"
+import type { QueueItem, Translation, Verse } from "@/types"
+
+function queueTimestamp(): number {
+  return Date.now()
+}
 
 function QueueItemCard({
   item,
   index,
   isActive,
+  translationLabel,
 }: {
   item: QueueItem
   index: number
   isActive: boolean
+  translationLabel: string | null
 }) {
   const handlePresent = () => {
     useQueueStore.getState().setActive(index)
@@ -41,13 +48,13 @@ function QueueItemCard({
       return
     }
     if (item.kind === "image") {
-      useBroadcastStore.getState().setFullscreenImage({ url: item.url, label: item.label })
+      useBroadcastStore
+        .getState()
+        .setFullscreenImage({ url: item.url, label: item.label })
       return
     }
     bibleActions.selectVerse(item.verse)
-    const translation = useBibleStore.getState().translations
-      .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-    const verseData = queueVerseToRenderData(item, translation)
+    const verseData = queueVerseToRenderData(item)
     useBroadcastStore.getState().setPreviewVerse(verseData)
     useBroadcastStore.getState().goLive()
   }
@@ -62,13 +69,13 @@ function QueueItemCard({
     }
     if (item.kind === "image") {
       // Preview = stage for go-live; reuse fullscreenImage for visual feedback
-      useBroadcastStore.getState().setFullscreenImage({ url: item.url, label: item.label })
+      useBroadcastStore
+        .getState()
+        .setFullscreenImage({ url: item.url, label: item.label })
       return
     }
     bibleActions.selectVerse(item.verse)
-    const translation = useBibleStore.getState().translations
-      .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-    const verseData = queueVerseToRenderData(item, translation)
+    const verseData = queueVerseToRenderData(item)
     useBroadcastStore.getState().setPreviewVerse(verseData)
   }
 
@@ -89,10 +96,21 @@ function QueueItemCard({
     >
       {/* Reference + verse snippet in one compact row */}
       <div className="flex items-start gap-2">
-        <span className={cn("text-[9px] tabular-nums pt-0.5", isActive ? "text-primary-foreground/50" : "text-muted-foreground/50")}>
+        <span
+          className={cn(
+            "pt-0.5 text-[9px] tabular-nums",
+            isActive ? "text-primary-foreground/50" : "text-muted-foreground/50"
+          )}
+        >
           {index + 1}
         </span>
-        <span className={cn("shrink-0 pt-0.5", isActive ? "text-primary-foreground/70" : "text-muted-foreground/60")} aria-hidden>
+        <span
+          className={cn(
+            "shrink-0 pt-0.5",
+            isActive ? "text-primary-foreground/70" : "text-muted-foreground/60"
+          )}
+          aria-hidden
+        >
           {item.kind === "verse" ? (
             <BookOpenIcon className="size-2.5" />
           ) : item.kind === "image" ? (
@@ -102,14 +120,37 @@ function QueueItemCard({
           )}
         </span>
         <div className="min-w-0 flex-1">
-          <span className={cn("text-[11px] font-semibold", isActive ? "text-primary-foreground" : "text-foreground")}>
-            {item.kind === "image" ? (item.label || "Image") : item.reference}
-          </span>
+          <div className="flex items-baseline gap-1.5">
+            <span
+              className={cn(
+                "text-[11px] font-semibold",
+                isActive ? "text-primary-foreground" : "text-foreground"
+              )}
+            >
+              {item.kind === "image" ? item.label || "Image" : item.reference}
+            </span>
+            {translationLabel && (
+              <span
+                className={cn(
+                  "text-[9px] font-medium",
+                  isActive
+                    ? "text-primary-foreground/60"
+                    : "text-muted-foreground"
+                )}
+              >
+                {translationLabel}
+              </span>
+            )}
+          </div>
           {item.kind === "verse" ? (
-            <p className={cn(
-              "line-clamp-1 font-serif text-[10px] leading-snug",
-              isActive ? "text-primary-foreground/70" : "text-muted-foreground"
-            )}>
+            <p
+              className={cn(
+                "line-clamp-1 font-serif text-[10px] leading-snug",
+                isActive
+                  ? "text-primary-foreground/70"
+                  : "text-muted-foreground"
+              )}
+            >
               {item.chunk?.text ?? item.verse.text}
             </p>
           ) : item.kind === "image" ? (
@@ -121,10 +162,12 @@ function QueueItemCard({
               />
             </div>
           ) : (
-            <p className={cn(
-              "whitespace-pre-line font-serif text-[13px] leading-relaxed",
-              isActive ? "text-primary-foreground/85" : "text-foreground/80"
-            )}>
+            <p
+              className={cn(
+                "font-serif text-[13px] leading-relaxed whitespace-pre-line",
+                isActive ? "text-primary-foreground/85" : "text-foreground/80"
+              )}
+            >
               {item.text}
             </p>
           )}
@@ -135,9 +178,14 @@ function QueueItemCard({
             size="icon-xs"
             className={cn(
               "opacity-0 transition-opacity group-hover:opacity-100",
-              isActive ? "text-primary-foreground hover:bg-primary-foreground/20" : "hover:text-primary"
+              isActive
+                ? "text-primary-foreground hover:bg-primary-foreground/20"
+                : "hover:text-primary"
             )}
-            onClick={(e) => { e.stopPropagation(); handlePresent() }}
+            onClick={(e) => {
+              e.stopPropagation()
+              handlePresent()
+            }}
           >
             <PlayIcon className="size-2.5" />
           </Button>
@@ -146,9 +194,14 @@ function QueueItemCard({
             size="icon-xs"
             className={cn(
               "opacity-0 transition-opacity group-hover:opacity-100",
-              isActive ? "text-primary-foreground hover:bg-primary-foreground/20" : "hover:text-destructive"
+              isActive
+                ? "text-primary-foreground hover:bg-primary-foreground/20"
+                : "hover:text-destructive"
             )}
-            onClick={(e) => { e.stopPropagation(); handleRemove() }}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleRemove()
+            }}
           >
             <XIcon className="size-2.5" />
           </Button>
@@ -198,9 +251,19 @@ function buildBlocks(items: QueueItem[]): QueueBlock[] {
         i++
       }
       if (groupItems.length > 1) {
-        blocks.push({ kind: "group", groupKind: "song", songId, firstIndex, items: groupItems })
+        blocks.push({
+          kind: "group",
+          groupKind: "song",
+          songId,
+          firstIndex,
+          items: groupItems,
+        })
       } else {
-        blocks.push({ kind: "flat", item: groupItems[0].item, index: groupItems[0].index })
+        blocks.push({
+          kind: "flat",
+          item: groupItems[0].item,
+          index: groupItems[0].index,
+        })
       }
       continue
     }
@@ -217,9 +280,19 @@ function buildBlocks(items: QueueItem[]): QueueBlock[] {
         i++
       }
       if (groupItems.length > 1) {
-        blocks.push({ kind: "group", groupKind: "verse", verseGroupId: groupId, firstIndex, items: groupItems })
+        blocks.push({
+          kind: "group",
+          groupKind: "verse",
+          verseGroupId: groupId,
+          firstIndex,
+          items: groupItems,
+        })
       } else {
-        blocks.push({ kind: "flat", item: groupItems[0].item, index: groupItems[0].index })
+        blocks.push({
+          kind: "flat",
+          item: groupItems[0].item,
+          index: groupItems[0].index,
+        })
       }
       continue
     }
@@ -242,7 +315,9 @@ function groupKey(block: Extract<QueueBlock, { kind: "group" }>): string {
 /** Collapse keys for every song GROUP in the queue, in order. */
 function groupKeys(items: QueueItem[]): string[] {
   return buildBlocks(items)
-    .filter((b): b is Extract<QueueBlock, { kind: "group" }> => b.kind === "group")
+    .filter(
+      (b): b is Extract<QueueBlock, { kind: "group" }> => b.kind === "group"
+    )
     .map(groupKey)
 }
 
@@ -252,29 +327,38 @@ function QueueGroup({
   onToggle,
   activeIndex,
   isNewest,
+  translations,
 }: {
   block: Extract<QueueBlock, { kind: "group" }>
   collapsed: boolean
   onToggle: () => void
-  activeIndex: number
+  activeIndex: number | null
   isNewest: boolean
+  translations: Translation[]
 }) {
   const songTitle = useSongStore((s) =>
     block.groupKind === "song"
-      ? s.songs.find((x) => x.id === block.songId)?.title ?? null
-      : null,
+      ? (s.songs.find((x) => x.id === block.songId)?.title ?? null)
+      : null
   )
   const activeChild = block.items.find((x) => x.index === activeIndex)
   const playedCount = activeChild ? activeChild.index - block.firstIndex + 1 : 0
 
   const label =
     block.groupKind === "song"
-      ? songTitle ?? `Song ${block.songId}`
-      : stripChunkSuffix(block.items[0].item.reference)
+      ? (songTitle ?? `Song ${block.songId}`)
+      : stripChunkSuffix(block.items[0].item.kind === "verse" ? block.items[0].item.reference : "Scripture")
+  const translationLabel = queueItemTranslation(
+    block.items[0].item,
+    translations
+  )
   const Icon = block.groupKind === "song" ? MusicIcon : BookOpenIcon
 
   return (
-    <div className="flex flex-col gap-1" data-newest-group={isNewest ? "true" : undefined}>
+    <div
+      className="flex flex-col gap-1"
+      data-newest-group={isNewest ? "true" : undefined}
+    >
       <button
         onClick={onToggle}
         className={cn(
@@ -282,20 +366,32 @@ function QueueGroup({
           activeChild
             ? "border-red-500/40 bg-red-500/5 hover:bg-red-500/10"
             : isNewest
-            ? "border-primary/30 bg-primary/5 hover:bg-primary/10"
-            : "border-border bg-muted/30 hover:bg-muted/50",
+              ? "border-primary/30 bg-primary/5 hover:bg-primary/10"
+              : "border-border bg-muted/30 hover:bg-muted/50"
         )}
       >
         <ChevronDownIcon
-          className={cn("size-3 shrink-0 transition-transform", collapsed && "-rotate-90")}
+          className={cn(
+            "size-3 shrink-0 transition-transform",
+            collapsed && "-rotate-90"
+          )}
         />
         <Icon className="size-3 shrink-0 text-muted-foreground" />
         <span className="truncate font-medium">{label}</span>
+        {translationLabel && (
+          <span className="shrink-0 text-[9px] font-medium text-muted-foreground">
+            {translationLabel}
+          </span>
+        )}
         <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-          {activeChild ? `${playedCount}/${block.items.length}` : `${block.items.length} slides`}
+          {activeChild
+            ? `${playedCount}/${block.items.length}`
+            : `${block.items.length} slides`}
         </span>
         {activeChild && (
-          <span className="shrink-0 text-[9px] font-semibold text-red-500">LIVE</span>
+          <span className="shrink-0 text-[9px] font-semibold text-red-500">
+            LIVE
+          </span>
         )}
       </button>
       {!collapsed && (
@@ -306,6 +402,7 @@ function QueueGroup({
               item={item}
               index={index}
               isActive={index === activeIndex}
+              translationLabel={translationLabel}
             />
           ))}
         </div>
@@ -323,9 +420,12 @@ export function QueuePanel() {
   const items = useQueueStore((s) => s.items)
   const activeIndex = useQueueStore((s) => s.activeIndex)
   const activeTranslationId = useBibleStore((s) => s.activeTranslationId)
+  const translations = useBibleStore((s) => s.translations)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<Verse[]>([])
-  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(() => new Set())
+  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(
+    () => new Set()
+  )
   const scrollRef = useRef<HTMLDivElement>(null)
   const prevGroupCountRef = useRef(0)
 
@@ -336,6 +436,8 @@ export function QueuePanel() {
     const keys = groupKeys(items)
     if (keys.length > prevGroupCountRef.current && keys.length > 0) {
       const newest = keys[keys.length - 1]
+      // This effect intentionally synchronizes expansion state with an externally-added queue group.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCollapsedKeys(new Set(keys.filter((k) => k !== newest)))
       // Align the new group's HEADER to the top of the viewport so it starts
       // from its first stanza. Double rAF: the first frame lets the
@@ -390,14 +492,14 @@ export function QueuePanel() {
       reference: `${verse.book_name} ${verse.chapter}:${verse.verse}`,
       confidence: 1,
       source: "manual",
-      added_at: Date.now(),
+      added_at: queueTimestamp(),
     })
     useQueueStore.getState().setActive(firstInsertedIndex)
     const first = inserted[0]
     if (first?.kind === "verse") {
-      const translation = useBibleStore.getState().translations
-        .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-      useBroadcastStore.getState().setPreviewVerse(queueVerseToRenderData(first, translation))
+      useBroadcastStore
+        .getState()
+        .setPreviewVerse(queueVerseToRenderData(first))
     }
     setSearchResults([])
     setSearchQuery("")
@@ -433,7 +535,7 @@ export function QueuePanel() {
       {/* Quick add search */}
       <div className="flex shrink-0 gap-1 border-b border-border p-1.5">
         <div className="relative flex-1">
-          <SearchIcon className="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+          <SearchIcon className="absolute top-1/2 left-2 size-3 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -442,7 +544,12 @@ export function QueuePanel() {
             className="h-7 pl-7 text-[11px]"
           />
         </div>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSearch}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 w-7 p-0"
+          onClick={handleSearch}
+        >
           <PlusIcon className="size-3" />
         </Button>
       </div>
@@ -477,9 +584,12 @@ export function QueuePanel() {
                 <ListIcon className="size-5 text-muted-foreground/60" />
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-muted-foreground">Queue is empty</p>
+                <p className="text-xs font-medium text-muted-foreground">
+                  Queue is empty
+                </p>
                 <p className="text-[0.625rem] leading-relaxed text-muted-foreground/60">
-                  Search above to add verses, or they'll appear here from detections during the service.
+                  Search above to add verses, or they'll appear here from
+                  detections during the service.
                 </p>
               </div>
             </div>
@@ -492,6 +602,10 @@ export function QueuePanel() {
                   item={block.item}
                   index={block.index}
                   isActive={block.index === activeIndex}
+                  translationLabel={queueItemTranslation(
+                    block.item,
+                    translations
+                  )}
                 />
               )
             }
@@ -504,6 +618,7 @@ export function QueuePanel() {
                 onToggle={() => toggleCollapsed(key)}
                 activeIndex={activeIndex}
                 isNewest={key === allGroupKeys[allGroupKeys.length - 1]}
+                translations={translations}
               />
             )
           })}

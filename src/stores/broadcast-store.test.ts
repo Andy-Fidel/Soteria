@@ -37,21 +37,21 @@ describe("broadcast store sync", () => {
     expect(emitMock).toHaveBeenCalledTimes(3)
     expect(emitMock).toHaveBeenCalledWith(
       "projector:calibration",
-      expect.objectContaining({ editing: false }),
+      expect.objectContaining({ editing: false })
     )
     expect(emitMock).toHaveBeenCalledWith(
       "broadcast:verse-update:main",
       expect.objectContaining({
         theme: expect.objectContaining({ id: theme.id }),
         verse: expect.objectContaining({ reference: "John 3:16" }),
-      }),
+      })
     )
     expect(emitMock).toHaveBeenCalledWith(
       "broadcast:verse-update:alt",
       expect.objectContaining({
         theme: expect.objectContaining({ id: theme.id }),
         verse: expect.objectContaining({ reference: "John 3:16" }),
-      }),
+      })
     )
   })
 
@@ -116,17 +116,19 @@ describe("broadcast store sync", () => {
     useBroadcastStore.getState().saveDraft()
 
     const custom = useBroadcastStore.getState().draftTheme
-    expect(custom).toEqual(expect.objectContaining({
-      builtin: false,
-      name: `${builtin.name} (Custom)`,
-    }))
+    expect(custom).toEqual(
+      expect.objectContaining({
+        builtin: false,
+        name: `${builtin.name} (Custom)`,
+      })
+    )
     expect(invokeMock).toHaveBeenCalledWith(
       "save_custom_theme",
       expect.objectContaining({
         id: custom?.id,
         name: custom?.name,
         themeJson: expect.stringContaining(`"id":"${custom?.id}"`),
-      }),
+      })
     )
   })
 
@@ -137,9 +139,56 @@ describe("broadcast store sync", () => {
     useBroadcastStore.getState().duplicateTheme(builtin.id)
 
     const state = useBroadcastStore.getState()
-    const copy = state.themes.find((theme) => theme.name === `${builtin.name} Copy`)
+    const copy = state.themes.find(
+      (theme) => theme.name === `${builtin.name} Copy`
+    )
     expect(copy).toEqual(expect.objectContaining({ builtin: false }))
     expect(state.editingThemeId).toBe(copy?.id)
     expect(state.draftTheme?.id).toBe(copy?.id)
+  })
+
+  it("does not mirror a second queue item for the same canonical verse in another translation", async () => {
+    const [{ useBroadcastStore }, { useBibleStore }, { useQueueStore }] =
+      await Promise.all([
+        import("./broadcast-store"),
+        import("./bible-store"),
+        import("./queue-store"),
+      ])
+    const kjv = {
+      id: 1,
+      translation_id: 1,
+      book_number: 43,
+      book_name: "John",
+      book_abbreviation: "Jn",
+      chapter: 3,
+      verse: 16,
+      text: "KJV",
+    }
+    useQueueStore.setState({
+      items: [
+        {
+          kind: "verse",
+          id: "existing",
+          source: "manual",
+          added_at: 1,
+          verse: kjv,
+          confidence: 1,
+          reference: "John 3:16",
+        },
+      ],
+      activeIndex: 0,
+    })
+    useBibleStore.setState({
+      selectedVerse: { ...kjv, id: 2, translation_id: 2, text: "NIV" },
+    })
+
+    useBroadcastStore.getState().setLiveVerse({
+      reference: "John 3:16 (NIV)",
+      segments: [{ text: "NIV", verseNumber: 16 }],
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(useQueueStore.getState().items).toHaveLength(1)
+    expect(useQueueStore.getState().items[0].id).toBe("existing")
   })
 })

@@ -3,7 +3,7 @@ use crate::error::CommandError;
 
 /// Trait abstracting how commands reach the application.
 ///
-/// Frontend-bound commands (queue navigation, theme, opacity, on-air) go through
+/// Frontend-bound commands (queue navigation, theme, on-air) go through
 /// `emit_event` which maps to Tauri event emission. Backend-bound commands
 /// (show/hide broadcast windows, confidence threshold) go through `invoke_backend`.
 ///
@@ -16,7 +16,7 @@ pub trait CommandSink: Send + Sync {
 
 /// Routes `RemoteCommand` variants to the correct sink method.
 ///
-/// Frontend-bound (`emit_event`): Next, Prev, Theme, Opacity, `OnAir`
+/// Frontend-bound (`emit_event`): Next, Prev, Theme, `OnAir`
 /// Backend-bound (`invoke_backend`): Show, Hide, Confidence
 pub struct CommandDispatcher;
 
@@ -32,10 +32,7 @@ impl CommandDispatcher {
                 let payload = serde_json::json!({ "name": name }).to_string();
                 sink.emit_event("remote:theme", &payload)
             }
-            RemoteCommand::Opacity(val) => {
-                let payload = serde_json::json!({ "value": val }).to_string();
-                sink.emit_event("remote:opacity", &payload)
-            }
+            RemoteCommand::Opacity(_) => Err(CommandError::Unsupported("opacity")),
             RemoteCommand::OnAir(active) => {
                 let payload = serde_json::json!({ "active": active }).to_string();
                 sink.emit_event("remote:on_air", &payload)
@@ -149,14 +146,13 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_opacity_emits_event_with_value() {
+    fn dispatch_opacity_returns_unsupported_without_emitting() {
         let sink = MockSink::new();
-        CommandDispatcher::dispatch(&RemoteCommand::Opacity(0.75), &sink).unwrap();
-        assert_eq!(sink.event_count(), 1);
+        let error = CommandDispatcher::dispatch(&RemoteCommand::Opacity(0.75), &sink)
+            .expect_err("opacity is not implemented");
+        assert!(error.to_string().contains("not supported"));
+        assert_eq!(sink.event_count(), 0);
         assert_eq!(sink.backend_count(), 0);
-        let (event, payload) = sink.last_event();
-        assert_eq!(event, "remote:opacity");
-        assert!(payload.contains("0.75"));
     }
 
     #[test]
@@ -209,7 +205,6 @@ mod tests {
             RemoteCommand::Next,
             RemoteCommand::Prev,
             RemoteCommand::Theme("test".into()),
-            RemoteCommand::Opacity(0.5),
             RemoteCommand::OnAir(false),
         ];
 

@@ -61,6 +61,10 @@ jobs:
             bun run setup:minimal
           fi
 
+      - name: Download Windows NDI runtime
+        if: runner.os == 'Windows'
+        run: bun run download:ndi-sdk --platform windows
+
       - name: Build Tauri
         shell: bash
         env:

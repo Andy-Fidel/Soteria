@@ -216,7 +216,11 @@ async fn control_handler<S: CommandSink + 'static>(
             }),
         ),
         Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            if matches!(e, CommandError::Unsupported(_)) {
+                StatusCode::NOT_IMPLEMENTED
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            },
             Json(ControlResponse {
                 success: false,
                 error: Some(e.to_string()),
@@ -388,6 +392,34 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         assert!(sink.command_count() > 0, "Sink should have received command");
 
+        let mut handle = result.handle;
+        handle.stop();
+    }
+
+    #[tokio::test]
+    async fn opacity_returns_501_without_dispatching() {
+        let sink = Arc::new(MockSink::new());
+        let result = start_http_server(
+            HttpConfig {
+                port: 0,
+                host: "127.0.0.1".into(),
+            },
+            sink.clone(),
+            new_shared_status(),
+        )
+        .await
+        .expect("should bind");
+        let response = raw_http_request(
+            result.bound_port,
+            "POST",
+            "/api/v1/control",
+            Some(r#"{"command":"opacity","value":0.5}"#),
+        )
+        .await;
+        assert!(response.contains("501 Not Implemented"), "{response}");
+        assert!(response.contains("\"success\":false"));
+        assert!(response.contains("not supported"));
+        assert_eq!(sink.command_count(), 0);
         let mut handle = result.handle;
         handle.stop();
     }

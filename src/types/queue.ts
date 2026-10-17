@@ -48,5 +48,5 @@ export type QueueItem =
       url: string
       label: string
       thumbnailUrl?: string
-      provider: "pexels" | "unsplash" | "local"
+      provider: "pexels" | "unsplash" | "brave" | "local" | "library"
     })

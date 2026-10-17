@@ -52,7 +52,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
         setVerseInvalid(true)
       }
     }).catch(() => setVerseInvalid(true))
-  }, [detection])
+  }, [detection, verseText])
 
   if (verseInvalid) return null
 

@@ -1,5 +1,7 @@
-import { beforeEach, describe, expect, it } from "vitest"
-import { useQueueStore } from "./queue-store"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { hydrateQueue, useQueueStore } from "./queue-store"
+import { useBibleStore } from "./bible-store"
+import { useSessionStore } from "./session-store"
 import { useSettingsStore } from "./settings-store"
 import type { QueueItem, Verse } from "@/types"
 
@@ -44,13 +46,15 @@ describe("queue-store long verse splitting", () => {
 
     const items = useQueueStore.getState().items
     expect(items.length).toBeGreaterThan(1)
-    expect(items.every((item) => item.kind === "verse" && item.chunk)).toBe(true)
+    expect(items.every((item) => item.kind === "verse" && item.chunk)).toBe(
+      true
+    )
 
     const groupIds = new Set(
-      items.map((item) => item.kind === "verse" ? item.chunk?.groupId : null),
+      items.map((item) => (item.kind === "verse" ? item.chunk?.groupId : null))
     )
     expect(groupIds.size).toBe(1)
-    expect(items.map((item) => item.reference)).toEqual([
+    expect(items.map((item) => item.kind === "verse" ? item.reference : null)).toEqual([
       "John 3:16 (1/3)",
       "John 3:16 (2/3)",
       "John 3:16 (3/3)",
@@ -78,5 +82,93 @@ describe("queue-store long verse splitting", () => {
     expect(first.kind === "verse" ? first.highlights : undefined).toHaveLength(1)
     expect(second.kind === "verse" ? second.highlights : undefined).toBeUndefined()
     expect(first.kind === "verse" ? first.verse.text : "").toBe(longVerse.text)
+  })
+})
+
+describe("queue-store state replacement", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+    })
+    useQueueStore.setState({ items: [], activeIndex: null })
+    useSessionStore.setState({
+      activeSession: { id: 42 } as NonNullable<
+        ReturnType<typeof useSessionStore.getState>["activeSession"]
+      >,
+    })
+    vi.mocked(localStorage.setItem).mockClear()
+  })
+
+  it("persists replacement items with their active index as one coherent state", () => {
+    const items = [queueVerse({ id: "replacement" })]
+
+    useQueueStore.getState().replaceQueueState({ items, activeIndex: 0 })
+
+    expect(useQueueStore.getState()).toMatchObject({ items, activeIndex: 0 })
+    expect(localStorage.setItem).toHaveBeenCalledOnce()
+    expect(
+      JSON.parse(vi.mocked(localStorage.setItem).mock.calls[0][1])
+    ).toEqual({
+      sessionId: 42,
+      items,
+      activeIndex: 0,
+    })
+  })
+})
+
+describe("queue hydration presenter restoration", () => {
+  beforeEach(() => {
+    useQueueStore.setState({ items: [], activeIndex: null })
+    useBibleStore.setState({ selectedVerse: null, pendingNavigation: null })
+  })
+
+  it("restores the active split scripture into Bible selection and navigation", () => {
+    const chunk = queueVerse({
+      id: "restored",
+      chunk: { groupId: "g", index: 2, total: 3, text: "part two" },
+    })
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() =>
+        JSON.stringify({ sessionId: 7, items: [chunk], activeIndex: 0 })
+      ),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    })
+
+    hydrateQueue(7)
+
+    expect(useBibleStore.getState().selectedVerse).toEqual(longVerse)
+    expect(useBibleStore.getState().pendingNavigation).toEqual({
+      bookNumber: 43,
+      chapter: 3,
+      verse: 16,
+    })
+  })
+
+  it("does not treat a restored active image as scripture", () => {
+    const activeImage: QueueItem = {
+      kind: "image",
+      id: "image",
+      source: "manual",
+      added_at: 1,
+      url: "image.jpg",
+      label: "Image",
+      provider: "local",
+    }
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() =>
+        JSON.stringify({ sessionId: 8, items: [activeImage], activeIndex: 0 })
+      ),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    })
+
+    hydrateQueue(8)
+
+    expect(useBibleStore.getState().selectedVerse).toBeNull()
+    expect(useBibleStore.getState().pendingNavigation).toBeNull()
   })
 })

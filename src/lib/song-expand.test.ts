@@ -19,6 +19,7 @@ const makeSong = (overrides: Partial<Song> = {}): Song => ({
   meter: null,
   scriptureRef: null,
   category: null,
+    createdAt: 0,
   ...overrides,
 })
 

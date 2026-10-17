@@ -46,7 +46,6 @@ export function renderNotes(
   let fontSize = Math.min(theme.verseText.fontSize, Math.floor(height * 0.065))
   if (fontSize < 32) fontSize = 32
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   type Layout = { lines: string[][]; rowHeights: number[]; lineHeight: number; totalH: number }
   const layoutFor = (size: number): Layout => {
     const lineHeight = size * 1.4

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { Trash2Icon } from "lucide-react"
 import { useSession } from "@/hooks/use-session"
@@ -178,41 +178,31 @@ export function SessionsPanel() {
   const pendingView = useSessionStore((s) => s.sessionsView)
   const clearPendingView = useSessionStore((s) => s.clearSessionInMode)
   const [sessions, setSessions] = useState<SermonSession[]>([])
-  const [viewingSessionId, setViewingSessionId] = useState<number | null>(null)
-  const [viewingSessionTitle, setViewingSessionTitle] = useState("")
-  const [viewingSessionTab, setViewingSessionTab] = useState<PendingSessionTab | undefined>(undefined)
+  const [localView, setLocalView] = useState<{ id: number; title: string; tab?: PendingSessionTab } | null>(null)
+  const viewingSession = pendingView ?? localView
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: number } | null>(null)
 
-  function loadSessions() {
+  const loadSessions = useCallback(() => {
     listSessions().then((s) => {
       // Sort by createdAt descending — newest first
       const sorted = [...s].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       setSessions(sorted)
     }).catch(() => {})
-  }
+  }, [listSessions])
 
   useEffect(() => {
     loadSessions()
-  }, [])
+  }, [loadSessions])
 
-  // Honor cross-component "view this session" signal (e.g. fired by End Session)
-  useEffect(() => {
-    if (!pendingView) return
-    setViewingSessionId(pendingView.id)
-    setViewingSessionTitle(pendingView.title)
-    setViewingSessionTab(pendingView.tab)
-    clearPendingView()
-  }, [pendingView, clearPendingView])
-
-  if (viewingSessionId) {
+  if (viewingSession) {
     return (
       <SessionDetail
-        sessionId={viewingSessionId}
-        sessionTitle={viewingSessionTitle}
-        initialTab={viewingSessionTab}
+        sessionId={viewingSession.id}
+        sessionTitle={viewingSession.title}
+        initialTab={viewingSession.tab}
         onBack={() => {
-          setViewingSessionId(null)
-          setViewingSessionTab(undefined)
+          setLocalView(null)
+          clearPendingView()
         }}
       />
     )
@@ -233,14 +223,15 @@ export function SessionsPanel() {
               session={session}
               isActive={activeSession?.id === session.id}
               onClick={() => {
-                setViewingSessionId(session.id)
-                setViewingSessionTitle(session.title)
+                setLocalView({ id: session.id, title: session.title })
               }}
               onTitleChange={async (newTitle) => {
                 try {
                   await invoke("update_session_title", { id: session.id, title: newTitle })
                   loadSessions()
-                } catch {}
+                } catch (error) {
+                  console.warn("[sessions] Failed to update title", error)
+                }
               }}
               onContextMenu={(e) => {
                 e.preventDefault()
@@ -271,9 +262,8 @@ export function SessionsPanel() {
             <button
               className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-popover-foreground hover:bg-accent"
               onClick={() => {
-                setViewingSessionId(contextMenu.sessionId)
                 const session = sessions.find(s => s.id === contextMenu.sessionId)
-                setViewingSessionTitle(session?.title ?? "")
+                setLocalView({ id: contextMenu.sessionId, title: session?.title ?? "" })
                 setContextMenu(null)
               }}
             >

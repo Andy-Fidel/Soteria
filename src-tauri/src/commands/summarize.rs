@@ -5,10 +5,13 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+#[path = "summary_sections.rs"]
+mod summary_sections;
+
 const PROMPT_HEAD: &str = "You are a church sermon summary assistant. Produce a rich recap from the transcript below. Always return JSON only. Never refuse, never say the transcript is insufficient. Extract only what the transcript supports.\n\nReturn ONLY a JSON object with this exact shape:\n\n{\n  \"title\": \"<short sermon title>\",\n  \"big_idea\": \"<one-sentence central message>\",\n  \"key_verses\": [\n    {\"reference\": \"<book chapter:verse>\", \"reason\": \"<why this verse mattered in the sermon>\"}\n  ],\n  \"sermon_flow\": {\n    \"opening\": \"<how the sermon opened>\",\n    \"main_points\": [\n      {\n        \"point\": \"<main point>\",\n        \"explanation\": \"<brief explanation grounded in the transcript>\",\n        \"scripture_refs\": [\"<book chapter:verse>\", \"...\"],\n        \"illustration_or_moment\": \"<story, example, or notable moment from the transcript, or empty string>\",\n        \"application\": \"<practical response invited by this point>\"\n      }\n    ],\n    \"conclusion\": \"<how the sermon concluded>\",\n    \"response\": \"<invitation, altar call, prayer focus, or listener response>\"\n  },\n  \"devotional\": {\n    \"scripture\": \"<primary scripture reference and/or short excerpt from the sermon>\",\n    \"observation\": \"<SOAP observation>\",\n    \"application\": \"<SOAP application>\",\n    \"prayer\": \"<SOAP prayer>\",\n    \"reflection_questions\": [\"<question 1>\", \"<question 2>\", \"<question 3>\"]\n  },\n  \"takeaways\": [\"<takeaway 1>\", \"<takeaway 2>\", \"<takeaway 3>\", \"<takeaway 4>\", \"<takeaway 5>\"],\n  \"quotes\": [\n    {\"text\": \"<verbatim quote from transcript>\", \"speaker\": \"<speaker name or Pastor>\"}\n  ]\n}\n\nRules:\n- JSON only, no markdown or prose outside JSON.\n- Never invent scripture refs, quotes, stories, or unsupported claims.\n- Use operator-confirmed verses when provided.\n- Devotional follows SOAP: Scripture, Observation, Application, Prayer.\n- `takeaways` MUST contain exactly 5 practical lines, each 8-14 words.\n- `quotes` must be verbatim from the transcript, 8-25 words each. Prefer pastor phrasing over scripture quotations. Leave the array empty only if the transcript truly has none.\n- Generic speaker should be `Pastor`, not `Preacher`.\n";
 
 const MODELS: &[&str] = &["deepseek-chat", "deepseek-reasoner"];
-const MAX_TRANSCRIPT_CHARS: usize = 12_000;
+const MAX_LIVE_TRANSCRIPT_BYTES: usize = 12_000;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 const DEEPSEEK_ENDPOINT: &str = "https://api.deepseek.com/v1/chat/completions";
 
@@ -64,19 +67,6 @@ pub async fn summarize_sermon(
         .build()
         .map_err(|e| e.to_string())?;
 
-    let truncated = if transcript.len() > MAX_TRANSCRIPT_CHARS {
-        // Walk to a char boundary — raw byte slicing panics mid-codepoint
-        // (smart quotes, em-dashes, non-English text are multi-byte UTF-8).
-        let end = transcript
-            .char_indices()
-            .take_while(|(i, _)| *i <= MAX_TRANSCRIPT_CHARS)
-            .last()
-            .map(|(i, _)| i)
-            .unwrap_or(0);
-        &transcript[..end]
-    } else {
-        transcript.as_str()
-    };
     let verses_block = match presented_verses {
         Some(v) if !v.is_empty() => format!(
             "\nOperator-confirmed verses preached (use these as `key_verses`):\n- {}\n",
@@ -84,25 +74,40 @@ pub async fn summarize_sermon(
         ),
         _ => String::new(),
     };
-    let content = format!("{PROMPT_HEAD}{verses_block}\nTranscript:\n{truncated}");
+    summary_sections::summarize_complete(
+        &transcript,
+        &verses_block,
+        PROMPT_HEAD,
+        |content, max_tokens| request_summary(&client, &api_key, content, max_tokens),
+    )
+    .await
+}
 
+async fn request_summary(
+    client: &reqwest::Client,
+    api_key: &str,
+    content: String,
+    max_tokens: u32,
+) -> Result<String, String> {
     let mut last_error = String::new();
 
     for model in MODELS {
         let body = DeepSeekRequest {
             model,
-            max_tokens: 2048,
+            max_tokens,
             messages: vec![Message {
                 role: "user",
                 content: content.clone(),
             }],
-            response_format: ResponseFormat { kind: "json_object" },
+            response_format: ResponseFormat {
+                kind: "json_object",
+            },
             temperature: 0.3,
         };
 
         let resp = client
             .post(DEEPSEEK_ENDPOINT)
-            .bearer_auth(&api_key)
+            .bearer_auth(api_key)
             .header("content-type", "application/json")
             .json(&body)
             .send()
@@ -189,9 +194,9 @@ pub async fn generate_live_notes(
         .build()
         .map_err(|e| e.to_string())?;
 
-    let truncated = if transcript.len() > MAX_TRANSCRIPT_CHARS {
+    let truncated = if transcript.len() > MAX_LIVE_TRANSCRIPT_BYTES {
         // Tail slice on a char boundary — raw byte slice panics mid-codepoint.
-        let target = transcript.len() - MAX_TRANSCRIPT_CHARS;
+        let target = transcript.len() - MAX_LIVE_TRANSCRIPT_BYTES;
         let start = transcript
             .char_indices()
             .find(|(i, _)| *i >= target)
@@ -222,7 +227,9 @@ pub async fn generate_live_notes(
                 role: "user",
                 content: content.clone(),
             }],
-            response_format: ResponseFormat { kind: "json_object" },
+            response_format: ResponseFormat {
+                kind: "json_object",
+            },
             temperature: 0.75,
         };
 
@@ -248,8 +255,10 @@ pub async fn generate_live_notes(
                 // Server-side dedup backstop: drop any bullet whose normalized
                 // form is identical to an existing bullet, OR whose first 6
                 // significant words overlap with any existing one.
-                let existing_norm: Vec<String> =
-                    existing_bullets.iter().map(|b| normalize_for_dedup(b)).collect();
+                let existing_norm: Vec<String> = existing_bullets
+                    .iter()
+                    .map(|b| normalize_for_dedup(b))
+                    .collect();
                 let cleaned: Vec<String> = payload
                     .bullets
                     .into_iter()
@@ -289,7 +298,13 @@ pub async fn generate_live_notes(
 /// don't slip through.
 fn normalize_for_dedup(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_alphanumeric() || c.is_whitespace() { c.to_ascii_lowercase() } else { ' ' })
+        .map(|c| {
+            if c.is_alphanumeric() || c.is_whitespace() {
+                c.to_ascii_lowercase()
+            } else {
+                ' '
+            }
+        })
         .collect::<String>()
         .split_whitespace()
         .collect::<Vec<_>>()

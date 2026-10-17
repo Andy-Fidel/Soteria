@@ -119,18 +119,23 @@ function CrossRefCard({ crossRef }: { crossRef: ResolvedCrossRef }) {
 export function CrossRefPanel() {
   const selectedVerse = useBibleStore((s) => s.selectedVerse)
   const activeTranslationId = useBibleStore((s) => s.activeTranslationId)
+  return <CrossRefContent key={`${selectedVerse?.book_number}:${selectedVerse?.chapter}:${selectedVerse?.verse}:${activeTranslationId}`} selectedVerse={selectedVerse} activeTranslationId={activeTranslationId} />
+}
+
+function CrossRefContent({ selectedVerse, activeTranslationId }: {
+  selectedVerse: Verse | null
+  activeTranslationId: number
+}) {
   const books = useBibleStore((s) => s.books)
   const [crossRefs, setCrossRefs] = useState<ResolvedCrossRef[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(Boolean(selectedVerse && selectedVerse.book_number > 0))
 
   useEffect(() => {
     if (!selectedVerse || selectedVerse.book_number <= 0) {
-      setCrossRefs([])
       return
     }
 
     let cancelled = false
-    setLoading(true)
 
     ;(async () => {
       try {
@@ -163,7 +168,9 @@ export function CrossRefPanel() {
               verse: parsed.verse,
             })
             if (v) verseText = v.text
-          } catch {}
+          } catch {
+            // Keep the reference visible when its verse text is unavailable.
+          }
 
           resolved.push({
             ref,
@@ -187,7 +194,7 @@ export function CrossRefPanel() {
     })()
 
     return () => { cancelled = true }
-  }, [selectedVerse?.book_number, selectedVerse?.chapter, selectedVerse?.verse, activeTranslationId, books])
+  }, [selectedVerse, activeTranslationId, books])
 
   return (
     <div

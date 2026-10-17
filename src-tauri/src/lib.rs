@@ -365,6 +365,7 @@ pub fn run() {
             commands::recording::delete_session_audio,
             commands::recording::finalize_session_audio,
             commands::recording::read_session_audio,
+            commands::recording::get_session_audio_timeline,
             commands::themes::list_custom_themes,
             commands::themes::save_custom_theme,
             commands::themes::delete_custom_theme,

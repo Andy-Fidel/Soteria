@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import {
   Drawer,
   DrawerContent,
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { useAnnouncementDialogStore } from "@/lib/announcement-dialog"
 import { useBroadcastStore } from "@/stores"
 import { useServicePlan } from "@/hooks/use-service-plan"
-import { parsePlanItem, type PlanItemAnnouncement } from "@/types"
+import { parsePlanItem, type PlanItem, type PlanItemAnnouncement } from "@/types"
 import { MegaphoneIcon, ScrollTextIcon, MonitorIcon } from "lucide-react"
 
 const DURATIONS = [
@@ -34,30 +34,25 @@ type Mode = "ticker" | "slide"
 
 export function AnnouncementDialog() {
   const { isOpen, editingItem, closeAnnouncement } = useAnnouncementDialogStore()
+  if (!isOpen) return null
+  return <AnnouncementEditor key={editingItem?.id ?? "new"} editingItem={editingItem} closeAnnouncement={closeAnnouncement} />
+}
+
+function AnnouncementEditor({ editingItem, closeAnnouncement }: {
+  editingItem: PlanItem | null
+  closeAnnouncement: () => void
+}) {
   const { updateItem } = useServicePlan()
-  const [text, setText] = useState("")
-  const [duration, setDuration] = useState<number | null>(30)
-  const [mode, setMode] = useState<Mode>("ticker")
-
+  const parsed = editingItem ? parsePlanItem(editingItem) : null
+  const announcement = parsed?.type === "announcement" ? parsed : null
+  const [text, setText] = useState(() => {
+    const title = announcement?.title?.trim() ?? ""
+    const body = announcement?.body?.trim() ?? ""
+    return body ? `${title}\n\n${body}` : title
+  })
+  const [duration, setDuration] = useState<number | null>(announcement ? announcement.duration ?? null : 30)
+  const [mode, setMode] = useState<Mode>(announcement?.mode ?? (editingItem ? "slide" : "ticker"))
   const isEditMode = editingItem !== null
-
-  useEffect(() => {
-    if (!isOpen) return
-    if (editingItem) {
-      const parsed = parsePlanItem(editingItem)
-      if (parsed?.type === "announcement") {
-        const t = parsed.title?.trim() ?? ""
-        const b = parsed.body?.trim() ?? ""
-        setText(b ? `${t}\n\n${b}` : t)
-        setMode(parsed.mode ?? "slide")
-        setDuration(parsed.duration ?? null)
-      }
-    } else {
-      setText("")
-      setMode("ticker")
-      setDuration(30)
-    }
-  }, [isOpen, editingItem])
 
   async function handleSubmit() {
     if (!text.trim()) return
@@ -99,7 +94,7 @@ export function AnnouncementDialog() {
   }
 
   return (
-    <Drawer open={isOpen} onOpenChange={(open) => !open && closeAnnouncement()}>
+    <Drawer open onOpenChange={(open) => !open && closeAnnouncement()}>
       <DrawerContent className="left-1/2 right-auto max-h-[85vh] w-full max-w-2xl -translate-x-1/2">
         <DrawerHeader>
           <DrawerTitle className="flex items-center gap-2">

@@ -17,6 +17,7 @@ const songs: Song[] = [
     meter: null,
     scriptureRef: null,
     category: null,
+    createdAt: 0,
   },
   {
     id: "ghs-42",
@@ -32,6 +33,7 @@ const songs: Song[] = [
     meter: null,
     scriptureRef: null,
     category: null,
+    createdAt: 0,
   },
   {
     id: "custom-1",
@@ -47,6 +49,7 @@ const songs: Song[] = [
     meter: null,
     scriptureRef: null,
     category: null,
+    createdAt: 0,
   },
 ]
 
@@ -98,6 +101,7 @@ describe("searchSongs", () => {
         meter: null,
         scriptureRef: null,
         category: null,
+    createdAt: 0,
       },
     ]
     const out = searchSongs(multi, "mhb 42")
@@ -122,6 +126,7 @@ describe("searchSongs", () => {
         meter: null,
         scriptureRef: null,
         category: null,
+    createdAt: 0,
       },
     ]
     const out = searchSongs(multi, "snk 150")
@@ -145,6 +150,7 @@ describe("searchSongs", () => {
         meter: null,
         scriptureRef: null,
         category: null,
+    createdAt: 0,
       },
     ]
     const out = searchSongs(multi, "sda 1")

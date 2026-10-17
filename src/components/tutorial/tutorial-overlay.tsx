@@ -72,12 +72,9 @@ export function TutorialOverlay() {
       steps={steps}
       run={isRunning}
       continuous
-      buttons={["back", "primary", "skip"]}
-      skipScroll
+      options={{ buttons: ["back", "primary", "skip"], skipScroll: true, zIndex: 60, overlayColor: "rgba(0, 0, 0, 0.5)" }}
       tooltipComponent={TutorialTooltip}
       onEvent={handleEvent}
-      zIndex={60}
-      overlayColor="rgba(0, 0, 0, 0.5)"
     />
   )
 }

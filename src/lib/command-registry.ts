@@ -61,7 +61,7 @@ export function createCommands(actions: {
     { id: "session:new", label: "New Session…", group: "Session", shortcut: "⌘N", execute: actions.newSession },
     { id: "session:end", label: "End Session", group: "Session", shortcut: "⌘⇧E", enabled: hasLiveSession, execute: actions.endSession },
     { id: "session:view-all", label: "View All Sessions", group: "Session", shortcut: "⌘⇧S", execute: actions.viewAllSessions },
-    { id: "session:import-plan", label: "Import Plan…", group: "Session", execute: actions.importPlan },
+    { id: "session:import-plan", label: "Import Plan… (unavailable)", group: "Session", enabled: () => false, execute: actions.importPlan },
     { id: "session:export-notes", label: "Export Notes…", group: "Session", shortcut: "⌘⇧X", enabled: hasActiveSession, execute: actions.exportNotes },
     { id: "session:distribute-summary", label: "Distribute Summary…", group: "Session", enabled: hasActiveSession, execute: actions.distributeSummary },
 
