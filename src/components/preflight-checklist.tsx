@@ -1,3 +1,4 @@
+import { probeAudioLevel } from "./preflight-audio-probe"
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { useSettingsStore } from "@/stores"
@@ -24,15 +25,24 @@ interface CheckItem {
   icon: React.ReactNode
 }
 
-export function PreflightChecklist({ open, onOpenChange, onStart }: PreflightChecklistProps) {
+export function PreflightChecklist({ open, ...props }: PreflightChecklistProps) {
+  return open ? <PreflightChecklistContent {...props} /> : null
+}
+
+function PreflightChecklistContent({ onOpenChange, onStart }: Omit<PreflightChecklistProps, "open">) {
   const [checks, setChecks] = useState<CheckItem[]>([])
-  const [ready, setReady] = useState(false)
   const recordAudio = useSettingsStore((s) => s.recordAudio)
 
   useEffect(() => {
-    if (!open) return
-
+    let cancelled = false
     const runChecks = async () => {
+      const settings = useSettingsStore.getState()
+      const cloud = settings.sttProvider !== "whisper"
+      const speechConnection = cloud
+        ? invoke<boolean>("prepare_stt_connection", { provider: settings.sttProvider })
+            .then(() => ({ status: "pass" as const, detail: "Connection prepared. Listening starts when you start the service." }))
+            .catch(() => ({ status: "warning" as const, detail: "Could not prepare the connection. We’ll retry when you start." }))
+        : Promise.resolve(null)
       const results: CheckItem[] = []
 
       // Check 1: Audio device
@@ -63,7 +73,6 @@ export function PreflightChecklist({ open, onOpenChange, onStart }: PreflightChe
       }
 
       // Check 2: API Key
-      const settings = useSettingsStore.getState()
       if (settings.sttProvider === "deepgram") {
         results.push({
           label: "Deepgram API Key",
@@ -98,66 +107,30 @@ export function PreflightChecklist({ open, onOpenChange, onStart }: PreflightChe
         detail: "Listening to mic for 1s…",
         icon: <Volume2 className="size-4" />,
       })
+      const soundIndex = results.length - 1
+      if (cloud) results.push({label: "Speech Connection", status: "checking", detail: "Preparing the speech connection…", icon: <CheckCircle2 className="size-4" />})
+      if (cancelled) return
       setChecks([...results])
 
-      const soundResult = await probeAudioLevel()
-      results[results.length - 1] = {
+      const [soundResult, connectionResult] = await Promise.all([probeAudioLevel(), speechConnection])
+      results[soundIndex] = {
         label: "Sound Check",
         status: soundResult.status,
         detail: soundResult.detail,
         icon: <Volume2 className="size-4" />,
       }
 
+      if (connectionResult) results[results.length - 1] = {label: "Speech Connection", ...connectionResult, icon: <CheckCircle2 className="size-4" />}
+      if (cancelled) return
       setChecks(results)
-      setReady(!results.some(r => r.status === "fail"))
     }
 
-    runChecks()
-  }, [open])
+    void runChecks()
+    return () => { cancelled = true }
+  }, [])
 
-  /** Capture ~1s from default mic, return pass/warn based on peak RMS. */
-  const probeAudioLevel = async (): Promise<{ status: CheckItem["status"]; detail: string }> => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      return { status: "warning", detail: "Audio API unavailable in this environment" }
-    }
-    let stream: MediaStream | null = null
-    let ctx: AudioContext | null = null
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      ctx = new AudioContext()
-      const source = ctx.createMediaStreamSource(stream)
-      const analyser = ctx.createAnalyser()
-      analyser.fftSize = 1024
-      source.connect(analyser)
-      const buf = new Float32Array(analyser.fftSize)
-
-      const start = performance.now()
-      let peakRms = 0
-      while (performance.now() - start < 1000) {
-        analyser.getFloatTimeDomainData(buf)
-        let sum = 0
-        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
-        const rms = Math.sqrt(sum / buf.length)
-        if (rms > peakRms) peakRms = rms
-        await new Promise((r) => setTimeout(r, 50))
-      }
-
-      const db = peakRms > 0 ? 20 * Math.log10(peakRms) : -Infinity
-      const dbStr = isFinite(db) ? `${db.toFixed(1)} dBFS` : "silent"
-      if (peakRms < 0.005) {
-        return { status: "warning", detail: `No signal detected (peak ${dbStr}). Check mic/console.` }
-      }
-      if (peakRms < 0.02) {
-        return { status: "warning", detail: `Low signal (peak ${dbStr}). Raise input gain.` }
-      }
-      return { status: "pass", detail: `Live signal detected (peak ${dbStr}).` }
-    } catch (e) {
-      return { status: "warning", detail: `Mic permission denied or unavailable (${e})` }
-    } finally {
-      stream?.getTracks().forEach((t) => t.stop())
-      await ctx?.close().catch(() => {})
-    }
-  }
+  const checking = checks.length === 0 || checks.some((check) => check.status === "checking")
+  const ready = !checking && !checks.some((check) => check.status === "fail")
 
   const statusIcon = (status: CheckItem["status"]) => {
     switch (status) {
@@ -169,7 +142,7 @@ export function PreflightChecklist({ open, onOpenChange, onStart }: PreflightChe
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogTitle className="text-base font-bold">Pre-Service Checklist</DialogTitle>
 
@@ -230,7 +203,7 @@ export function PreflightChecklist({ open, onOpenChange, onStart }: PreflightChe
               onStart()
             }}
           >
-            {ready ? "Start Service" : "Fix Issues First"}
+            {checking ? "Preparing…" : ready ? "Start Service" : "Fix Issues First"}
           </Button>
         </div>
       </DialogContent>

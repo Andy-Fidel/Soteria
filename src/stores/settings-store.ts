@@ -13,6 +13,8 @@ export interface BrandConfig {
   churchName: string | null
   logoPath: string | null        // app/sessions logo
   blankImagePath: string | null  // projector blank-slide image
+  blankVideoPath?: string | null
+  blankBackground?: "video" | "image"
   momoImagePath: string | null
   jesusImagePath: string | null
 }
@@ -227,6 +229,8 @@ export async function hydrateSettings(): Promise<void> {
         churchName: typeof brand.churchName === "string" ? brand.churchName : null,
         logoPath: typeof brand.logoPath === "string" ? brand.logoPath : null,
         blankImagePath: typeof brand.blankImagePath === "string" ? brand.blankImagePath : null,
+        blankVideoPath: typeof brand.blankVideoPath === "string" ? brand.blankVideoPath : null,
+        blankBackground: brand.blankBackground === "image" || brand.blankBackground === "video" ? brand.blankBackground : brand.blankImagePath ? "image" : "video",
         momoImagePath: typeof brand.momoImagePath === "string" ? brand.momoImagePath : null,
         jesusImagePath: typeof brand.jesusImagePath === "string" ? brand.jesusImagePath : null,
       })

@@ -23,8 +23,9 @@ export function AnalyticsPanel() {
   const [recentSessions, setRecentSessions] = useState<SermonSession[]>([])
   const [loading, setLoading] = useState(true)
 
-  const loadData = () => {
-    setLoading(true)
+  const [request, setRequest] = useState(0)
+
+  useEffect(() => {
     Promise.all([
       invoke<AggregateStats>("get_aggregate_stats"),
       invoke<VerseFrequency[]>("get_verse_frequency", { limit: 10 }),
@@ -35,9 +36,12 @@ export function AnalyticsPanel() {
       setRecentSessions(rs)
       setLoading(false)
     }).catch(() => setLoading(false))
-  }
+  }, [request])
 
-  useEffect(() => { loadData() }, [])
+  const loadData = () => {
+    setLoading(true)
+    setRequest((value) => value + 1)
+  }
 
   const maxCount = verseFreq.length > 0 ? verseFreq[0].count : 1
 

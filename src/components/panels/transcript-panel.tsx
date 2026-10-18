@@ -12,7 +12,7 @@ import {
 import { useTauriEvent } from "@/hooks/use-tauri-event"
 import { presentQueuedVerseLive } from "@/lib/queue-verse"
 import { switchTranslation } from "@/lib/switch-translation"
-import type { TranscriptSegment } from "@/types"
+import { handleSttConnection, handleTranscriptFinal, handleTranscriptPartial, type TranscriptPayload } from "@/lib/transcription-events"
 import type { DetectionResult } from "@/types"
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -27,7 +27,8 @@ export function TranscriptPanel() {
   const isTranscribing = useTranscriptStore((s) => s.isTranscribing)
   const sttProvider = useSettingsStore((s) => s.sttProvider)
   const recordAudio = useSettingsStore((s) => s.recordAudio)
-  const [recordingPaused, setRecordingPaused] = useState(false)
+  const [pauseState, setRecordingPaused] = useState(false)
+  const recordingPaused = isTranscribing && pauseState
   const scrollRef = useRef<HTMLDivElement>(null)
   // Auto-broadcast cooldown — prevents rapid flickering between verses.
   const lastAutoBroadcastAtRef = useRef(0)
@@ -35,11 +36,12 @@ export function TranscriptPanel() {
   // Keep the pause toggle in sync with the backend (e.g. after a reload while
   // recording was paused).
   useEffect(() => {
-    if (!isTranscribing) {
-      setRecordingPaused(false)
-      return
-    }
-    invoke<boolean>("get_recording_paused").then(setRecordingPaused).catch(() => {})
+    if (!isTranscribing) return
+    let cancelled = false
+    invoke<boolean>("get_recording_paused")
+      .then((paused) => { if (!cancelled) setRecordingPaused(paused) })
+      .catch(() => {})
+    return () => { cancelled = true }
   }, [isTranscribing])
 
   const toggleRecordingPause = async () => {
@@ -57,63 +59,16 @@ export function TranscriptPanel() {
     useAudioStore.getState().setLevel(payload)
   })
 
-  // Connection status events.
-  // `stt_reconnecting` fires on transient drops (e.g. Deepgram silence timeout).
-  // Only `stt_error` and terminal `stt_disconnected` flip `isTranscribing` off.
-  useTauriEvent("stt_connected", () => {
-    useTranscriptStore.getState().setConnectionStatus("connected")
-    useTranscriptStore.getState().setTranscribing(true)
+  useTauriEvent("stt_connected", () => handleSttConnection("stt_connected"))
+  useTauriEvent("stt_reconnecting", () => handleSttConnection("stt_reconnecting"))
+  useTauriEvent("stt_disconnected", () => handleSttConnection("stt_disconnected"))
+  useTauriEvent("stt_error", () => handleSttConnection("stt_error"))
+  useTauriEvent<TranscriptPayload>("transcript_partial", handleTranscriptPartial)
+  useTauriEvent<TranscriptPayload>("transcript_final", (payload) => {
+    void handleTranscriptFinal(payload).catch((error) => {
+      console.error("Failed to save session transcript", error)
+    })
   })
-  useTauriEvent("stt_reconnecting", () => {
-    useTranscriptStore.getState().setConnectionStatus("reconnecting")
-  })
-  useTauriEvent("stt_disconnected", () => {
-    useTranscriptStore.getState().setConnectionStatus("disconnected")
-    useTranscriptStore.getState().setTranscribing(false)
-    useTranscriptStore.getState().setPartial("")
-  })
-  useTauriEvent<string>("stt_error", () => {
-    useTranscriptStore.getState().setConnectionStatus("error")
-    useTranscriptStore.getState().setTranscribing(false)
-    useTranscriptStore.getState().setPartial("")
-  })
-
-  useTauriEvent<{ text: string; is_final: boolean; confidence: number }>(
-    "transcript_partial",
-    (payload) => {
-      useTranscriptStore.getState().setPartial(payload.text)
-    }
-  )
-
-  useTauriEvent<{ text: string; is_final: boolean; confidence: number }>(
-    "transcript_final",
-    (payload) => {
-      const segment: TranscriptSegment = {
-        id: crypto.randomUUID(),
-        text: payload.text,
-        is_final: true,
-        confidence: payload.confidence,
-        words: [],
-        timestamp: Date.now(),
-      }
-      useTranscriptStore.getState().addSegment(segment)
-
-      // Record transcript to active session
-      const activeSession = useSessionStore.getState().activeSession
-      if (activeSession && activeSession.status === "live") {
-        invoke("add_session_transcript", {
-          request: {
-            sessionId: activeSession.id,
-            text: payload.text,
-            isFinal: true,
-            confidence: payload.confidence || null,
-            timestampMs: Date.now(),
-            speakerLabel: null,
-          }
-        }).catch(() => {})
-      }
-    }
-  )
 
   // Listen for voice translation commands: "read in NIV", "switch to ESV".
   // Honored only in auto broadcast mode — manual mode keeps the operator in

@@ -1,5 +1,7 @@
 import { create } from "zustand"
 import type { SermonSession } from "@/types/session"
+import { useTranscriptStore } from "./transcript-store"
+import { useDetectionStore } from "./detection-store"
 
 export type PendingSessionTab = "detections" | "transcript" | "summary" | "stats"
 
@@ -42,7 +44,7 @@ interface SessionActions {
   clearServiceStart: () => void
 }
 
-export const useSessionStore = create<SessionState & SessionActions>((set) => ({
+export const useSessionStore = create<SessionState & SessionActions>((set, get) => ({
   activeSession: null,
   sessions: [],
   isLoading: false,
@@ -50,12 +52,17 @@ export const useSessionStore = create<SessionState & SessionActions>((set) => ({
   sessionsMode: false,
   sessionsView: null,
   pendingServiceStart: false,
-  setActiveSession: (session) =>
+  setActiveSession: (session) => {
+    if (get().activeSession?.id !== session?.id) {
+      useTranscriptStore.getState().clearTranscript()
+      useDetectionStore.getState().clearDetections()
+    }
     set((state) => ({
       activeSession: session,
       // Starting a session implicitly unlocks the workspace.
       workspaceUnlocked: session ? true : state.workspaceUnlocked,
-    })),
+    }))
+  },
   setSessions: (sessions) => set({ sessions }),
   updateActiveSession: (updates) =>
     set((state) => ({

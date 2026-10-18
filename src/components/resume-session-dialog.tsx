@@ -1,6 +1,7 @@
+import { toast } from "sonner"
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { useSessionStore, useTranscriptStore, useSettingsStore } from "@/stores"
+import { useTranscriptStore, useSettingsStore } from "@/stores"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/dialog"
 import { AlertCircleIcon } from "lucide-react"
 import type { SermonSession } from "@/types/session"
+import { restoreLiveSession } from "@/lib/restore-live-session"
 
 /**
  * On app startup, checks for any sessions still marked as "live"
@@ -37,10 +39,9 @@ export function ResumeSessionDialog() {
 
   const handleResume = async () => {
     if (orphanedSession) {
-      useSessionStore.getState().setActiveSession(orphanedSession)
-
       // Start transcription automatically
       try {
+        if (!await restoreLiveSession(orphanedSession)) return
         useTranscriptStore.getState().setConnectionStatus("connecting")
         const settings = useSettingsStore.getState()
         const providerKey =
@@ -73,11 +74,11 @@ export function ResumeSessionDialog() {
       try {
         // Merge any audio segments captured before the crash into the final
         // recording so it isn't lost when the session is closed.
-        const { ensureSessionAudioMerged } = await import("@/lib/finalize-recording")
-        await ensureSessionAudioMerged(orphanedSession.id)
-        await invoke("end_session", { id: orphanedSession.id })
-      } catch {
-        // already ended or error — ignore
+        const { endSession } = await import("@/lib/end-session")
+        await endSession(orphanedSession.id)
+      } catch (error) {
+        toast.error(`Could not end session: ${String(error)}`)
+        return
       }
     }
     setOpen(false)

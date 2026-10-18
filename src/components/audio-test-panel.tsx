@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
+import { decayPeakHold } from "@/lib/audio-peak-hold"
 import { useAudioTest } from "@/hooks/use-audio-test"
 import { useSettingsStore } from "@/stores"
 import { useTauriEvent } from "@/hooks/use-tauri-event"
@@ -155,28 +156,25 @@ function LevelMeter({
   meter: ReturnType<typeof useAudioTest>["meter"]
   running: boolean
 }) {
-  // Peak hold: decays linearly back to current peak over ~1s. Held in a ref
-  // so re-renders don't reset the decay timer.
-  const peakHoldRef = useRef<number>(FLOOR_DB)
-  const peakDecayRef = useRef<number>(performance.now())
-
+  const [heldDb, setHeldDb] = useState(FLOOR_DB)
+  const meterRef = useRef(meter)
+  useEffect(() => { meterRef.current = meter }, [meter])
+  useEffect(() => {
+    let lastTick = performance.now()
+    const timer = setInterval(() => {
+      const now = performance.now()
+      const dt = (now - lastTick) / 1000
+      lastTick = now
+      setHeldDb((held) => decayPeakHold(held, meterRef.current?.peak_db ?? FLOOR_DB, dt))
+    }, 33)
+    return () => clearInterval(timer)
+  }, [])
   const rmsDb = meter?.rms_db ?? FLOOR_DB
   const peakDb = meter?.peak_db ?? FLOOR_DB
 
-  const now = performance.now()
-  const dt = (now - peakDecayRef.current) / 1000
-  peakDecayRef.current = now
-  if (peakDb > peakHoldRef.current) {
-    peakHoldRef.current = peakDb
-  } else {
-    peakHoldRef.current -= dt * 30 // 30 dB/sec decay
-    if (peakHoldRef.current < peakDb) peakHoldRef.current = peakDb
-    if (peakHoldRef.current < FLOOR_DB) peakHoldRef.current = FLOOR_DB
-  }
-
   const rmsPct = dbToPct(rmsDb)
   const peakPct = dbToPct(peakDb)
-  const holdPct = dbToPct(peakHoldRef.current)
+  const holdPct = dbToPct(heldDb)
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -206,7 +204,7 @@ function LevelMeter({
       <div className="flex justify-between text-[10px] tabular-nums text-muted-foreground">
         <span>RMS {formatDb(rmsDb)}</span>
         <span>Peak {formatDb(peakDb)}</span>
-        <span>Hold {formatDb(peakHoldRef.current)}</span>
+        <span>Hold {formatDb(heldDb)}</span>
       </div>
     </div>
   )

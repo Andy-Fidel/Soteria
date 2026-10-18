@@ -1,11 +1,11 @@
-pub mod embedder;
-pub mod index;
-pub mod chunker;
 pub mod cache;
-pub mod detector;
+pub mod chunker;
 pub mod cloud;
-pub mod synonyms;
+pub mod detector;
+pub mod embedder;
 pub mod ensemble;
+pub mod index;
+pub mod synonyms;
 
 #[cfg(feature = "onnx")]
 pub mod onnx_embedder;
@@ -15,3 +15,7 @@ pub mod hnsw_index;
 
 #[cfg(feature = "onnx")]
 pub mod precompute;
+
+pub mod multi_translation;
+#[cfg(feature = "vector-search")]
+pub mod verified_index;

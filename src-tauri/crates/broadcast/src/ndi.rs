@@ -121,7 +121,9 @@ pub enum NdiError {
     SenderCreateFailed,
     #[error("NDI session is not active")]
     SessionNotActive,
-    #[error("frame dimensions do not match active NDI settings ({expected_width}x{expected_height})")]
+    #[error(
+        "frame dimensions do not match active NDI settings ({expected_width}x{expected_height})"
+    )]
     FrameDimensionsMismatch {
         expected_width: u32,
         expected_height: u32,
@@ -158,6 +160,7 @@ impl NdiRuntime {
         &mut self,
         session_id: String,
         request: NdiStartRequest,
+        resource_dir: &Path,
     ) -> Result<NdiSessionInfo, NdiError> {
         // Stop existing session with this ID if running
         if let Some(existing) = self.sessions.remove(&session_id) {
@@ -165,12 +168,17 @@ impl NdiRuntime {
             drop(existing);
         }
 
-        log::info!("NDI[{session_id}]: starting session '{}'", request.source_name);
-        let session = ActiveNdiSession::create(request)?;
+        log::info!(
+            "NDI[{session_id}]: starting session '{}'",
+            request.source_name
+        );
+        let session = ActiveNdiSession::create(request, resource_dir)?;
         let info = session.info.clone();
         log::info!(
             "NDI[{session_id}]: session active — {}x{} @ {}fps",
-            info.width, info.height, info.fps
+            info.width,
+            info.height,
+            info.fps
         );
         self.sessions.insert(session_id, session);
         Ok(info)
@@ -230,24 +238,45 @@ unsafe impl Send for NdiRuntime {}
 unsafe impl Sync for NdiRuntime {}
 
 impl ActiveNdiSession {
-    #[expect(clippy::needless_pass_by_value, reason = "request fields are destructured and moved into the session")]
-    fn create(request: NdiStartRequest) -> Result<Self, NdiError> {
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "request fields are destructured and moved into the session"
+    )]
+    fn create(request: NdiStartRequest, resource_dir: &Path) -> Result<Self, NdiError> {
         let source_name = request.source_name.trim().to_string();
         if source_name.is_empty() {
             return Err(NdiError::EmptySourceName);
         }
 
-        let library_path = resolve_library_path()?;
+        // Source-tree fallback is available only in development builds.
+        #[cfg(debug_assertions)]
+        let dev_root = Some(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.."));
+        #[cfg(not(debug_assertions))]
+        let dev_root: Option<PathBuf> = None;
+        let library_path = resolve_library_path(resource_dir, dev_root.as_deref())?;
         // SAFETY: library_path was validated to exist by resolve_library_path()
         let library = unsafe { Library::new(&library_path) }
             .map_err(|e| NdiError::LibraryLoad(e.to_string()))?;
 
-        let initialize_fn = *load_symbol::<NdiInitializeFn>(&library, b"NDIlib_initialize\0", "NDIlib_initialize")?;
-        let ndi_destroy_fn = *load_symbol::<NdiDestroyFn>(&library, b"NDIlib_destroy\0", "NDIlib_destroy")?;
-        let send_create_fn = *load_symbol::<NdiSendCreateFn>(&library, b"NDIlib_send_create\0", "NDIlib_send_create")?;
-        let send_destroy_fn = *load_symbol::<NdiSendDestroyFn>(&library, b"NDIlib_send_destroy\0", "NDIlib_send_destroy")?;
-        let send_video_fn =
-            *load_symbol::<NdiSendVideoV2Fn>(&library, b"NDIlib_send_send_video_v2\0", "NDIlib_send_send_video_v2")?;
+        let initialize_fn =
+            *load_symbol::<NdiInitializeFn>(&library, b"NDIlib_initialize\0", "NDIlib_initialize")?;
+        let ndi_destroy_fn =
+            *load_symbol::<NdiDestroyFn>(&library, b"NDIlib_destroy\0", "NDIlib_destroy")?;
+        let send_create_fn = *load_symbol::<NdiSendCreateFn>(
+            &library,
+            b"NDIlib_send_create\0",
+            "NDIlib_send_create",
+        )?;
+        let send_destroy_fn = *load_symbol::<NdiSendDestroyFn>(
+            &library,
+            b"NDIlib_send_destroy\0",
+            "NDIlib_send_destroy",
+        )?;
+        let send_video_fn = *load_symbol::<NdiSendVideoV2Fn>(
+            &library,
+            b"NDIlib_send_send_video_v2\0",
+            "NDIlib_send_send_video_v2",
+        )?;
 
         // SAFETY: initialize_fn is a valid function pointer loaded from the NDI library
         if !unsafe { initialize_fn() } {
@@ -347,7 +376,7 @@ impl ActiveNdiSession {
             frame_rate_d: 1000,
             picture_aspect_ratio: (width as f32) / (height as f32),
             frame_format_type: 1, // NDIlib_frame_format_type_progressive
-            timecode: i64::MAX, // NDIlib_send_timecode_synthesize
+            timecode: i64::MAX,   // NDIlib_send_timecode_synthesize
             p_data: self.frame_buffer.as_mut_ptr(),
             line_stride_in_bytes: (width * 4) as i32,
             p_metadata: std::ptr::null(),
@@ -363,7 +392,10 @@ impl ActiveNdiSession {
         }
         self.frame_count += 1;
         if self.frame_count == 1 {
-            log::info!("NDI: first frame sent ({width}x{height}, {} bytes)", self.frame_buffer.len());
+            log::info!(
+                "NDI: first frame sent ({width}x{height}, {} bytes)",
+                self.frame_buffer.len()
+            );
         } else if self.frame_count.is_multiple_of(300) {
             log::info!("NDI: {} frames sent", self.frame_count);
         }
@@ -384,7 +416,7 @@ impl Drop for ActiveNdiSession {
     }
 }
 
-fn resolve_library_path() -> Result<PathBuf, NdiError> {
+fn resolve_library_path(resource_dir: &Path, dev_root: Option<&Path>) -> Result<PathBuf, NdiError> {
     let candidates: Vec<&str> = if cfg!(target_os = "macos") {
         vec!["sdk/ndi/macos/libndi.dylib"]
     } else if cfg!(target_os = "windows") {
@@ -397,18 +429,18 @@ fn resolve_library_path() -> Result<PathBuf, NdiError> {
         ]
     };
 
-    let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    for candidate in &candidates {
-        if candidate.is_empty() {
-            continue;
-        }
-        let absolute = base.join(candidate);
-        if absolute.exists() {
-            return Ok(absolute);
+    let mut searched = Vec::new();
+    for root in std::iter::once(resource_dir).chain(dev_root) {
+        for candidate in &candidates {
+            let absolute = root.join(candidate);
+            if absolute.is_file() {
+                return Ok(absolute);
+            }
+            searched.push(absolute.display().to_string());
         }
     }
 
-    Err(NdiError::LibraryNotFound(candidates.join(", ")))
+    Err(NdiError::LibraryNotFound(searched.join(", ")))
 }
 
 fn load_symbol<'a, T>(
@@ -421,4 +453,107 @@ fn load_symbol<'a, T>(
         symbol: name,
         message: e.to_string(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn library_fixture(root: &Path) -> PathBuf {
+        let relative = if cfg!(target_os = "macos") {
+            "sdk/ndi/macos/libndi.dylib"
+        } else if cfg!(target_os = "windows") {
+            "sdk/ndi/windows/Processing.NDI.Lib.x64.dll"
+        } else {
+            "sdk/ndi/linux/libndi.so"
+        };
+        let library = root.join(relative);
+        std::fs::create_dir_all(library.parent().unwrap()).unwrap();
+        std::fs::write(&library, b"fixture; resolver must not load NDI").unwrap();
+        library
+    }
+
+    #[test]
+    fn library_resolution_uses_installed_resources_without_source_checkout() {
+        let installed = tempfile::tempdir().unwrap();
+        let expected = library_fixture(installed.path());
+        assert_eq!(
+            resolve_library_path(installed.path(), None).unwrap(),
+            expected
+        );
+    }
+
+    #[test]
+    fn installed_runtime_loads_and_exports_required_functions_without_initializing_ndi() {
+        let installed = tempfile::tempdir().unwrap();
+        let bundled_library = library_fixture(installed.path());
+        let relative = bundled_library.strip_prefix(installed.path()).unwrap();
+        let tracked_library = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../..")
+            .join(relative);
+        std::fs::copy(tracked_library, &bundled_library).unwrap();
+
+        let resolved = resolve_library_path(installed.path(), None).unwrap();
+        assert_eq!(resolved, bundled_library);
+        // SAFETY: This test loads the tracked platform SDK and only inspects exports.
+        // It never calls NDI initialization or creates an NDI sender.
+        let library = unsafe { Library::new(resolved) }.unwrap();
+        for (symbol, name) in [
+            (b"NDIlib_initialize\0".as_slice(), "NDIlib_initialize"),
+            (b"NDIlib_destroy\0".as_slice(), "NDIlib_destroy"),
+            (b"NDIlib_send_create\0".as_slice(), "NDIlib_send_create"),
+            (b"NDIlib_send_destroy\0".as_slice(), "NDIlib_send_destroy"),
+            (
+                b"NDIlib_send_send_video_v2\0".as_slice(),
+                "NDIlib_send_send_video_v2",
+            ),
+        ] {
+            // Resolve addresses only; do not invoke any SDK function.
+            load_symbol::<*const c_void>(&library, symbol, name).unwrap();
+        }
+    }
+
+    #[test]
+    fn library_resolution_prefers_installed_resources_over_development_sdk() {
+        let installed = tempfile::tempdir().unwrap();
+        let development = tempfile::tempdir().unwrap();
+        let expected = library_fixture(installed.path());
+        library_fixture(development.path());
+        assert_eq!(
+            resolve_library_path(installed.path(), Some(development.path())).unwrap(),
+            expected
+        );
+    }
+
+    #[test]
+    fn library_resolution_can_use_explicit_development_sdk() {
+        let installed = tempfile::tempdir().unwrap();
+        let development = tempfile::tempdir().unwrap();
+        let expected = library_fixture(development.path());
+        assert_eq!(
+            resolve_library_path(installed.path(), Some(development.path())).unwrap(),
+            expected
+        );
+    }
+
+    #[test]
+    fn library_resolution_does_not_fall_back_to_source_checkout_without_development_root() {
+        let installed = tempfile::tempdir().unwrap();
+        assert!(matches!(
+            resolve_library_path(installed.path(), None),
+            Err(NdiError::LibraryNotFound(_))
+        ));
+    }
+
+    #[test]
+    fn library_resolution_rejects_directory_with_library_filename() {
+        let installed = tempfile::tempdir().unwrap();
+        let library = library_fixture(installed.path());
+        std::fs::remove_file(&library).unwrap();
+        std::fs::create_dir(&library).unwrap();
+        assert!(matches!(
+            resolve_library_path(installed.path(), None),
+            Err(NdiError::LibraryNotFound(_))
+        ));
+    }
 }

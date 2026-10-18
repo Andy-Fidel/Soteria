@@ -173,6 +173,7 @@ export const useSongStore = create<SongStore>((set, get) => ({
     }
 
     const song: Song = {
+      createdAt: Date.now(),
       id: `genius-${hit.id}`,
       source: "genius",
       number: null,
@@ -209,6 +210,7 @@ export const useSongStore = create<SongStore>((set, get) => ({
       throw new Error("Could not parse LRCLIB lyrics — paste manually.")
     }
     const song: Song = {
+      createdAt: Date.now(),
       id: `lrclib-${hit.id}`,
       source: "lrclib",
       number: null,

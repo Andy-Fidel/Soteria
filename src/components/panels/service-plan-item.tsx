@@ -1,14 +1,19 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { GripVerticalIcon, Trash2Icon, PencilIcon, BookOpenIcon, MusicIcon, MegaphoneIcon, SquareIcon, MinusIcon, SmartphoneIcon, HeartIcon, ListIcon, PauseIcon, PlayIcon, XIcon } from "lucide-react"
 import type { PlanItem } from "@/types"
 import { parsePlanItem } from "@/types"
 import { Button } from "@/components/ui/button"
 import { useServicePlan } from "@/hooks/use-service-plan"
-import { useBroadcastStore, useSongStore } from "@/stores"
+import { useBroadcastStore, useSongStore, useSettingsStore } from "@/stores"
 import { activatePlanItem } from "@/components/service-plan/activation-router"
+import { PrayerPointControls } from "@/components/service-plan/(components)/prayer-point-controls"
+
+import { getPlanItemThumbnail } from "@/components/service-plan/(lib)/plan-item-thumbnail"
+import { PlanSlideThumbnail } from "@/components/service-plan/(components)/plan-slide-thumbnail"
 
 interface Props {
   item: PlanItem
+  isPresented: boolean
   isActive: boolean
   pendingAdvanceDeadline: number | null
   pendingAdvanceTotalMs?: number | null
@@ -42,7 +47,9 @@ function ItemLabel({ item }: { item: PlanItem }) {
     case "announcement": return <>{parsed.title}</>
     case "section": return <>{parsed.label}</>
     case "blank":
-      if (parsed.imageUrl) return <>{parsed.imageLabel ? `Image — ${parsed.imageLabel}` : "Image"}</>
+      if (parsed.prayer) return <>Prayer · {parsed.prayer.points.length} point{parsed.prayer.points.length === 1 ? "" : "s"}</>
+      if (parsed.textOverlay) return <>{parsed.textOverlay.title || parsed.imageLabel || "Text slide"}</>
+      if (parsed.imageUrl) return <>{parsed.imageLabel ? parsed.imageLabel : "Image"}</>
       return <>{parsed.showLogo ? "Blank (logo)" : "Blank"}</>
     case "momo": return <>MoMo</>
     case "jesus": return <>Jesus</>
@@ -57,6 +64,7 @@ function ItemLabel({ item }: { item: PlanItem }) {
 export function ServicePlanItem({
   item,
   isActive,
+  isPresented,
   pendingAdvanceDeadline,
   pendingAdvanceTotalMs,
   onEdit,
@@ -64,10 +72,14 @@ export function ServicePlanItem({
   dragRef,
 }: Props) {
   const { setActiveItem, deleteItem } = useServicePlan()
+  const brand = useSettingsStore((s) => s.brand)
+  const thumbnail = useMemo(() => getPlanItemThumbnail(item, brand), [item, brand])
   const editable = item.itemType === "announcement" || item.itemType === "section" || item.itemType === "blank"
 
   const onClick = () => {
     if (item.itemType === "section") return
+    const parsed = parsePlanItem(item)
+    if (parsed?.type === "blank" && parsed.textOverlay) { onEdit(item); return }
     setActiveItem(item.id)
     activatePlanItem(item)
   }
@@ -78,28 +90,30 @@ export function ServicePlanItem({
     <div
       ref={dragRef}
       {...dragAttrs}
-      className={`group relative flex flex-col gap-1.5 rounded-md border px-2 py-1.5 text-sm ${
-        isActive ? "border-red-500/60 bg-red-500/5" : "border-border bg-card hover:bg-muted/50"
+      className={`group relative flex flex-col overflow-hidden rounded-md border text-sm ${thumbnail ? "gap-0" : "gap-1.5 px-2 py-1.5"} ${
+        isPresented ? "border-red-500/60 bg-red-500/5" : isActive ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-muted/50"
       } ${item.itemType === "section" ? "opacity-70" : "cursor-pointer"}`}
       onClick={onClick}
     >
-      <div className="flex items-center gap-2">
+      {thumbnail && <PlanSlideThumbnail image={thumbnail} live={isPresented} />}
+      <div className={`flex items-center gap-2 ${thumbnail ? "px-2 py-2" : ""}`}>
         <GripVerticalIcon className="size-3.5 shrink-0 text-muted-foreground" />
-        <div className="flex size-5 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+        {!thumbnail && <div className="flex size-5 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
           {iconFor(item.itemType)}
-        </div>
+        </div>}
         <div
           className={`min-w-0 flex-1 ${isAnnouncement ? "whitespace-pre-line break-words" : "truncate"}`}
         >
           <ItemLabel item={item} />
         </div>
-        {isActive && <span className="text-[10px] font-medium text-red-500">Live</span>}
+        {isPresented && !thumbnail && <span className="text-[10px] font-medium text-red-500">Live</span>}
 
         {editable && (
           <Button
             size="icon"
             variant="ghost"
-            className="size-6 opacity-0 transition-opacity group-hover:opacity-100"
+            className={`size-6 shrink-0 transition-opacity ${thumbnail ? "text-muted-foreground" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}
+            aria-label="Edit item"
             onClick={(e) => {
               e.stopPropagation()
               onEdit(item)
@@ -111,7 +125,8 @@ export function ServicePlanItem({
         <Button
           size="icon"
           variant="ghost"
-          className="size-6 opacity-0 transition-opacity group-hover:opacity-100"
+          className={`size-6 shrink-0 transition-opacity ${thumbnail ? "text-muted-foreground" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}
+          aria-label="Delete item"
           onClick={(e) => {
             e.stopPropagation()
             deleteItem(item.id)
@@ -122,8 +137,9 @@ export function ServicePlanItem({
       </div>
 
       {isAnnouncement && <AnnouncementLiveRow item={item} />}
+      {isPresented && thumbnail?.prayer && <div className="px-2 pb-2"><PrayerPointControls itemId={item.id} /></div>}
 
-      {isActive && pendingAdvanceDeadline != null && pendingAdvanceTotalMs != null && (
+      {isPresented && pendingAdvanceDeadline != null && pendingAdvanceTotalMs != null && (
         <AdvanceProgressBar
           deadline={pendingAdvanceDeadline}
           totalMs={pendingAdvanceTotalMs}
@@ -187,7 +203,8 @@ function AnnouncementInlineControls({
         <button
           onClick={() => {
             const b = useBroadcastStore.getState()
-            announcement.paused ? b.resumeAnnouncement() : b.pauseAnnouncement()
+            if (announcement.paused) b.resumeAnnouncement()
+            else b.pauseAnnouncement()
           }}
           className="rounded p-0.5 text-amber-400 hover:bg-amber-500/20"
           title={announcement.paused ? "Resume announcement" : "Pause announcement"}

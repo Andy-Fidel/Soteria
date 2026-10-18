@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { ask } from "@tauri-apps/plugin-dialog"
+import { toast } from "sonner"
 import { Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -14,7 +15,7 @@ export function StoragePanel() {
     setLoading(true)
     try {
       const all = await invoke<SermonSession[]>("list_sessions")
-      setSessions(all.filter((s) => s.audioPath))
+      setSessions(all.filter((s) => s.audioPath && s.status !== "live"))
     } finally {
       setLoading(false)
     }
@@ -30,8 +31,12 @@ export function StoragePanel() {
       kind: "warning",
     })
     if (!ok) return
-    await invoke("delete_session_audio", { sessionId: s.id })
-    void load()
+    try {
+      await invoke("delete_session_audio", { sessionId: s.id })
+      await load()
+    } catch (error) {
+      toast.error(`Could not delete audio: ${String(error)}`)
+    }
   }
 
   if (loading) {

@@ -1,3 +1,4 @@
+import { capitalizeSongLyrics } from "./song-capitalization"
 import type { QueueItem, Song, VerseRenderData } from "@/types"
 
 /**
@@ -18,6 +19,6 @@ export function songStanzaToRenderData(
   if (!song) return null
   return {
     reference: item.reference,
-    segments: [{ text: item.text }],
+    segments: [{ text: capitalizeSongLyrics(item.text) }],
   }
 }

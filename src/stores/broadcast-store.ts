@@ -1,12 +1,13 @@
+import { useServicePlanStore } from "./service-plan-store"
 import { create } from "zustand"
 import { emit } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api/core"
-import type { BroadcastTheme, VerseRenderData, NotesSlide, TextHighlight } from "@/types"
+import type { ImageSlide, BroadcastTheme, VerseRenderData, NotesSlide, TextHighlight } from "@/types"
 import { BUILTIN_THEMES } from "@/lib/builtin-themes"
 import { useSessionStore } from "@/stores/session-store"
 import { useBibleStore } from "@/stores/bible-store"
 import { useSettingsStore } from "@/stores/settings-store"
-import { resolveBrandAsset } from "@/lib/brand"
+import { resolveBlankBackground } from "@/lib/brand"
 import { validHighlights } from "@/lib/text-highlights"
 
 type SelectedElement = "verse" | "reference" | null
@@ -15,13 +16,14 @@ interface BroadcastState {
   themes: BroadcastTheme[]
   activeThemeId: string
   altActiveThemeId: string
+  outputHidden: boolean
   isLive: boolean
   previewVerse: VerseRenderData | null
   liveVerse: VerseRenderData | null
   blankLogo: boolean
   setBlankLogo: (active: boolean) => void
-  fullscreenImage: { url: string; label: string } | null
-  setFullscreenImage: (img: { url: string; label: string } | null) => void
+  fullscreenImage: ImageSlide | null
+  setFullscreenImage: (img: ImageSlide | null) => void
   liveNotes: NotesSlide | null
   setLiveNotes: (slide: NotesSlide | null) => void
   /** Monitor index where the operator chose to put the projector this session. */
@@ -85,9 +87,7 @@ function sameVerseIdentity(
   a: { id: number; translation_id: number; book_number: number; chapter: number; verse: number },
   b: { id: number; translation_id: number; book_number: number; chapter: number; verse: number },
 ): boolean {
-  if (a.id !== 0 && b.id !== 0) return a.id === b.id
   return (
-    a.translation_id === b.translation_id &&
     a.book_number === b.book_number &&
     a.chapter === b.chapter &&
     a.verse === b.verse
@@ -124,10 +124,16 @@ function setNestedValue<T extends Nested>(obj: T, path: string, value: unknown):
   return setAt(obj, 0) as T
 }
 
+function releasePlanOutput() {
+  useServicePlanStore.getState().cancelPendingAdvance()
+  useServicePlanStore.setState({ presentedItemId: null })
+}
+
 export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   themes: [...BUILTIN_THEMES],
   activeThemeId: BUILTIN_THEMES[0].id,
   altActiveThemeId: BUILTIN_THEMES[0].id,
+  outputHidden: false,
   isLive: false,
   previewVerse: null,
   liveVerse: null,
@@ -138,8 +144,10 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   selectedElement: null,
   blankLogo: false,
   setBlankLogo: (active) => {
+    releasePlanOutput()
     set({
       blankLogo: active,
+      outputHidden: false,
       fullscreenImage: active ? null : get().fullscreenImage,
       liveVerse: active ? null : get().liveVerse,
       liveNotes: active ? null : get().liveNotes,
@@ -151,9 +159,10 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   setProjectorMonitorIndex: (projectorMonitorIndex) => set({ projectorMonitorIndex }),
   fullscreenImage: null,
   setFullscreenImage: (fullscreenImage) => {
+    releasePlanOutput()
     set({
       fullscreenImage,
-      blankLogo: fullscreenImage ? false : get().blankLogo,
+      outputHidden: false,      blankLogo: fullscreenImage ? false : get().blankLogo,
       liveVerse: fullscreenImage ? null : get().liveVerse,
       liveNotes: fullscreenImage ? null : get().liveNotes,
       isLive: fullscreenImage ? true : get().isLive,
@@ -162,9 +171,10 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   },
   liveNotes: null,
   setLiveNotes: (liveNotes) => {
+    releasePlanOutput()
     set({
       liveNotes,
-      liveVerse: liveNotes ? null : get().liveVerse,
+      outputHidden: false,      liveVerse: liveNotes ? null : get().liveVerse,
       fullscreenImage: liveNotes ? null : get().fullscreenImage,
       blankLogo: liveNotes ? false : get().blankLogo,
       isLive: liveNotes ? true : get().isLive,
@@ -222,13 +232,15 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     // Use plain `emit` instead of `emitTo(label, ...)` — Tauri v2 has known
     // reliability issues with label-targeted emits (tauri-apps/tauri#11379).
     // Broadcast windows filter by outputId in the payload instead.
-    const blankLogoUrl = resolveBrandAsset("blank", useSettingsStore.getState().brand.blankImagePath)
+    const blank = resolveBlankBackground(useSettingsStore.getState().brand)
 
     void emit(`broadcast:verse-update:${outputId}`, {
       theme,
+      hidden: s.outputHidden,
       verse: s.liveVerse,
       blankLogo: s.blankLogo,
-      blankLogoUrl,
+      blankLogoUrl: blank.imageUrl,
+      blankVideoUrl: blank.videoUrl,
       fullscreenImage: s.fullscreenImage,
       notes: s.liveNotes,
     }).catch((err) => console.warn("[broadcast-store]", err))
@@ -251,15 +263,21 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     set({ altActiveThemeId })
     get().syncBroadcastOutputFor("alt")
   },
-  setLive: (isLive) => set({ isLive }),
+  setLive: (isLive) => {
+    if (!isLive) releasePlanOutput()
+    set({ isLive, outputHidden: !isLive })
+    get().syncBroadcastOutput()
+  },
   setPreviewVerse: (previewVerse) => set({ previewVerse }),
   setLiveVerse: (liveVerse) => {
+    releasePlanOutput()
     set({
       liveVerse,
+      outputHidden: false,
       isLive: liveVerse !== null,
       blankLogo: false,
-      fullscreenImage: liveVerse ? null : get().fullscreenImage,
-      liveNotes: liveVerse ? null : get().liveNotes,
+      fullscreenImage: null,
+      liveNotes: null,
     })
     if (liveVerse) {
       get().addToHistory(liveVerse)
@@ -267,7 +285,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
       // Mirror the live verse into the queue for quick re-reference. Source
       // the full Verse from the bible store's selectedVerse — every verse
       // pathway into setLiveVerse already calls `bibleActions.selectVerse()`
-      // first, so it's reliably populated. Dedupe by verse id.
+      // first, so it's reliably populated. Dedupe by scripture location.
       const sel = useBibleStore.getState().selectedVerse
       if (sel) {
         const bareRef = `${sel.book_name} ${sel.chapter}:${sel.verse}`
@@ -359,11 +377,13 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     }
   },
   clearScreen: () => {
-    set({ liveVerse: null, isLive: false, blankLogo: false, fullscreenImage: null, liveNotes: null })
+    releasePlanOutput()
+    set({ liveVerse: null, isLive: false, outputHidden: true, blankLogo: false, fullscreenImage: null, liveNotes: null })
     get().syncBroadcastOutput()
     invoke("close_broadcast_window", { outputId: "main" }).catch((err) => console.warn("[broadcast-store]", err))
   },
   showProjector: () => {
+    set({ outputHidden: false, isLive: true })
     const idx = get().projectorMonitorIndex ?? 0
     // If projector is reopening after a Kill (nothing live), default to the
     // blank EWC-logo screen so the audience sees branding, not a black void.
@@ -467,7 +487,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     invoke("ensure_broadcast_window", { outputId: "main" }).catch((err) => console.warn("[broadcast-store]", err))
     void emit("broadcast:announcement:main", announcement).catch((err) => console.warn("[broadcast-store]", err))
     void emit("broadcast:announcement:alt", announcement).catch((err) => console.warn("[broadcast-store]", err))
-    scheduleAnnouncementExpiry(get, set)
+    scheduleAnnouncementExpiry(get)
   },
   pauseAnnouncement: () => {
     const a = get().announcement
@@ -487,7 +507,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     set({ announcement: { ...a, paused: false, expiresAt, remainingMs: null } })
     void emit("broadcast:announcement:main", { ...a, paused: false, expiresAt, remainingMs: null }).catch(() => {})
     void emit("broadcast:announcement:alt", { ...a, paused: false, expiresAt, remainingMs: null }).catch(() => {})
-    scheduleAnnouncementExpiry(get, set)
+    scheduleAnnouncementExpiry(get)
   },
   dismissAnnouncement: () => {
     clearAnnouncementTimer()
@@ -510,7 +530,6 @@ function clearAnnouncementTimer() {
 
 function scheduleAnnouncementExpiry(
   get: () => BroadcastState,
-  _set: (partial: Partial<BroadcastState>) => void,
 ) {
   clearAnnouncementTimer()
   const a = get().announcement
@@ -533,7 +552,7 @@ export async function hydrateCustomThemes(): Promise<void> {
   try {
     const rows = await invoke<Array<[string, string, string]>>("list_custom_themes")
     const customThemes: BroadcastTheme[] = []
-    for (const [id, _name, json] of rows) {
+    for (const [id, , json] of rows) {
       try {
         customThemes.push(JSON.parse(json) as BroadcastTheme)
       } catch (err) {

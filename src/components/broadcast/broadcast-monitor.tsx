@@ -1,3 +1,4 @@
+import { resolveBlankBackground } from "@/lib/brand"
 import { useState, useEffect } from "react"
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, CheckIcon, PauseIcon, PlayIcon, XIcon } from "lucide-react"
 import { useBroadcastStore, useBibleStore, useSessionStore, useQueueStore, useSettingsStore, useSongStore } from "@/stores"
@@ -8,9 +9,14 @@ import { songStanzaToRenderData } from "@/lib/song-to-render"
 import { findAdjacentBibleVerse, shouldStepWithinQueue } from "@/lib/broadcast-navigation"
 import { chaptersIn } from "@/lib/bible-chapters"
 import { invoke } from "@tauri-apps/api/core"
-import type { TextHighlight, Verse } from "@/types"
+import type { TextHighlight, Verse, VerseRenderData } from "@/types"
 import { CanvasVerse } from "@/components/ui/canvas-verse"
 import { InteractiveVersePreview } from "@/components/panels/interactive-verse-preview"
+
+const THEME_SAMPLE_VERSE: VerseRenderData = {
+  reference: "Psalm 23:1",
+  segments: [{ text: "The Lord is my shepherd" }],
+}
 
 function renderQueueItemAt(index: number) {
   const item = useQueueStore.getState().items[index]
@@ -20,9 +26,7 @@ function renderQueueItemAt(index: number) {
     return songStanzaToRenderData(item, song)
   }
   if (item.kind === "verse") {
-    const trans = useBibleStore.getState().translations
-      .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-    return queueVerseToRenderData(item, trans)
+    return queueVerseToRenderData(item)
   }
   return null
 }
@@ -32,6 +36,8 @@ export function BroadcastMonitor() {
   const liveVerse = useBroadcastStore((s) => s.liveVerse)
   const fullscreenImage = useBroadcastStore((s) => s.fullscreenImage)
   const blankLogo = useBroadcastStore((s) => s.blankLogo)
+  const blankBackground = resolveBlankBackground(useSettingsStore((s) => s.brand))
+  const outputHidden = useBroadcastStore((s) => s.outputHidden)
   const isLive = useBroadcastStore((s) => s.isLive)
   const goLive = useBroadcastStore((s) => s.goLive)
   const clearScreen = useBroadcastStore((s) => s.clearScreen)
@@ -51,31 +57,22 @@ export function BroadcastMonitor() {
     const queue = useQueueStore.getState()
     const activeItem = queue.activeIndex === null ? null : queue.items[queue.activeIndex]
     if (activeItem?.kind !== "verse" || !liveVerse) return
-    const translation = translations.find((item) => item.id === activeTranslationId)?.abbreviation ?? "KJV"
-    if (queueVerseToRenderData(activeItem, translation).reference === liveVerse.reference) {
+    if (queueVerseToRenderData(activeItem).reference === liveVerse.reference) {
       queue.updateVerseHighlights(activeItem.id, highlights)
     }
   }
 
-  // Session timer
-  const [elapsed, setElapsed] = useState("00:00:00")
+  // Read the clock in a timer callback; derive the label from the active session.
+  const [now, setNow] = useState(Date.now)
   useEffect(() => {
-    if (!activeSession?.startedAt || activeSession.status !== "live") {
-      setElapsed("00:00:00")
-      return
-    }
-    const start = new Date(activeSession.startedAt).getTime()
-    const tick = () => {
-      const diff = Date.now() - start
-      const h = Math.floor(diff / 3600000).toString().padStart(2, "0")
-      const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, "0")
-      const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, "0")
-      setElapsed(`${h}:${m}:${s}`)
-    }
-    tick()
-    const interval = setInterval(tick, 1000)
+    const interval = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(interval)
-  }, [activeSession?.startedAt, activeSession?.status])
+  }, [])
+  const diff = activeSession?.startedAt && activeSession.status === "live"
+    ? Math.max(0, now - new Date(activeSession.startedAt).getTime())
+    : 0
+  const elapsed = [Math.floor(diff / 3600000), Math.floor((diff % 3600000) / 60000), Math.floor((diff % 60000) / 1000)]
+    .map((value) => String(value).padStart(2, "0")).join(":")
 
   const parseRef = (ref: string) => {
     const match = ref.match(/^(.+?)\s+(\d+):(\d+)/)
@@ -191,6 +188,14 @@ export function BroadcastMonitor() {
           <div className="flex items-center gap-1">
             {announcement && <AnnouncementControl announcement={announcement} />}
             <button
+              onClick={() => handleLiveHighlightsChange([])}
+              disabled={!liveVerse?.highlights?.length || !!fullscreenImage || blankLogo}
+              className="rounded border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase text-white/60 transition-colors hover:bg-white/[0.08] disabled:opacity-25 disabled:hover:bg-white/[0.04]"
+              title="Remove all highlights from the live scripture"
+            >
+              Clear highlights
+            </button>
+            <button
               onClick={() => {
                 const b = useBroadcastStore.getState()
                 b.setBlankLogo(true)
@@ -200,7 +205,7 @@ export function BroadcastMonitor() {
                   ? "border-primary/40 bg-primary/20 text-primary"
                   : "border-white/15 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]"
               }`}
-              title="Show church logo blank screen"
+              title="Show blank background"
             >
               Blank
             </button>
@@ -224,7 +229,7 @@ export function BroadcastMonitor() {
           </div>
         </div>
         <div className={`overflow-hidden rounded ${isLive ? "ring-2 ring-destructive/40" : "ring-1 ring-white/[0.08]"}`}>
-          {liveVerse && !fullscreenImage && !blankLogo ? (
+          {outputHidden ? <div className="aspect-video w-full bg-black" aria-label="Output hidden" /> : liveVerse && !fullscreenImage && !blankLogo ? (
             <InteractiveVersePreview
               key={liveVerse.reference}
               theme={activeTheme}
@@ -238,6 +243,8 @@ export function BroadcastMonitor() {
               verse={liveVerse}
               fullscreenImage={fullscreenImage}
               blankLogo={blankLogo}
+              blankLogoUrl={blankBackground.imageUrl}
+              blankVideoUrl={blankBackground.videoUrl}
               className="w-full"
             />
           )}
@@ -324,38 +331,23 @@ export function BroadcastMonitor() {
           <div className="grid grid-cols-3 gap-2">
             {themes.map((t) => {
               const isActive = t.id === activeThemeId
-              const bg = t.background
-              const bgStyle: React.CSSProperties = bg.type === "gradient" && bg.gradient
-                ? {
-                    background: bg.gradient.type === "radial"
-                      ? `radial-gradient(${bg.gradient.stops.map(s => `${s.color} ${s.position}%`).join(", ")})`
-                      : `linear-gradient(${bg.gradient.angle}deg, ${bg.gradient.stops.map(s => `${s.color} ${s.position}%`).join(", ")})`,
-                  }
-                : { backgroundColor: bg.color }
               return (
                 <button
                   key={t.id}
                   onClick={() => setActiveTheme(t.id)}
-                  className={`group relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded-md transition-all ${
+                  className={`group relative flex flex-col items-center justify-center overflow-hidden rounded-md bg-black transition-all ${
                     isActive
                       ? "ring-2 ring-primary shadow-[0_0_8px_rgba(61,107,79,0.4)]"
                       : "ring-1 ring-white/[0.08] hover:ring-white/20"
                   }`}
-                  style={bgStyle}
+                  aria-label={`Use ${t.name} theme`}
                 >
-                  <span
-                    className="px-1 text-center text-[5px] leading-tight"
-                    style={{ fontFamily: t.verseText.fontFamily, color: t.verseText.color }}
-                  >
-                    The Lord is my shepherd
-                  </span>
-                  <span
-                    className="mt-0.5 text-[3px] uppercase tracking-widest"
-                    style={{ fontFamily: t.reference.fontFamily, color: t.reference.color }}
-                  >
-                    Psalm 23:1
-                  </span>
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1 pb-0.5 pt-2">
+                  <CanvasVerse
+                    theme={t}
+                    verse={THEME_SAMPLE_VERSE}
+                    className="pointer-events-none"
+                  />
+                  <div className="w-full bg-black/70 px-1 py-1">
                     <span className="text-[5px] font-medium text-white/80">{t.name}</span>
                   </div>
                   {isActive && (
@@ -453,7 +445,8 @@ function AnnouncementControl({
         <button
           onClick={() => {
             const b = useBroadcastStore.getState()
-            announcement.paused ? b.resumeAnnouncement() : b.pauseAnnouncement()
+            if (announcement.paused) b.resumeAnnouncement()
+            else b.pauseAnnouncement()
           }}
           className="rounded p-0.5 text-amber-400 hover:bg-amber-500/20"
           title={announcement.paused ? "Resume announcement" : "Pause announcement"}

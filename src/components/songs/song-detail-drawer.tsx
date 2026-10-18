@@ -1,3 +1,4 @@
+import { capitalizeSongLyrics } from "@/lib/song-capitalization"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Wand2Icon, Undo2Icon } from "lucide-react"
@@ -28,6 +29,11 @@ export function SongDetailDrawer({
   songId: string | null
   onClose: () => void
 }) {
+  if (!songId) return null
+  return <SongDetailContent key={songId} songId={songId} onClose={onClose} />
+}
+
+function SongDetailContent({ songId, onClose }: { songId: string; onClose: () => void }) {
   const song = useSongStore((s) =>
     songId ? s.songs.find((x) => x.id === songId) : undefined,
   )
@@ -44,11 +50,6 @@ export function SongDetailDrawer({
   const [aggressive, setAggressive] = useState(false)
   const undoSnapshot = useRef<{ songId: string; stanzas: SongStanza[]; chorus: SongStanza | null } | null>(null)
   const [canUndo, setCanUndo] = useState(false)
-
-  useEffect(() => {
-    undoSnapshot.current = null
-    setCanUndo(false)
-  }, [songId])
 
   // If a drawer is open with a songId that no longer resolves (deleted
   // mid-interaction by another client/sync), close ourselves.
@@ -128,7 +129,7 @@ export function SongDetailDrawer({
         </div>
         <div className="space-y-0.5 text-sm leading-relaxed">
           {stanza.lines.map((line, i) => (
-            <div key={i}>{line}</div>
+            <div key={i}>{capitalizeSongLyrics(line)}</div>
           ))}
         </div>
       </div>

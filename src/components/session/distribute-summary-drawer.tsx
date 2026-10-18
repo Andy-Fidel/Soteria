@@ -84,7 +84,7 @@ export function DistributeSummaryDrawer() {
         })
     }
     setCopied(false)
-  }, [isOpen, activeSession])
+  }, [isOpen, activeSession, getDetections])
 
   async function saveSummaryIfEdited() {
     if (!sessionId) return

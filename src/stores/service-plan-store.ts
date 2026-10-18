@@ -4,6 +4,7 @@ import type { Plan, PlanItem } from "@/types"
 
 interface ServicePlanState {
   plan: Plan | null
+  presentedItemId: number | null
   activeItemId: number | null
   pendingAdvanceTimerId: ReturnType<typeof setTimeout> | null
   pendingAdvanceDeadline: number | null
@@ -38,6 +39,7 @@ function sortedByOrderIndex(items: PlanItem[]): PlanItem[] {
 
 export const useServicePlanStore = create<ServicePlanState>((set, get) => ({
   plan: null,
+  presentedItemId: null,
   activeItemId: null,
   pendingAdvanceTimerId: null,
   pendingAdvanceDeadline: null,
@@ -49,6 +51,7 @@ export const useServicePlanStore = create<ServicePlanState>((set, get) => ({
     set({
       plan: plan ? { ...plan, items: sortedByOrderIndex(plan.items) } : null,
       activeItemId: null,
+      presentedItemId: null,
       pendingAdvanceTimerId: null,
       pendingAdvanceDeadline: null,
       pendingAdvanceTotalMs: null,
@@ -68,7 +71,11 @@ export const useServicePlanStore = create<ServicePlanState>((set, get) => ({
       return { plan: { ...state.plan, items: sortedByOrderIndex(nextItems) } }
     }),
 
-  removeItem: (itemId) =>
+  removeItem: (itemId) => {
+    if (get().presentedItemId === itemId) {
+      get().cancelPendingAdvance()
+      set({ presentedItemId: null })
+    }
     set((state) => {
       if (!state.plan) return state
       return {
@@ -78,7 +85,8 @@ export const useServicePlanStore = create<ServicePlanState>((set, get) => ({
         },
         activeItemId: state.activeItemId === itemId ? null : state.activeItemId,
       }
-    }),
+    })
+  },
 
   nextPlayableAfter: (itemId) => {
     const plan = get().plan

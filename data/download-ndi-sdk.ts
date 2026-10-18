@@ -6,10 +6,10 @@
  * - macOS dylib: KlakNDI (https://github.com/keijiro/KlakNDI)
  * - Linux so: KlakNDI (https://github.com/keijiro/KlakNDI)
  *
- * Run: bun run download:ndi-sdk
+ * Run: bun run download:ndi-sdk [--platform macos|windows|linux]
  */
 
-import { join } from "node:path"
+import { dirname, join, relative, sep } from "node:path"
 import { mkdir } from "node:fs/promises"
 
 const SDK_DIR = join(import.meta.dir, "..", "sdk", "ndi")
@@ -87,18 +87,22 @@ async function downloadFile(url: string, dest: string): Promise<void> {
 async function main() {
   console.log("\n=== Downloading NDI SDK ===\n")
 
-  // Create directories
-  await mkdir(join(SDK_DIR, "include"), { recursive: true })
-  await mkdir(join(SDK_DIR, "macos"), { recursive: true })
-  await mkdir(join(SDK_DIR, "windows"), { recursive: true })
-  await mkdir(join(SDK_DIR, "linux"), { recursive: true })
+  const args = process.argv.slice(2)
+  const platform = args[0] === "--platform" ? args[1] : undefined
+  if (args.length > 0 && (args.length !== 2 || !["macos", "windows", "linux"].includes(platform ?? ""))) {
+    throw new Error("Usage: download-ndi-sdk.ts [--platform macos|windows|linux]")
+  }
+  const selected = platform
+    ? downloads.filter((item) => relative(SDK_DIR, item.dest).split(sep)[0] === platform)
+    : downloads
 
   let success = 0
   let failed = 0
 
-  for (const item of downloads) {
+  for (const item of selected) {
     process.stdout.write(`  ${item.name}... `)
     try {
+      await mkdir(dirname(item.dest), { recursive: true })
       await downloadFile(item.url, item.dest)
       const stat = Bun.file(item.dest)
       const size = stat.size
@@ -115,6 +119,7 @@ async function main() {
   console.log(`\n=== Done: ${success} downloaded, ${failed} failed ===`)
 
   if (failed > 0) {
+    process.exitCode = 1
     console.log(
       "\nSome files failed to download. You may need to download them manually."
     )

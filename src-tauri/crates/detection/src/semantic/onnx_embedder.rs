@@ -35,6 +35,7 @@ pub struct OnnxEmbedder {
     dim: usize,
     prompt_prefix: String,
     has_position_ids: bool,
+    has_token_type_ids: bool,
 }
 
 // Safety: Tokenizer is Send but not Sync by default.  We never share
@@ -101,6 +102,10 @@ impl OnnxEmbedder {
             }))
             .map_err(|e| DetectionError::Internal(format!("tokenizer truncation: {e}")))?;
 
+        let has_token_type_ids = session
+            .inputs()
+            .iter()
+            .any(|i| i.name() == "token_type_ids");
         let has_position_ids = session.inputs().iter().any(|i| i.name() == "position_ids");
 
         // Log all model inputs for diagnostics
@@ -168,6 +173,7 @@ impl OnnxEmbedder {
             // documents with no prefix. Symmetric mode gives highest similarity.
             prompt_prefix: String::new(),
             has_position_ids,
+            has_token_type_ids,
         })
     }
 
@@ -226,22 +232,26 @@ impl OnnxEmbedder {
             reason = "seq_len is at most MAX_TOKENS (128), fits i64"
         )]
         let position_ids_data: Vec<i64> = (0..seq_len as i64).collect();
-        let position_ids_tensor = Tensor::from_array((shape, position_ids_data))
+        let position_ids_tensor = Tensor::from_array((shape.clone(), position_ids_data))
             .map_err(|e| DetectionError::Internal(format!("position_ids tensor: {e}")))?;
 
-        // Qwen3 needs position_ids; BERT-style models don't
-        let inputs = if self.has_position_ids {
-            ort::inputs![
-                "input_ids" => input_ids_tensor,
-                "attention_mask" => attention_mask_tensor,
-                "position_ids" => position_ids_tensor,
-            ]
-        } else {
-            ort::inputs![
-                "input_ids" => input_ids_tensor,
-                "attention_mask" => attention_mask_tensor,
-            ]
-        };
+        let mut inputs = ort::inputs![
+            "input_ids" => input_ids_tensor,
+            "attention_mask" => attention_mask_tensor,
+        ];
+        if self.has_position_ids {
+            inputs.push(("position_ids".into(), position_ids_tensor.into()));
+        }
+        if self.has_token_type_ids {
+            let token_types: Vec<i64> = encoding
+                .get_type_ids()
+                .iter()
+                .map(|&v| i64::from(v))
+                .collect();
+            let tensor = Tensor::from_array((shape, token_types))
+                .map_err(|e| DetectionError::Internal(format!("token_type_ids tensor: {e}")))?;
+            inputs.push(("token_type_ids".into(), tensor.into()));
+        }
 
         let mut session = self
             .session
@@ -354,11 +364,11 @@ fn validate_embedding_signature(input_names: &[&str], output_names: &[&str]) -> 
         ));
     }
 
-    if !input_names.iter().any(|name| *name == "input_ids") {
+    if !input_names.contains(&"input_ids") {
         return Err("ONNX embedding model missing required input 'input_ids'".to_string());
     }
 
-    if !input_names.iter().any(|name| *name == "attention_mask") {
+    if !input_names.contains(&"attention_mask") {
         return Err("ONNX embedding model missing required input 'attention_mask'".to_string());
     }
 
@@ -414,5 +424,24 @@ mod tests {
         let output_names = ["last_hidden_state"];
 
         validate_embedding_signature(&input_names, &output_names).unwrap();
+    }
+}
+
+#[cfg(all(test, feature = "onnx"))]
+mod local_model_tests {
+    use super::*;
+    #[test]
+    #[ignore = "requires the local MiniLM ONNX model and tokenizer"]
+    fn minilm_supplies_required_token_type_ids() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let model = OnnxEmbedder::load(
+            &root.join("models/all-MiniLM-L6-v2/onnx/model.onnx"),
+            &root.join("models/all-MiniLM-L6-v2/tokenizer.json"),
+        )
+        .unwrap();
+        let embedding = model.embed("God loved the world and sent his Son").unwrap();
+        assert_eq!(embedding.len(), 384);
+        assert!(embedding.iter().all(|value| value.is_finite()));
+        assert!((embedding.iter().map(|value| value * value).sum::<f32>() - 1.0).abs() < 1e-4);
     }
 }

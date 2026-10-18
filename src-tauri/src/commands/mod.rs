@@ -14,3 +14,7 @@ pub mod songs;
 pub mod stt;
 pub mod summarize;
 pub mod themes;
+
+pub mod sermon_title;
+
+pub mod video_assets;

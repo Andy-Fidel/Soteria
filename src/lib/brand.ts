@@ -9,8 +9,8 @@ export type BrandAssetKind = "logo" | "blank" | "momo" | "jesus"
 export const BRAND_DEFAULTS: Record<BrandAssetKind, string> = {
   logo: "/manna-logo.png",
   blank: "/EWC-White.png",
-  momo: "/MOMO111.png",
-  jesus: "/JESUSs.png",
+  momo: "/service-slides/momo.png",
+  jesus: "/service-slides/jesus-motion.png",
 }
 
 /** Resolve a brand asset to a usable URL: the override (as an `asset:` URL) if
@@ -23,4 +23,19 @@ export function resolveBrandAsset(kind: BrandAssetKind, path: string | null): st
 export function resolveChurchName(name: string | null): string {
   const trimmed = name?.trim()
   return trimmed && trimmed.length > 0 ? trimmed : "Manna"
+}
+
+
+export function resolveBlankBackground(brand: {
+  blankImagePath: string | null
+  blankVideoPath?: string | null
+  blankBackground?: "video" | "image"
+}): { imageUrl: string; videoUrl: string | null } {
+  const mode = brand.blankBackground ?? (brand.blankImagePath ? "image" : "video")
+  return {
+    imageUrl: resolveBrandAsset("blank", brand.blankImagePath),
+    videoUrl: mode === "image" ? null : brand.blankVideoPath
+      ? convertFileSrc(brand.blankVideoPath)
+      : "/backgrounds/light-refractions.mp4",
+  }
 }

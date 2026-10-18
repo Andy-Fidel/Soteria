@@ -1,12 +1,11 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useEffectEvent } from "react"
 import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 
 export function useTauriEvent<T>(
   event: string,
   handler: (payload: T) => void
 ) {
-  const handlerRef = useRef(handler)
-  handlerRef.current = handler
+  const onEvent = useEffectEvent(handler)
 
   useEffect(() => {
     // Track whether this effect has been cleaned up.
@@ -17,7 +16,7 @@ export function useTauriEvent<T>(
 
     listen<T>(event, (e) => {
       if (!cancelled) {
-        handlerRef.current(e.payload)
+        onEvent(e.payload)
       }
     }).then((fn) => {
       if (cancelled) {
@@ -26,6 +25,8 @@ export function useTauriEvent<T>(
       } else {
         unlisten = fn
       }
+    }).catch((error: unknown) => {
+      if (!cancelled) console.error(`Failed to listen for ${event}`, error)
     })
 
     return () => {

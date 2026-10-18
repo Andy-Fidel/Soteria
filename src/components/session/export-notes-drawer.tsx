@@ -94,7 +94,7 @@ export function ExportNotesDrawer() {
     ]).then(([notes, detections, transcript]) => {
       setData({ notes, detections, transcript })
     })
-  }, [isOpen, sessionId])
+  }, [isOpen, sessionId, getDetections, getNotes, getTranscript])
 
   async function handleExport() {
     if (!sessionId || !activeSession) return

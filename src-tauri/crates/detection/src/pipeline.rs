@@ -166,4 +166,38 @@ mod tests {
         // default auto_queue_threshold (0.80), so should be auto-queued.
         assert!(results[0].auto_queued);
     }
+    #[test]
+    fn warmup_does_not_consume_the_live_detection_cooldown() {
+        use crate::semantic::{
+            embedder::StubEmbedder,
+            index::{SearchResult, VectorIndex},
+        };
+        struct Fixed;
+        impl VectorIndex for Fixed {
+            fn search(
+                &self,
+                _: &[f32],
+                _: usize,
+            ) -> Result<Vec<SearchResult>, crate::DetectionError> {
+                Ok(vec![SearchResult {
+                    verse_id: 1,
+                    similarity: 0.95,
+                }])
+            }
+            fn len(&self) -> usize {
+                1
+            }
+        }
+        let mut pipeline = DetectionPipeline::new();
+        let mut detector = SemanticDetector::new(Box::new(StubEmbedder::new(1)), Box::new(Fixed));
+        detector.warm_up().unwrap();
+        pipeline.set_semantic(detector);
+        let results =
+            pipeline.process_semantic("a complete phrase with enough words for detection");
+        assert_eq!(results.len(), 1);
+        assert!(
+            results[0].auto_queued,
+            "Synthetic warm-up consumed the live cooldown"
+        );
+    }
 }

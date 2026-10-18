@@ -2,8 +2,7 @@ import { PanelHeader } from "@/components/ui/panel-header"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { PlayIcon, ClockIcon } from "lucide-react"
-import { useBroadcastStore, useBibleStore } from "@/stores"
-import { toVerseRenderData } from "@/hooks/use-broadcast"
+import { useBroadcastStore } from "@/stores"
 
 function formatTimeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp
@@ -110,7 +109,7 @@ export function HistoryPanel() {
               </div>
             </div>
           )}
-          {history.map((item, idx) => (
+          {history.map((item) => (
             <HistoryItem
               key={`${item.verse.reference}-${item.presentedAt}`}
               verse={item.verse}

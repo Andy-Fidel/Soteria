@@ -1,11 +1,11 @@
 import { useEffect } from "react"
-import { listen, type UnlistenFn } from "@tauri-apps/api/event"
+import { createTauriListenerScope } from "@/lib/tauri-listener-scope"
 import { invoke } from "@tauri-apps/api/core"
 import { useBroadcastStore } from "@/stores/broadcast-store"
 import { useBibleStore } from "@/stores/bible-store"
 import { useQueueStore } from "@/stores/queue-store"
 import { useSettingsStore } from "@/stores/settings-store"
-import { queueVerseToRenderData, toVerseRenderData } from "@/hooks/use-broadcast"
+import { queueVerseToRenderData } from "@/hooks/use-broadcast"
 import type { Verse } from "@/types"
 
 /**
@@ -17,11 +17,11 @@ import type { Verse } from "@/types"
 export function useRemoteControl() {
   useEffect(() => {
     let cancelled = false
-    const unlisteners: UnlistenFn[] = []
+    const listeners = createTauriListenerScope()
 
     async function setup() {
       // remote:next — advance queue to next verse and present it
-      const u1 = await listen("remote:next", () => {
+      await listeners.register("remote:next", () => {
         if (cancelled) return
         const { items, activeIndex } = useQueueStore.getState()
         if (items.length === 0) return
@@ -34,10 +34,9 @@ export function useRemoteControl() {
         useQueueStore.getState().setActive(nextIndex)
         presentQueueItem(nextIndex)
       })
-      unlisteners.push(u1)
 
       // remote:prev — go to previous verse in queue and present it
-      const u2 = await listen("remote:prev", () => {
+      await listeners.register("remote:prev", () => {
         if (cancelled) return
         const { items, activeIndex } = useQueueStore.getState()
         if (items.length === 0) return
@@ -50,10 +49,9 @@ export function useRemoteControl() {
         useQueueStore.getState().setActive(prevIndex)
         presentQueueItem(prevIndex)
       })
-      unlisteners.push(u2)
 
       // remote:theme — switch active theme by name
-      const u3 = await listen<string>("remote:theme", (event) => {
+      await listeners.register<string>("remote:theme", (event) => {
         if (cancelled) return
         const payload = parsePayload(event.payload)
         const name = payload?.name as string | undefined
@@ -67,57 +65,41 @@ export function useRemoteControl() {
           useBroadcastStore.getState().setActiveTheme(theme.id)
         }
       })
-      unlisteners.push(u3)
-
-      // remote:opacity — set broadcast output opacity
-      const u4 = await listen<string>("remote:opacity", (event) => {
-        if (cancelled) return
-        const payload = parsePayload(event.payload)
-        const value = payload?.value as number | undefined
-        if (value === undefined) return
-        // Opacity is stored on the live verse rendering; for now broadcast
-        // store doesn't have a dedicated opacity field — this is a placeholder
-        // that can be wired when the broadcast store adds opacity support.
-        void value
-      })
-      unlisteners.push(u4)
 
       // remote:on_air — toggle live broadcast state
-      const u5 = await listen<string>("remote:on_air", (event) => {
+      await listeners.register<string>("remote:on_air", (event) => {
         if (cancelled) return
         const payload = parsePayload(event.payload)
         const active = payload?.active as boolean | undefined
         if (active === undefined) return
         useBroadcastStore.getState().setLive(active)
       })
-      unlisteners.push(u5)
 
       // remote:show — show broadcast output
-      const u6 = await listen("remote:show", () => {
+      await listeners.register("remote:show", () => {
         if (cancelled) return
         useBroadcastStore.getState().setLive(true)
       })
-      unlisteners.push(u6)
 
       // remote:hide — hide broadcast output
-      const u7 = await listen("remote:hide", () => {
+      await listeners.register("remote:hide", () => {
         if (cancelled) return
         useBroadcastStore.getState().setLive(false)
       })
-      unlisteners.push(u7)
 
       // remote:confidence — set detection confidence threshold
-      const u8 = await listen<string>("remote:confidence", (event) => {
+      await listeners.register<string>("remote:confidence", (event) => {
         if (cancelled) return
         const payload = parsePayload(event.payload)
         const value = payload?.value as number | undefined
         if (value === undefined) return
         useSettingsStore.getState().setConfidenceThreshold(value)
       })
-      unlisteners.push(u8)
     }
 
-    setup()
+    void setup().catch((error: unknown) => {
+      console.warn("[remote-control] Failed to register events", error)
+    })
 
     // Only push status when the HTTP API server is actually running —
     // otherwise we wake every second to invoke a backend command that
@@ -158,7 +140,7 @@ export function useRemoteControl() {
 
     return () => {
       cancelled = true
-      unlisteners.forEach((fn) => fn())
+      listeners.dispose()
       clearInterval(pollInterval)
       if (pushInterval) clearInterval(pushInterval)
     }
@@ -175,7 +157,7 @@ function findCurrentVerseIndex(): number | null {
 
   const { items } = useQueueStore.getState()
   const index = items.findIndex(
-    (item) => item.reference === liveVerse.reference
+    (item) => item.kind !== "image" && item.reference === liveVerse.reference
   )
   return index >= 0 ? index : null
 }
@@ -184,7 +166,7 @@ function findCurrentVerseIndex(): number | null {
  * Present a queue item at the given index to the live display.
  * Mirrors the logic from QueueItemRow's handlePresent.
  */
-async function presentQueueItem(index: number) {
+export async function presentQueueItem(index: number) {
   try {
     const { items } = useQueueStore.getState()
     const item = items[index]
@@ -205,26 +187,20 @@ async function presentQueueItem(index: number) {
 
     // Fetch the full verse from the backend to ensure we have complete data
     // (AI-detected queue items may have partial verse objects)
-    const fullVerse = await invoke<Verse | null>("get_verse", {
-      translationId: useBibleStore.getState().activeTranslationId,
+    const fullVerse = item.chunk ? null : await invoke<Verse | null>("get_verse", {
+      translationId: verse.translation_id,
       bookNumber: verse.book_number,
       chapter: verse.chapter,
       verse: verse.verse,
     })
 
-    const verseToPresent = fullVerse ?? verse
+    const verseToPresent = item.chunk ? verse : fullVerse ?? verse
 
     const bibleState = useBibleStore.getState()
-    const translation =
-      bibleState.translations.find(
-        (t) => t.id === bibleState.activeTranslationId
-      )?.abbreviation ?? "KJV"
 
     bibleState.selectVerse(verseToPresent)
     useBroadcastStore.getState().setLiveVerse(
-      item.chunk
-        ? queueVerseToRenderData(item, translation)
-        : toVerseRenderData(verseToPresent, translation),
+      queueVerseToRenderData({ ...item, verse: verseToPresent }),
     )
   } catch (e) {
     console.warn("[remote-control] presentQueueItem failed:", e)

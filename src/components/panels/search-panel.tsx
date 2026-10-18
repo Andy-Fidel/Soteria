@@ -29,17 +29,10 @@ import {
   SparklesIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
-  CheckIcon,
   SearchIcon,
   PlusIcon,
   PlayIcon,
 } from "lucide-react"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { useBible, bibleActions } from "@/hooks/use-bible"
 import { queueVerseToRenderData, toVerseRenderData } from "@/hooks/use-broadcast"
 import { switchTranslation } from "@/lib/switch-translation"
@@ -213,27 +206,31 @@ export function SearchPanel() {
 
   // Auto-navigate when a detection or "Present" click sets pendingNavigation
   useEffect(() => {
-    let lastHandledKey: string | null = null
+    let lastHandledNavigation: object | null = null
+    let disposed = false
 
     const unsubscribe = useBibleStore.subscribe((state) => {
       const pendingNavigation = state.pendingNavigation
       if (!pendingNavigation) {
-        lastHandledKey = null
+        lastHandledNavigation = null
         return
       }
 
       const { bookNumber, chapter: navChapter, verse: navVerse } = pendingNavigation
-      const pendingKey = `${bookNumber}:${navChapter}:${navVerse}`
-      if (pendingKey === lastHandledKey) return
+      if (pendingNavigation === lastHandledNavigation) return
 
       const book = state.books.find((b) => b.book_number === bookNumber)
       if (!book) return
 
-      lastHandledKey = pendingKey
+      lastHandledNavigation = pendingNavigation
       applyNavigationSelection(book, navChapter)
 
+      // A slower, earlier queue click must not replace the newest selection.
+      const isCurrent = () => !disposed &&
+        useBibleStore.getState().pendingNavigation === pendingNavigation
       // Load chapter explicitly, then select + scroll to the verse.
       bibleActions.loadChapter(bookNumber, navChapter).then((verses) => {
+        if (!isCurrent()) return
         const target = verses.find((v) => v.verse === navVerse)
         if (target) {
           setSelectedVerseId(target.id)
@@ -244,11 +241,14 @@ export function SearchPanel() {
         }
         panelRef.current?.focus()
       }).catch(console.error).finally(() => {
-        useBibleStore.getState().setPendingNavigation(null)
+        if (isCurrent()) useBibleStore.getState().setPendingNavigation(null)
       })
     })
 
-    return unsubscribe
+    return () => {
+      disposed = true
+      unsubscribe()
+    }
   }, [applyNavigationSelection])
 
   // When a book is selected, show the chapters grid (no auto chapter pick).
@@ -726,12 +726,8 @@ export function SearchPanel() {
                           useQueueStore.getState().setActive(index)
                           if (wasEmpty) {
                             useBroadcastStore.getState().setPreviewVerse(
-                              item.kind === "verse"
-                                ? queueVerseToRenderData(
-                                    item,
-                                    useBibleStore.getState().translations
-                                      .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV",
-                                  )
+                              item?.kind === "verse"
+                                ? queueVerseToRenderData(item)
                                 : null,
                             )
                           }
@@ -864,12 +860,8 @@ export function SearchPanel() {
                           useQueueStore.getState().setActive(index)
                           if (wasEmpty) {
                             useBroadcastStore.getState().setPreviewVerse(
-                              item.kind === "verse"
-                                ? queueVerseToRenderData(
-                                    item,
-                                    useBibleStore.getState().translations
-                                      .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV",
-                                  )
+                              item?.kind === "verse"
+                                ? queueVerseToRenderData(item)
                                 : null,
                             )
                           }

@@ -13,7 +13,6 @@
     "core:window:allow-is-fullscreen",
     "store:default",
     "opener:default",
-    "dialog:default",
     "fs:default",
     "global-shortcut:allow-register"
   ]

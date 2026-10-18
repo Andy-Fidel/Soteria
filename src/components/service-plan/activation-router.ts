@@ -1,3 +1,5 @@
+import { markPlanItemPresented } from "./(lib)/presentation"
+import { prayerImageSlide } from "./(lib)/prayer-slide"
 // src/components/service-plan/activation-router.ts
 import { useBroadcastStore, useBibleStore, useQueueStore, useSettingsStore } from "@/stores"
 import { resolveBrandAsset } from "@/lib/brand"
@@ -16,6 +18,15 @@ import { useAnnouncementDialogStore } from "@/lib/announcement-dialog"
  */
 export function activatePlanItem(item: PlanItem): void {
   const parsed = parsePlanItem(item)
+  const before = useBroadcastStore.getState().liveVerse
+  routePlanItem(item)
+  if (!parsed || parsed.type === "section" || parsed.type === "announcement" || parsed.type === "notes") return
+  if (parsed.type === "song" && useBroadcastStore.getState().liveVerse === before) return
+  markPlanItemPresented(item.id)
+}
+
+function routePlanItem(item: PlanItem): void {
+  const parsed = parsePlanItem(item)
   const broadcast = useBroadcastStore.getState()
 
   // Corrupt JSON → treat as blank
@@ -30,8 +41,10 @@ export function activatePlanItem(item: PlanItem): void {
       return
 
     case "blank":
-      if (parsed.imageUrl) {
-        broadcast.setFullscreenImage({ url: parsed.imageUrl, label: parsed.imageLabel ?? "" })
+      if (parsed.prayer) {
+        broadcast.setFullscreenImage(prayerImageSlide(item.id, parsed.prayer))
+      } else if (parsed.imageUrl) {
+        broadcast.setFullscreenImage({ url: parsed.imageUrl, label: parsed.imageLabel ?? "", ...(parsed.textOverlay ? { textOverlay: parsed.textOverlay } : {}) })
       } else if (parsed.showLogo) {
         broadcast.setLiveVerse(null)
         broadcast.setBlankLogo(true)

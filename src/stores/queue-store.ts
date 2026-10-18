@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { useBibleStore } from "./bible-store"
 import type { QueueItem, Song, TextHighlight } from "@/types"
 import { expandSong } from "@/lib/song-expand"
 import { songMeta } from "@/lib/song-meta"
@@ -27,6 +28,7 @@ interface QueueState {
   removeItem: (id: string) => void
   reorderItems: (fromIndex: number, toIndex: number) => void
   setActive: (index: number | null) => void
+  replaceQueueState: (next: Pick<QueueState, "items" | "activeIndex">) => void
   clearQueue: () => void
   updateVerseHighlights: (id: string, highlights: TextHighlight[]) => void
 
@@ -35,8 +37,8 @@ interface QueueState {
   jumpLiveSong: (songId: string) => void
   jumpToSongNumber: (num: number) => void
   presentSongLive: (songId: string) => void
-  enqueueImage: (input: { url: string; label: string; thumbnailUrl?: string; provider: "pexels" | "unsplash" | "local" }) => void
-  presentImageLive: (input: { url: string; label: string; thumbnailUrl?: string; provider: "pexels" | "unsplash" | "local" }) => void
+  enqueueImage: (input: { url: string; label: string; thumbnailUrl?: string; provider: Extract<QueueItem, { kind: "image" }>["provider"] }) => void
+  presentImageLive: (input: { url: string; label: string; thumbnailUrl?: string; provider: Extract<QueueItem, { kind: "image" }>["provider"] }) => void
 }
 
 function stanzaIndexById(song: Song, stanzaId: string): number {
@@ -87,17 +89,24 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     return inserted
   },
   removeItem: (id) =>
-    set((state) => ({
-      items: state.items.filter((i) => i.id !== id),
-    })),
+    set((state) => {
+      const activeId = state.activeIndex === null ? null : state.items[state.activeIndex]?.id
+      const items = state.items.filter(item => item.id !== id)
+      const index = items.findIndex(item => item.id === activeId)
+      return { items, activeIndex: index < 0 ? null : index }
+    }),
   reorderItems: (fromIndex, toIndex) =>
     set((state) => {
       const items = [...state.items]
+      if (fromIndex < 0 || fromIndex >= items.length || toIndex < 0 || toIndex >= items.length) return state
+      const activeId = state.activeIndex === null ? null : items[state.activeIndex]?.id
       const [moved] = items.splice(fromIndex, 1)
       items.splice(toIndex, 0, moved)
-      return { items }
+      const index = items.findIndex(item => item.id === activeId)
+      return { items, activeIndex: index < 0 ? null : index }
     }),
   setActive: (activeIndex) => set({ activeIndex }),
+  replaceQueueState: (next) => set(next),
   clearQueue: () => set({ items: [], activeIndex: null }),
   updateVerseHighlights: (id, highlights) => set((state) => ({
     items: state.items.map((item) => {
@@ -241,6 +250,15 @@ export function hydrateQueue(sessionId: number): void {
           items: data.items,
           activeIndex: typeof data.activeIndex === "number" ? data.activeIndex : null,
         })
+        const activeItem = data.items[data.activeIndex ?? -1]
+        if (activeItem?.kind === "verse") {
+          useBibleStore.getState().selectVerse(activeItem.verse)
+          useBibleStore.getState().setPendingNavigation({
+            bookNumber: activeItem.verse.book_number,
+            chapter: activeItem.verse.chapter,
+            verse: activeItem.verse.verse,
+          })
+        }
         restored = true
       }
     }

@@ -131,7 +131,7 @@ function escapePdfText(value: string) {
 }
 
 function normalizePdfText(value: string) {
-  return value.replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "")
+  return Array.from(value).filter((char) => char === "\t" || char === "\n" || char === "\r" || (char >= " " && char <= "~")).join("")
 }
 
 function wrapPdfLine(value: string, maxChars = 86) {

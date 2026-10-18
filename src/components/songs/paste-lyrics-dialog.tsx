@@ -71,6 +71,7 @@ export function PasteLyricsDialog({
     }
 
     const song: Song = {
+      createdAt: Date.now(),
       id: `custom-${crypto.randomUUID()}`,
       source: "custom",
       number: null,

@@ -3,19 +3,14 @@ import { Button } from "@/components/ui/button"
 import { HYMNAL_NAMES, HYMNAL_SOURCES } from "@/types"
 import type { HymnalSource } from "@/types"
 
-const HYMN_COUNTS: Record<HymnalSource, number> = {
-  ghs: 260,
-  mhb: 981,
-  sankey: 1200,
-  sda: 695,
-}
+import { AVAILABLE_HYMNALS, BUNDLED_HYMN_COUNTS } from "@/lib/hymnal-availability"
 
 export function HymnalPickerStep({
   onContinue,
 }: {
   onContinue: (enabled: string[]) => void | Promise<void>
 }) {
-  const [enabled, setEnabled] = useState<Set<string>>(new Set(HYMNAL_SOURCES))
+  const [enabled, setEnabled] = useState<Set<string>>(new Set(AVAILABLE_HYMNALS))
   const [submitting, setSubmitting] = useState(false)
 
   const toggle = (id: string) => {
@@ -28,7 +23,7 @@ export function HymnalPickerStep({
   }
 
   const total = Array.from(enabled).reduce(
-    (sum, id) => sum + (HYMN_COUNTS[id as HymnalSource] ?? 0),
+    (sum, id) => sum + (BUNDLED_HYMN_COUNTS[id as HymnalSource] ?? 0),
     0,
   )
 
@@ -60,13 +55,14 @@ export function HymnalPickerStep({
               type="checkbox"
               id={`hymnal-${id}`}
               checked={enabled.has(id)}
+              disabled={BUNDLED_HYMN_COUNTS[id] === 0}
               onChange={() => toggle(id)}
               className="size-4"
             />
             <label htmlFor={`hymnal-${id}`} className="flex-1 cursor-pointer">
               <div className="font-medium">{HYMNAL_NAMES[id]}</div>
               <div className="text-xs text-muted-foreground">
-                {HYMN_COUNTS[id].toLocaleString()} hymns
+                {BUNDLED_HYMN_COUNTS[id] > 0 ? `${BUNDLED_HYMN_COUNTS[id].toLocaleString()} hymns` : "Not available in this build"}
               </div>
             </label>
           </li>

@@ -1,81 +1,66 @@
 import { useState } from "react"
-import { PlusIcon } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { PlusIcon, ListTreeIcon } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useServicePlan } from "@/hooks/use-service-plan"
-import { AddVerseDialog } from "./add-verse-dialog"
-import { AddSongDialog } from "./add-song-dialog"
+import { useSessionStore } from "@/stores/session-store"
+import type { PlanItem, PlanItemPayload } from "@/types"
+import { AddPlanSheet } from "./(modals)/add-plan-sheet"
 
-export function AddItemMenu() {
+export function AddItemMenu({ onEdit }: { onEdit: (item: PlanItem) => void }) {
   const { addItem } = useServicePlan()
+  const hasSession = useSessionStore((s) => s.activeSession !== null)
   const [open, setOpen] = useState(false)
-  const [verseDialogOpen, setVerseDialogOpen] = useState(false)
-  const [songDialogOpen, setSongDialogOpen] = useState(false)
+  const [adding, setAdding] = useState(false)
 
-  const addSection = async () => {
-    await addItem("section", { type: "section", label: "New Section" })
-    setOpen(false)
-  }
-  const addAnnouncement = async () => {
-    await addItem("announcement", {
-      type: "announcement",
-      title: "New Announcement",
-      body: "",
-    })
-    setOpen(false)
-  }
-  const addBlank = async () => {
-    await addItem("blank", { type: "blank", showLogo: true })
-    setOpen(false)
-  }
-  const addMomo = async () => {
-    await addItem("momo", { type: "momo" })
-    setOpen(false)
-  }
-  const addJesus = async () => {
-    await addItem("jesus", { type: "jesus" })
-    setOpen(false)
-  }
-  const addNotes = async () => {
-    await addItem("notes", { type: "notes", title: "", lastSelection: [] })
-    setOpen(false)
-  }
-  const addVerse = () => {
-    setOpen(false)
-    setVerseDialogOpen(true)
-  }
-  const addSong = () => {
-    setOpen(false)
-    setSongDialogOpen(true)
+  const add = async (payload: PlanItemPayload) => {
+    if (adding || !hasSession) return
+    setAdding(true)
+    try {
+      const item = await addItem(payload.type, payload)
+      setOpen(false)
+      if (
+        item &&
+        useSessionStore.getState().activeSession?.id === item.planId &&
+        payload.type === "blank" &&
+        (payload.textOverlay || payload.prayer)
+      )
+        onEdit(item)
+    } catch (error) {
+      toast.error(`Could not add item: ${error}`)
+    } finally {
+      setAdding(false)
+    }
   }
 
   return (
     <>
-      <DropdownMenu open={open} onOpenChange={setOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" className="gap-1.5">
-            <PlusIcon className="size-3.5" />
-            Add
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={addSection}>Section header</DropdownMenuItem>
-          <DropdownMenuItem onClick={addAnnouncement}>Announcement</DropdownMenuItem>
-          <DropdownMenuItem onClick={addBlank}>Blank / logo</DropdownMenuItem>
-          <DropdownMenuItem onClick={addNotes}>Notes</DropdownMenuItem>
-          <DropdownMenuItem onClick={addMomo}>MoMo</DropdownMenuItem>
-          <DropdownMenuItem onClick={addJesus}>Jesus</DropdownMenuItem>
-          <DropdownMenuItem onClick={addVerse}>Verse…</DropdownMenuItem>
-          <DropdownMenuItem onClick={addSong}>Song…</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <AddVerseDialog open={verseDialogOpen} onOpenChange={setVerseDialogOpen} />
-      <AddSongDialog open={songDialogOpen} onOpenChange={setSongDialogOpen} />
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        title="Add section header"
+        aria-label="Add section header"
+        disabled={!hasSession || adding}
+        onClick={() => void add({ type: "section", label: "New Section" })}
+      >
+        <ListTreeIcon className="size-3.5" />
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="gap-1.5"
+        disabled={!hasSession || adding}
+        onClick={() => setOpen(true)}
+      >
+        <PlusIcon className="size-3.5" />
+        Add slide
+      </Button>
+      <AddPlanSheet
+        open={open}
+        onOpenChange={setOpen}
+        adding={adding}
+        onAdd={(payload) => void add(payload)}
+      />
     </>
   )
 }

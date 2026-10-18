@@ -23,7 +23,10 @@ export function useServicePlan() {
       store.setPlan(null)
       return
     }
+    const current = useServicePlanStore.getState().plan
+    if (current?.planId === activeSessionId && current.planKind === "session") return
     let cancelled = false
+    store.setPlan(null)
     invoke<Plan>("plan_get", { planId: activeSessionId, planKind: "session" })
       .then((plan) => {
         if (!cancelled) store.setPlan(plan)
@@ -52,7 +55,9 @@ export function useServicePlan() {
         orderIndex,
         autoAdvanceSeconds: null,
       })
-      useServicePlanStore.getState().upsertItem(item)
+      const current = useServicePlanStore.getState()
+      if (current.plan?.planId === activeSessionId && current.plan.planKind === "session") current.upsertItem(item)
+      return item
     },
     [activeSessionId],
   )

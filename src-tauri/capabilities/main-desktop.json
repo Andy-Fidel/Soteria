@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-desktop",
+  "description": "Main-window exports use only paths selected in the save dialog. Updates and restart are limited to the main window.",
+  "platforms": ["macOS", "windows", "linux"],
+  "windows": ["main"],
+  "permissions": [
+    "dialog:default",
+    "fs:allow-write-text-file",
+    "fs:allow-write-file",
+    "updater:default",
+    "process:allow-restart"
+  ]
+}

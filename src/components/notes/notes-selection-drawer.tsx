@@ -1,3 +1,4 @@
+import { markPlanItemPresented } from "@/components/service-plan/(lib)/presentation"
 import { useEffect, useMemo, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import {
@@ -155,7 +156,10 @@ export function NotesSelectionDrawer() {
       planItem.autoAdvanceSeconds,
     )
     const slide = buildSlide()
-    if (slide) setLiveNotes(slide)
+    if (slide) {
+      setLiveNotes(slide)
+      markPlanItemPresented(planItem.id)
+    }
     if (closeAfter) close()
   }
 

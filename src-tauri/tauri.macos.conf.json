@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "../sdk/ndi/macos/libndi.dylib": "sdk/ndi/macos/libndi.dylib"
+    }
+  }
+}

@@ -1,3 +1,21 @@
+export interface SlideTextOverlay {
+  layout: "title" | "announcement" | "prayer"
+  title: string
+  body: string
+}
+
+export interface PrayerSlideContent {
+  background: "hands" | "cross-light"
+  points: string[]
+}
+
+export interface ImageSlide {
+  url: string
+  label: string
+  textOverlay?: SlideTextOverlay
+  prayer?: { planItemId: number; content: PrayerSlideContent; index: number }
+}
+
 export interface VerseSegment {
   verseNumber?: number
   text: string
@@ -119,12 +137,13 @@ export interface BroadcastTheme {
     superscript: boolean
   }
   reference: {
+    opacity?: number
     fontFamily: string
     fontSize: number
     fontWeight: number
     color: string
     standalone?: {
-      anchor: "top-left" | "top-right" | "bottom-left" | "bottom-right"
+      anchor: "top-left" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right"
       margin: number
     } | null
     horizontalAlign?: TextHorizontalAlign

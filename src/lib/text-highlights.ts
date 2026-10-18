@@ -96,12 +96,51 @@ export function rangeFromWordHits(
   }
 }
 
+function distanceToWord(hit: WordHitBox, x: number, y: number) {
+  return {
+    x: Math.max(hit.x - x, 0, x - hit.x - hit.width),
+    y: Math.max(hit.y - y, 0, y - hit.y - hit.height),
+  }
+}
+
 export function wordHitAtPoint(
   hits: readonly WordHitBox[],
   x: number,
   y: number,
+  tolerance = 0,
 ): WordHitBox | null {
-  return hits.find((hit) =>
-    x >= hit.x && x <= hit.x + hit.width && y >= hit.y && y <= hit.y + hit.height,
-  ) ?? null
+  let closest: WordHitBox | null = null
+  let distance = Number.POSITIVE_INFINITY
+  for (const hit of hits) {
+    const delta = distanceToWord(hit, x, y)
+    const nextDistance = Math.hypot(delta.x, delta.y)
+    if (nextDistance <= tolerance && nextDistance < distance) {
+      closest = hit
+      distance = nextDistance
+    }
+  }
+  return closest
+}
+
+/** During a drag, follow the nearest line and clamp past its first/last word. */
+export function nearestWordHitAtPoint(
+  hits: readonly WordHitBox[],
+  x: number,
+  y: number,
+): WordHitBox | null {
+  if (hits.length === 0 || !Number.isFinite(x) || !Number.isFinite(y)) return null
+  if (y < Math.min(...hits.map((hit) => hit.y))) return hits[0]
+  if (y > Math.max(...hits.map((hit) => hit.y + hit.height))) return hits[hits.length - 1]
+  let closest: WordHitBox | null = null
+  let vertical = Number.POSITIVE_INFINITY
+  let horizontal = Number.POSITIVE_INFINITY
+  for (const hit of hits) {
+    const delta = distanceToWord(hit, x, y)
+    if (delta.y < vertical || (delta.y === vertical && delta.x < horizontal)) {
+      closest = hit
+      vertical = delta.y
+      horizontal = delta.x
+    }
+  }
+  return closest
 }

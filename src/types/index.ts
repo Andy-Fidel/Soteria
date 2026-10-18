@@ -17,7 +17,10 @@ export type { QueueItem } from "./queue"
 export type { Song, SongStanza, SongSource, LineMode, GeniusHit, LrclibHit, OnlineHit, HymnalSource } from "./song"
 export { GHS_SEED_VERSION, HYMNAL_SOURCES, HYMNAL_NAMES, HYMNAL_BADGES, isHymnalSource } from "./song"
 export type { DetectionResult, DetectionStatus } from "./detection"
-export type { BroadcastTheme, VerseRenderData, VerseSegment, RenderOptions, NotesSlide, TextHighlight, WordHitBox } from "./broadcast"
+import type { SlideTextOverlay, PrayerSlideContent } from "./broadcast"
+export type { PrayerSlideContent } from "./broadcast"
+
+export type { SlideTextOverlay, ImageSlide, BroadcastTheme, VerseRenderData, VerseSegment, RenderOptions, NotesSlide, TextHighlight, WordHitBox } from "./broadcast"
 export type {
   NdiAlphaMode,
   NdiConfigEventPayload,
@@ -86,6 +89,8 @@ export interface PlanItemBlank {
   showLogo: boolean
   imageUrl?: string
   imageLabel?: string
+  textOverlay?: SlideTextOverlay
+  prayer?: PrayerSlideContent
 }
 
 export interface PlanItemMomo {
@@ -153,11 +158,27 @@ export function parsePlanItem(item: PlanItem): PlanItemPayload | null {
       return { type: "section", label: parsed.label }
     }
     if (type === "blank") {
+      let prayer: PrayerSlideContent | undefined
+      if (parsed.prayer != null) {
+        if (typeof parsed.prayer !== "object") return null
+        const value = parsed.prayer as Record<string, unknown>
+        if (value.background !== "hands" && value.background !== "cross-light") return null
+        if (!Array.isArray(value.points) || value.points.length < 1 || value.points.length > 30) return null
+        if (!value.points.every((point): point is string => typeof point === "string" && point.trim().length > 0 && point.length <= 300)) return null
+        prayer = { background: value.background, points: value.points.map((point) => point.trim()) }
+      }
+      const overlay = parsed.textOverlay as Record<string, unknown> | null | undefined
+      const textOverlay: SlideTextOverlay | undefined = overlay
+        && (overlay.layout === "title" || overlay.layout === "announcement")
+        && typeof overlay.title === "string" && typeof overlay.body === "string"
+        ? { layout: overlay.layout, title: overlay.title, body: overlay.body } : undefined
       return {
         type: "blank",
         showLogo: Boolean(parsed.showLogo),
         imageUrl: typeof parsed.imageUrl === "string" ? parsed.imageUrl : undefined,
         imageLabel: typeof parsed.imageLabel === "string" ? parsed.imageLabel : undefined,
+        ...(textOverlay ? { textOverlay } : {}),
+        ...(prayer ? { prayer } : {}),
       }
     }
     if (type === "momo") {

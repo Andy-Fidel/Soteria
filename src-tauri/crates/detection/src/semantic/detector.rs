@@ -81,6 +81,22 @@ impl SemanticDetector {
         !self.index.is_empty()
     }
 
+    /// Warm inference and all search paths without emitting or merging detections.
+    pub fn warm_up(&mut self) -> Result<(), crate::DetectionError> {
+        if !self.is_ready() {
+            return Ok(());
+        }
+        let sample =
+            "Faith is confidence in what we hope for and assurance about what we do not see";
+        let vector = self.embedder.embed(sample)?;
+        self.index.search(&vector, 5)?;
+        if self.use_synonyms {
+            self.ensemble
+                .search(sample, self.embedder.as_ref(), self.index.as_ref(), 5)?;
+        }
+        Ok(())
+    }
+
     /// Detect Bible verses in `text` using semantic similarity.
     ///
     /// The text is split into overlapping sentence windows, each window
@@ -98,15 +114,24 @@ impl SemanticDetector {
         let mut detections = Vec::new();
 
         // Single direct embedding first — fast (~1 embed call), good for exact quotes.
-        let Ok(embedding) = self.embedder.embed(text) else { return vec![] };
-        let Ok(single_results) = self.index.search(&embedding, 5) else { return vec![] };
+        let Ok(embedding) = self
+            .embedder
+            .embed(text)
+            .inspect_err(|e| log::warn!("Semantic embedding failed: {e}"))
+        else {
+            return vec![];
+        };
+        let Ok(single_results) = self
+            .index
+            .search(&embedding, 5)
+            .inspect_err(|e| log::warn!("Semantic index search failed: {e}"))
+        else {
+            return vec![];
+        };
         self.cache
             .insert(text.to_string(), (embedding, single_results.clone()));
 
-        let top_single_similarity = single_results
-            .first()
-            .map(|r| r.similarity)
-            .unwrap_or(0.0);
+        let top_single_similarity = single_results.first().map(|r| r.similarity).unwrap_or(0.0);
 
         let now = Self::timestamp_ms();
 
@@ -118,12 +143,10 @@ impl SemanticDetector {
             && top_single_similarity < ENSEMBLE_FUZZY_HIGH;
 
         if needs_ensemble {
-            match self.ensemble.search(
-                text,
-                self.embedder.as_ref(),
-                self.index.as_ref(),
-                5,
-            ) {
+            match self
+                .ensemble
+                .search(text, self.embedder.as_ref(), self.index.as_ref(), 5)
+            {
                 Ok(results) => {
                     for result in results {
                         if result.best_similarity >= self.confidence_threshold {
@@ -179,7 +202,9 @@ impl SemanticDetector {
         if !self.is_ready() {
             return vec![];
         }
-        let Ok(embedding) = self.embedder.embed(query) else { return vec![] };
+        let Ok(embedding) = self.embedder.embed(query) else {
+            return vec![];
+        };
         match self.index.search(&embedding, k) {
             Ok(results) => results.iter().map(|r| (r.verse_id, r.similarity)).collect(),
             Err(_) => vec![],
@@ -188,7 +213,10 @@ impl SemanticDetector {
 
     // ---- private helpers ----
 
-    #[expect(clippy::cast_possible_truncation, reason = "timestamp millis won't exceed u64 for centuries")]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "timestamp millis won't exceed u64 for centuries"
+    )]
     fn timestamp_ms() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -196,7 +224,12 @@ impl SemanticDetector {
             .as_millis() as u64
     }
 
-    fn make_detection(verse_id: i64, similarity: f64, snippet: &str, detected_at: u64) -> Detection {
+    fn make_detection(
+        verse_id: i64,
+        similarity: f64,
+        snippet: &str,
+        detected_at: u64,
+    ) -> Detection {
         Detection {
             verse_ref: VerseRef {
                 book_number: 0,
@@ -207,9 +240,7 @@ impl SemanticDetector {
             },
             verse_id: Some(verse_id),
             confidence: similarity,
-            source: DetectionSource::SemanticLocal {
-                similarity,
-            },
+            source: DetectionSource::SemanticLocal { similarity },
             transcript_snippet: snippet.to_string(),
             detected_at,
         }
@@ -279,10 +310,7 @@ mod tests {
         assert!(!detections.is_empty());
         for d in &detections {
             assert!(d.confidence >= 0.35);
-            assert!(matches!(
-                d.source,
-                DetectionSource::SemanticLocal { .. }
-            ));
+            assert!(matches!(d.source, DetectionSource::SemanticLocal { .. }));
         }
     }
 
@@ -306,7 +334,8 @@ mod tests {
 
         // Raise threshold above the result's similarity
         detector.set_confidence_threshold(0.70);
-        let detections = detector.detect("whoever believes in him shall not perish but have everlasting life");
+        let detections =
+            detector.detect("whoever believes in him shall not perish but have everlasting life");
         assert!(detections.is_empty());
     }
 }

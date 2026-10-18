@@ -46,6 +46,7 @@ pub struct PlannedScripture {
 pub struct SermonSession {
     pub id: i64,
     pub title: String,
+    pub title_source: String,
     pub speaker: Option<String>,
     pub date: String,
     pub series_name: Option<String>,
@@ -65,6 +66,8 @@ pub struct SermonSession {
 #[serde(rename_all = "camelCase")]
 pub struct CreateSessionRequest {
     pub title: String,
+    #[serde(default)]
+    pub title_is_automatic: bool,
     pub speaker: Option<String>,
     pub date: String,
     pub series_name: Option<String>,

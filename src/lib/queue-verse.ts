@@ -1,14 +1,12 @@
 import { queueVerseToRenderData } from "@/hooks/use-broadcast"
 import { bibleActions } from "@/hooks/use-bible"
-import { useBibleStore, useBroadcastStore, useQueueStore } from "@/stores"
+import { useBroadcastStore, useQueueStore } from "@/stores"
 import type { QueueItem, Verse } from "@/types"
 
-function activeTranslationAbbreviation(): string {
-  return useBibleStore.getState().translations
-    .find((t) => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-}
-
-function queueVerseInput(verse: Verse, confidence = 1): Extract<QueueItem, { kind: "verse" }> {
+function queueVerseInput(
+  verse: Verse,
+  confidence = 1
+): Extract<QueueItem, { kind: "verse" }> {
   return {
     kind: "verse",
     id: crypto.randomUUID(),
@@ -21,9 +19,7 @@ function queueVerseInput(verse: Verse, confidence = 1): Extract<QueueItem, { kin
 }
 
 function sameVerse(a: Verse, b: Verse): boolean {
-  if (a.id !== 0 && b.id !== 0) return a.id === b.id
   return (
-    a.translation_id === b.translation_id &&
     a.book_number === b.book_number &&
     a.chapter === b.chapter &&
     a.verse === b.verse
@@ -31,12 +27,17 @@ function sameVerse(a: Verse, b: Verse): boolean {
 }
 
 function findFirstQueuedVerseIndex(verse: Verse): number {
-  return useQueueStore.getState().items.findIndex(
-    (item) => item.kind === "verse" && sameVerse(item.verse, verse),
-  )
+  return useQueueStore
+    .getState()
+    .items.findIndex(
+      (item) => item.kind === "verse" && sameVerse(item.verse, verse)
+    )
 }
 
-export function addOrFindQueuedVerse(verse: Verse, confidence = 1): {
+export function addOrFindQueuedVerse(
+  verse: Verse,
+  confidence = 1
+): {
   item: QueueItem | undefined
   index: number
 } {
@@ -56,9 +57,11 @@ export function previewQueuedVerse(verse: Verse, confidence = 1): void {
   if (!item || item.kind !== "verse") return
 
   useQueueStore.getState().setActive(index)
-  useBroadcastStore.getState().setPreviewVerse(
-    queueVerseToRenderData(item, activeTranslationAbbreviation()),
-  )
+  useBroadcastStore
+    .getState()
+    .setPreviewVerse(
+      queueVerseToRenderData(item)
+    )
 }
 
 export function presentQueuedVerseLive(verse: Verse, confidence = 1): void {

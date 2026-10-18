@@ -6,7 +6,11 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores([
+    'dist/**', 'build/**', 'src-tauri/target/**', 'src-tauri/gen/**',
+    '.superpowers/**', '.pnpm-store/**', '.playwright-mcp/**', '.venv/**',
+    '.agents/**', '.claude/**', 'models/**', 'embeddings/**', 'sdk/**',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -18,6 +22,12 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+    },
+  },
+  {
+    files: ['data/**/*.ts', 'scripts/**/*.ts', '*.config.ts'],
+    languageOptions: {
+      globals: { ...globals.node, Bun: 'readonly' },
     },
   },
 ])

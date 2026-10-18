@@ -1,8 +1,10 @@
+import { BlankBackgroundSettings } from "./blank-background"
+import { useBroadcastStore } from "@/stores/broadcast-store"
 import { invoke } from "@tauri-apps/api/core"
 import { open as openDialog } from "@tauri-apps/plugin-dialog"
 import { useSettingsStore } from "@/stores"
 import { persistBrandConfig } from "@/stores/settings-store"
-import { resolveBrandAsset, type BrandAssetKind } from "@/lib/brand"
+import { resolveBlankBackground, resolveBrandAsset, type BrandAssetKind } from "@/lib/brand"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 
@@ -31,6 +33,7 @@ export function BrandingSection() {
     try {
       const stored = await invoke<string>("save_brand_asset", { kind, srcPath: file })
       await persistBrandConfig({ [field]: stored })
+      useBroadcastStore.getState().syncBroadcastOutput()
     } catch (e) {
       console.error("[branding] save failed", e)
     }
@@ -43,6 +46,7 @@ export function BrandingSection() {
       /* ignore — file may already be gone */
     }
     await persistBrandConfig({ [field]: null })
+    useBroadcastStore.getState().syncBroadcastOutput()
   }
 
   return (
@@ -59,7 +63,9 @@ export function BrandingSection() {
         </p>
       </div>
 
-      {ASSET_ROWS.map(({ kind, label, field }) => (
+      <BlankBackgroundSettings />
+
+      {ASSET_ROWS.filter((row) => row.kind !== "blank" || !resolveBlankBackground(brand).videoUrl).map(({ kind, label, field }) => (
         <div key={kind} className="flex items-center gap-3">
           <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded border border-border bg-black/40">
             <img

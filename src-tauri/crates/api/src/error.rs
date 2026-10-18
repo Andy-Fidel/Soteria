@@ -2,6 +2,9 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum CommandError {
+    #[error("Command not supported: {0}")]
+    Unsupported(&'static str),
+
     #[error("Unknown OSC address: {0}")]
     UnknownAddress(String),
 

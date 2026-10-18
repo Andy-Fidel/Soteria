@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react"
-import { Panel, Group, Separator, useGroupRef } from "react-resizable-panels"
+import { useState, useEffect, useMemo } from "react"
+import { Panel, Group, Separator, useGroupCallbackRef } from "react-resizable-panels"
 import { Toolbar } from "./toolbar"
 import { CommandPalette } from "@/components/command-palette"
 import { createCommands } from "@/lib/command-registry"
@@ -63,18 +63,6 @@ function HorizontalHandle() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Placeholder tab content                                                   */
-/* -------------------------------------------------------------------------- */
-
-function Placeholder({ label }: { label: string }) {
-  return (
-    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-      {label} — coming in Wave 2
-    </div>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
 /*  Constants                                                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -97,11 +85,11 @@ const DEFAULT_LAYOUT = { left: 25, center: 25, right: 25, broadcast: 25 }
 /* -------------------------------------------------------------------------- */
 
 export function Workspace() {
-  const [transcriptCollapsed, setTranscriptCollapsed] = useState(true)
+  const [transcriptCollapsed, setTranscriptCollapsed] = useState(() => !useTranscriptStore.getState().isTranscribing)
   const [songJumpOpen, setSongJumpOpen] = useState(false)
   const { theme, setTheme } = useTheme()
-  const mainGroupRef = useGroupRef()
-  const rightGroupRef = useGroupRef()
+  const [mainGroup, setMainGroup] = useGroupCallbackRef()
+  const [rightGroup, setRightGroup] = useGroupCallbackRef()
   const panelTabs = usePanelTabsStore()
   const isTranscribing = useTranscriptStore((s) => s.isTranscribing)
   const activeSession = useSessionStore((s) => s.activeSession)
@@ -128,21 +116,17 @@ export function Workspace() {
     return () => window.removeEventListener("keydown", handler)
   }, [])
 
-  // Auto-open transcript when service starts
-  useEffect(() => {
-    if (isTranscribing) {
-      setTranscriptCollapsed(false)
-    }
-  }, [isTranscribing])
+  // The external transcription store signals when a service starts.
+  useEffect(() => useTranscriptStore.subscribe((state, previous) => {
+    if (state.isTranscribing && !previous.isTranscribing) setTranscriptCollapsed(false)
+  }), [])
 
-  const commands = useMemo(
-    () =>
-      createCommands({
+  const commands = useMemo(() => createCommands({
         newSession: () => {
           usePanelTabsStore.getState().setTab("left", "sessions")
-          const layout = mainGroupRef.current?.getLayout()
+          const layout = mainGroup?.getLayout()
           if (layout && (layout.left ?? 0) < 15) {
-            mainGroupRef.current?.setLayout(DEFAULT_LAYOUT)
+            mainGroup?.setLayout(DEFAULT_LAYOUT)
           }
         },
         endSession: () => {
@@ -185,7 +169,7 @@ export function Workspace() {
           setTranscriptCollapsed((prev) => !prev)
         },
         resetLayout: () => {
-          mainGroupRef.current?.setLayout(DEFAULT_LAYOUT)
+          mainGroup?.setLayout(DEFAULT_LAYOUT)
         },
         toggleTheme: () => {
           setTheme(theme === "dark" ? "light" : "dark")
@@ -226,28 +210,26 @@ export function Workspace() {
         navigateTo: (tab: string) => {
           // Plan now lives in its own pinned bottom slot — expand it if collapsed.
           if (tab === "plan") {
-            const mainLayout = mainGroupRef.current?.getLayout()
+            const mainLayout = mainGroup?.getLayout()
             if (mainLayout && (mainLayout.right ?? 0) < 15) {
-              mainGroupRef.current?.setLayout(DEFAULT_LAYOUT)
+              mainGroup?.setLayout(DEFAULT_LAYOUT)
             }
-            const rightLayout = rightGroupRef.current?.getLayout()
+            const rightLayout = rightGroup?.getLayout()
             if (rightLayout && (rightLayout["right-bottom"] ?? 0) < 15) {
-              rightGroupRef.current?.setLayout({ "right-top": 60, "right-bottom": 40 })
+              rightGroup?.setLayout({ "right-top": 60, "right-bottom": 40 })
             }
             return
           }
           const panel = TAB_PANEL_MAP[tab]
           if (panel) {
             usePanelTabsStore.getState().setTab(panel, tab)
-            const layout = mainGroupRef.current?.getLayout()
+            const layout = mainGroup?.getLayout()
             if (layout && (layout[panel] ?? 0) < 15) {
-              mainGroupRef.current?.setLayout(DEFAULT_LAYOUT)
+              mainGroup?.setLayout(DEFAULT_LAYOUT)
             }
           }
         },
-      }),
-    [theme, setTheme, mainGroupRef, rightGroupRef]
-  )
+      }), [theme, setTheme, mainGroup, rightGroup])
 
   // Bridge native menu events to command registry
   useMenuEvents(commands)
@@ -280,7 +262,7 @@ export function Workspace() {
       <Group
         orientation="horizontal"
         className="min-h-0 flex-1"
-        groupRef={mainGroupRef}
+        groupRef={setMainGroup}
       >
         {/* Left panel */}
         <Panel id="left" defaultSize="25%" minSize="15%" maxSize="40%">
@@ -354,7 +336,7 @@ export function Workspace() {
 
         {/* Right column — top: queue/history/cross-refs tabs, bottom: persistent service plan */}
         <Panel id="right" defaultSize="25%" minSize="15%" maxSize="40%">
-          <Group orientation="vertical" className="h-full" groupRef={rightGroupRef}>
+          <Group orientation="vertical" className="h-full" groupRef={setRightGroup}>
             <Panel id="right-top" defaultSize="60%" minSize="20%">
               <PanelTabs
                 className="h-full"
