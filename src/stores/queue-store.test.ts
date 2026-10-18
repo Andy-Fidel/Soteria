@@ -172,3 +172,26 @@ describe("queue hydration presenter restoration", () => {
     expect(useBibleStore.getState().pendingNavigation).toBeNull()
   })
 })
+
+describe("queue active item identity", () => {
+  const items: QueueItem[] = ["a", "b", "c", "d"].map(id => ({ kind: "image", id, url: id, label: id, provider: "local", source: "manual", added_at: 1 }))
+  beforeEach(() => useQueueStore.setState({ items, activeIndex: 1 }))
+  it("keeps the same active item when an earlier item is removed", () => {
+    useQueueStore.getState().removeItem("a")
+    const q = useQueueStore.getState()
+    expect(q.items[q.activeIndex!].id).toBe("b")
+  })
+  it("clears the pointer when the active item is removed", () => {
+    useQueueStore.getState().removeItem("b")
+    expect(useQueueStore.getState().activeIndex).toBeNull()
+  })
+  it("keeps the same active item when another row crosses it", () => {
+    useQueueStore.getState().reorderItems(0, 3)
+    const q = useQueueStore.getState()
+    expect(q.items[q.activeIndex!].id).toBe("b")
+  })
+  it("follows the active row when it is moved", () => {
+    useQueueStore.getState().reorderItems(1, 3)
+    expect(useQueueStore.getState().activeIndex).toBe(3)
+  })
+})

@@ -1,3 +1,4 @@
+import { useServicePlanStore } from "./service-plan-store"
 import { create } from "zustand"
 import { emit } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api/core"
@@ -15,6 +16,7 @@ interface BroadcastState {
   themes: BroadcastTheme[]
   activeThemeId: string
   altActiveThemeId: string
+  outputHidden: boolean
   isLive: boolean
   previewVerse: VerseRenderData | null
   liveVerse: VerseRenderData | null
@@ -122,10 +124,16 @@ function setNestedValue<T extends Nested>(obj: T, path: string, value: unknown):
   return setAt(obj, 0) as T
 }
 
+function releasePlanOutput() {
+  useServicePlanStore.getState().cancelPendingAdvance()
+  useServicePlanStore.setState({ presentedItemId: null })
+}
+
 export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   themes: [...BUILTIN_THEMES],
   activeThemeId: BUILTIN_THEMES[0].id,
   altActiveThemeId: BUILTIN_THEMES[0].id,
+  outputHidden: false,
   isLive: false,
   previewVerse: null,
   liveVerse: null,
@@ -136,8 +144,10 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   selectedElement: null,
   blankLogo: false,
   setBlankLogo: (active) => {
+    releasePlanOutput()
     set({
       blankLogo: active,
+      outputHidden: false,
       fullscreenImage: active ? null : get().fullscreenImage,
       liveVerse: active ? null : get().liveVerse,
       liveNotes: active ? null : get().liveNotes,
@@ -149,9 +159,10 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   setProjectorMonitorIndex: (projectorMonitorIndex) => set({ projectorMonitorIndex }),
   fullscreenImage: null,
   setFullscreenImage: (fullscreenImage) => {
+    releasePlanOutput()
     set({
       fullscreenImage,
-      blankLogo: fullscreenImage ? false : get().blankLogo,
+      outputHidden: false,      blankLogo: fullscreenImage ? false : get().blankLogo,
       liveVerse: fullscreenImage ? null : get().liveVerse,
       liveNotes: fullscreenImage ? null : get().liveNotes,
       isLive: fullscreenImage ? true : get().isLive,
@@ -160,9 +171,10 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   },
   liveNotes: null,
   setLiveNotes: (liveNotes) => {
+    releasePlanOutput()
     set({
       liveNotes,
-      liveVerse: liveNotes ? null : get().liveVerse,
+      outputHidden: false,      liveVerse: liveNotes ? null : get().liveVerse,
       fullscreenImage: liveNotes ? null : get().fullscreenImage,
       blankLogo: liveNotes ? false : get().blankLogo,
       isLive: liveNotes ? true : get().isLive,
@@ -224,6 +236,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
 
     void emit(`broadcast:verse-update:${outputId}`, {
       theme,
+      hidden: s.outputHidden,
       verse: s.liveVerse,
       blankLogo: s.blankLogo,
       blankLogoUrl: blank.imageUrl,
@@ -250,11 +263,17 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     set({ altActiveThemeId })
     get().syncBroadcastOutputFor("alt")
   },
-  setLive: (isLive) => set({ isLive }),
+  setLive: (isLive) => {
+    if (!isLive) releasePlanOutput()
+    set({ isLive, outputHidden: !isLive })
+    get().syncBroadcastOutput()
+  },
   setPreviewVerse: (previewVerse) => set({ previewVerse }),
   setLiveVerse: (liveVerse) => {
+    releasePlanOutput()
     set({
       liveVerse,
+      outputHidden: false,
       isLive: liveVerse !== null,
       blankLogo: false,
       fullscreenImage: null,
@@ -358,11 +377,13 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     }
   },
   clearScreen: () => {
-    set({ liveVerse: null, isLive: false, blankLogo: false, fullscreenImage: null, liveNotes: null })
+    releasePlanOutput()
+    set({ liveVerse: null, isLive: false, outputHidden: true, blankLogo: false, fullscreenImage: null, liveNotes: null })
     get().syncBroadcastOutput()
     invoke("close_broadcast_window", { outputId: "main" }).catch((err) => console.warn("[broadcast-store]", err))
   },
   showProjector: () => {
+    set({ outputHidden: false, isLive: true })
     const idx = get().projectorMonitorIndex ?? 0
     // If projector is reopening after a Kill (nothing live), default to the
     // blank EWC-logo screen so the audience sees branding, not a black void.

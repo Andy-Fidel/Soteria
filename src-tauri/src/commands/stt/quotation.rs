@@ -3,7 +3,11 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// Run quotation matching against all loaded Bible translations.
-pub(super) fn run_quotation_matching(app: &AppHandle, transcript: &str) {
+pub(super) fn run_quotation_matching(
+    app: &AppHandle,
+    transcript: &str,
+    active: &std::sync::atomic::AtomicBool,
+) {
     // When reading mode is active, suppress quotation matching entirely.
     // The reader is actively reading a passage — quotation matches for
     // OTHER books would hijack the display away from what's being read.
@@ -22,6 +26,9 @@ pub(super) fn run_quotation_matching(app: &AppHandle, transcript: &str) {
         return;
     }; // AppState busy
 
+    if !active.load(std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
     if !app_state.quotation_matcher.is_ready() {
         return;
     }

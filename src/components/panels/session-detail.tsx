@@ -1,3 +1,4 @@
+import { toast } from "sonner"
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import {
@@ -101,13 +102,14 @@ function SessionDetailContent({
 
   const handleEndSession = async () => {
     try {
-      await invoke("end_session", { id: sessionId })
-      setSession((s) => (s ? { ...s, status: "completed" as const } : null))
+      const { endSession } = await import("@/lib/end-session")
+      const completed = await endSession(sessionId)
+      setSession(completed)
       const { generateAndPersistSummary } = await import("@/lib/summarize")
       const result = await generateAndPersistSummary(sessionId)
       if (result) setSummary(result)
     } catch (e) {
-      console.error("Failed to end session:", e)
+      toast.error(`Could not end session: ${String(e)}`)
     }
   }
 

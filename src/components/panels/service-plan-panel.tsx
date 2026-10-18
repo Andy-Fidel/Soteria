@@ -1,11 +1,11 @@
 // src/components/panels/service-plan-panel.tsx
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { CalendarDaysIcon, FolderIcon } from "lucide-react"
 import { DragDropProvider, type DragEndEvent } from "@dnd-kit/react"
 import { useSortable, isSortable } from "@dnd-kit/react/sortable"
 import { useServicePlan } from "@/hooks/use-service-plan"
 import { useServicePlanStore } from "@/stores/service-plan-store"
-import { activatePlanItem } from "@/components/service-plan/activation-router"
+import { handlePlanKeyDown } from "@/components/service-plan/(lib)/keyboard"
 import { AddItemMenu } from "@/components/service-plan/add-item-menu"
 import { ServicePlanItem } from "./service-plan-item"
 import { ServicePlanItemEditor } from "./service-plan-item-editor"
@@ -16,8 +16,9 @@ import { useSessionStore, useTranscriptStore } from "@/stores"
 import { getWorkspaceMode, getWorkspaceModeCopy } from "@/lib/workspace-mode"
 
 export function ServicePlanPanel() {
-  const { plan, activeItemId, pendingAdvanceDeadline, pendingAdvanceTotalMs, setActiveItem, reorderItem } =
+  const { plan, activeItemId, pendingAdvanceDeadline, pendingAdvanceTotalMs, reorderItem } =
     useServicePlan()
+  const presentedItemId = useServicePlanStore(s => s.presentedItemId)
   const [editing, setEditing] = useState<PlanItem | null>(null)
   const [templateManagerOpen, setTemplateManagerOpen] = useState(false)
   const activeSession = useSessionStore((s) => s.activeSession)
@@ -27,71 +28,6 @@ export function ServicePlanPanel() {
   const modeCopy = getWorkspaceModeCopy(
     getWorkspaceMode({ activeSession, isTranscribing, pendingServiceStart, sessionsMode })
   )
-
-  /* Keyboard: ↑/↓ navigate, Enter activate, Cmd/Ctrl+↑/↓ reorder. */
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!plan || plan.items.length === 0) return
-      const targets = ["INPUT", "TEXTAREA"]
-      if (targets.includes((e.target as HTMLElement).tagName)) return
-
-      const idx = plan.items.findIndex((i) => i.id === activeItemId)
-      const modifier = e.metaKey || e.ctrlKey
-
-      if (e.key === "ArrowDown" && modifier) {
-        if (idx < 0 || idx >= plan.items.length - 1) return
-        e.preventDefault()
-        const dragged = plan.items[idx]
-        const newPrev = plan.items[idx + 1] // dragged inserts AFTER the next item
-        const newNext = idx + 2 < plan.items.length ? plan.items[idx + 2] : null
-        void reorderItem(dragged, newPrev.id, newNext?.id ?? null)
-      } else if (e.key === "ArrowUp" && modifier) {
-        if (idx <= 0) return
-        e.preventDefault()
-        const dragged = plan.items[idx]
-        const newPrev = idx - 2 >= 0 ? plan.items[idx - 2] : null
-        const newNext = plan.items[idx - 1]
-        void reorderItem(dragged, newPrev?.id ?? null, newNext.id)
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault()
-        const next = plan.items[Math.min(plan.items.length - 1, Math.max(0, idx + 1))]
-        setActiveItem(next.id)
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault()
-        const prev = plan.items[Math.max(0, idx - 1)]
-        setActiveItem(prev.id)
-      } else if (e.key === "Enter") {
-        if (idx >= 0) {
-          e.preventDefault()
-          activatePlanItem(plan.items[idx])
-        }
-      }
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [plan, activeItemId, setActiveItem, reorderItem])
-
-  /* Auto-advance: when active item has autoAdvanceSeconds, schedule timer. */
-  useEffect(() => {
-    const store = useServicePlanStore.getState()
-    store.cancelPendingAdvance()
-
-    if (!plan || activeItemId == null) return
-    const active = plan.items.find((i) => i.id === activeItemId)
-    if (!active || active.autoAdvanceSeconds == null || active.autoAdvanceSeconds <= 0) return
-
-    const ms = active.autoAdvanceSeconds * 1000
-    const deadline = Date.now() + ms
-    const timer = setTimeout(() => {
-      const next = useServicePlanStore.getState().nextPlayableAfter(active.id)
-      if (!next) return
-      useServicePlanStore.getState().setActiveItem(next.id)
-      activatePlanItem(next)
-    }, ms)
-    store.setPendingAdvance(timer, deadline, ms)
-
-    return () => store.cancelPendingAdvance()
-  }, [plan, activeItemId])
 
   const handleDragEnd = (event: Parameters<DragEndEvent>[0]) => {
     if (event.canceled || !plan) return
@@ -120,7 +56,7 @@ export function ServicePlanPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" tabIndex={0} aria-label="Service plan" onKeyDown={event => handlePlanKeyDown(event, reorderItem)}>
       <div className="flex items-center justify-between border-b px-3 py-2">
         <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Service Plan
@@ -152,6 +88,7 @@ export function ServicePlanPanel() {
               item={item}
               index={idx}
               isActive={activeItemId === item.id}
+              isPresented={presentedItemId === item.id}
               pendingAdvanceDeadline={pendingAdvanceDeadline}
               pendingAdvanceTotalMs={pendingAdvanceTotalMs}
               onEdit={setEditing}
@@ -169,6 +106,7 @@ export function ServicePlanPanel() {
 interface SortableRowProps {
   item: PlanItem
   index: number
+  isPresented: boolean
   isActive: boolean
   pendingAdvanceDeadline: number | null
   pendingAdvanceTotalMs: number | null
@@ -179,6 +117,7 @@ function SortableRow({
   item,
   index,
   isActive,
+  isPresented,
   pendingAdvanceDeadline,
   pendingAdvanceTotalMs,
   onEdit,
@@ -189,6 +128,7 @@ function SortableRow({
       <ServicePlanItem
         item={item}
         isActive={isActive}
+        isPresented={isPresented}
         pendingAdvanceDeadline={pendingAdvanceDeadline}
         pendingAdvanceTotalMs={pendingAdvanceTotalMs}
         onEdit={onEdit}

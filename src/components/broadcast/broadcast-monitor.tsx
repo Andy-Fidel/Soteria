@@ -37,6 +37,7 @@ export function BroadcastMonitor() {
   const fullscreenImage = useBroadcastStore((s) => s.fullscreenImage)
   const blankLogo = useBroadcastStore((s) => s.blankLogo)
   const blankBackground = resolveBlankBackground(useSettingsStore((s) => s.brand))
+  const outputHidden = useBroadcastStore((s) => s.outputHidden)
   const isLive = useBroadcastStore((s) => s.isLive)
   const goLive = useBroadcastStore((s) => s.goLive)
   const clearScreen = useBroadcastStore((s) => s.clearScreen)
@@ -228,7 +229,7 @@ export function BroadcastMonitor() {
           </div>
         </div>
         <div className={`overflow-hidden rounded ${isLive ? "ring-2 ring-destructive/40" : "ring-1 ring-white/[0.08]"}`}>
-          {liveVerse && !fullscreenImage && !blankLogo ? (
+          {outputHidden ? <div className="aspect-video w-full bg-black" aria-label="Output hidden" /> : liveVerse && !fullscreenImage && !blankLogo ? (
             <InteractiveVersePreview
               key={liveVerse.reference}
               theme={activeTheme}

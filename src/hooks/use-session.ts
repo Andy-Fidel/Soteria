@@ -8,13 +8,15 @@ import type {
   SessionNote,
 } from "@/types/session"
 
+import { endSession } from "@/lib/end-session"
+
 const sessionActions = {
   createSession: (request: CreateSessionRequest) =>
     invoke<SermonSession>("create_session", { request }),
   getSession: (id: number) => invoke<SermonSession>("get_session", { id }),
   listSessions: () => invoke<SermonSession[]>("list_sessions"),
   startSession: (id: number) => invoke<SermonSession>("start_session", { id }),
-  endSession: (id: number) => invoke<SermonSession>("end_session", { id }),
+  endSession,
   deleteSession: (id: number) => invoke<void>("delete_session", { id }),
   renameSession: async (id: number, title: string) => {
     await invoke("update_session_title", { id, title })

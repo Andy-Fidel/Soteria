@@ -89,15 +89,21 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     return inserted
   },
   removeItem: (id) =>
-    set((state) => ({
-      items: state.items.filter((i) => i.id !== id),
-    })),
+    set((state) => {
+      const activeId = state.activeIndex === null ? null : state.items[state.activeIndex]?.id
+      const items = state.items.filter(item => item.id !== id)
+      const index = items.findIndex(item => item.id === activeId)
+      return { items, activeIndex: index < 0 ? null : index }
+    }),
   reorderItems: (fromIndex, toIndex) =>
     set((state) => {
       const items = [...state.items]
+      if (fromIndex < 0 || fromIndex >= items.length || toIndex < 0 || toIndex >= items.length) return state
+      const activeId = state.activeIndex === null ? null : items[state.activeIndex]?.id
       const [moved] = items.splice(fromIndex, 1)
       items.splice(toIndex, 0, moved)
-      return { items }
+      const index = items.findIndex(item => item.id === activeId)
+      return { items, activeIndex: index < 0 ? null : index }
     }),
   setActive: (activeIndex) => set({ activeIndex }),
   replaceQueueState: (next) => set(next),

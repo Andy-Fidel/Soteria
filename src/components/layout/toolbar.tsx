@@ -1,3 +1,4 @@
+import { toast } from "sonner"
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { ask } from "@tauri-apps/plugin-dialog"
@@ -94,23 +95,12 @@ export function Toolbar() {
     try {
       const session = useSessionStore.getState().activeSession
 
-      // Stop transcription + merge audio segments into the final recording.
       if (session) {
-        const { finalizeRecording } = await import("@/lib/finalize-recording")
-        await finalizeRecording(session.id)
-      } else {
-        await invoke("stop_transcription")
-      }
-      useTranscriptStore.getState().setTranscribing(false)
-      useTranscriptStore.getState().setPartial("")
-      useTranscriptStore.getState().setConnectionStatus("disconnected")
-
-      // End the session + fire AI summary in the background
-      if (session) {
-        await invoke("end_session", { id: session.id })
-        useSessionStore.getState().setActiveSession(null)
-        const { clearPersistedQueue } = await import("@/stores/queue-store")
-        clearPersistedQueue()
+        const { endSession } = await import("@/lib/end-session")
+        await endSession(session.id)
+        if (useSessionStore.getState().activeSession?.id === session.id) {
+          useSessionStore.getState().setActiveSession(null)
+        }
         const { generateAndPersistSummary } = await import("@/lib/summarize")
         void generateAndPersistSummary(session.id)
 
@@ -120,9 +110,12 @@ export function Toolbar() {
           title: session.title,
           tab: "summary",
         })
+      } else {
+        await invoke("stop_transcription")
+        useTranscriptStore.setState({ isTranscribing: false, currentPartial: "", connectionStatus: "disconnected" })
       }
     } catch (e) {
-      console.error("Failed to end service:", e)
+      toast.error(`Could not end service: ${String(e)}`)
     }
   }
 

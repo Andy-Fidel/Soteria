@@ -1,3 +1,4 @@
+import { markPlanItemPresented } from "./(lib)/presentation"
 // src/components/service-plan/activation-router.ts
 import { useBroadcastStore, useBibleStore, useQueueStore, useSettingsStore } from "@/stores"
 import { resolveBrandAsset } from "@/lib/brand"
@@ -15,6 +16,15 @@ import { useAnnouncementDialogStore } from "@/lib/announcement-dialog"
  * - blank/corrupt → setLiveVerse(null)  ← clears the display
  */
 export function activatePlanItem(item: PlanItem): void {
+  const parsed = parsePlanItem(item)
+  const before = useBroadcastStore.getState().liveVerse
+  routePlanItem(item)
+  if (!parsed || parsed.type === "section" || parsed.type === "announcement" || parsed.type === "notes") return
+  if (parsed.type === "song" && useBroadcastStore.getState().liveVerse === before) return
+  markPlanItemPresented(item.id)
+}
+
+function routePlanItem(item: PlanItem): void {
   const parsed = parsePlanItem(item)
   const broadcast = useBroadcastStore.getState()
 

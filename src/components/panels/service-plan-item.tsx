@@ -9,6 +9,7 @@ import { activatePlanItem } from "@/components/service-plan/activation-router"
 
 interface Props {
   item: PlanItem
+  isPresented: boolean
   isActive: boolean
   pendingAdvanceDeadline: number | null
   pendingAdvanceTotalMs?: number | null
@@ -57,6 +58,7 @@ function ItemLabel({ item }: { item: PlanItem }) {
 export function ServicePlanItem({
   item,
   isActive,
+  isPresented,
   pendingAdvanceDeadline,
   pendingAdvanceTotalMs,
   onEdit,
@@ -79,7 +81,7 @@ export function ServicePlanItem({
       ref={dragRef}
       {...dragAttrs}
       className={`group relative flex flex-col gap-1.5 rounded-md border px-2 py-1.5 text-sm ${
-        isActive ? "border-red-500/60 bg-red-500/5" : "border-border bg-card hover:bg-muted/50"
+        isPresented ? "border-red-500/60 bg-red-500/5" : isActive ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-muted/50"
       } ${item.itemType === "section" ? "opacity-70" : "cursor-pointer"}`}
       onClick={onClick}
     >
@@ -93,7 +95,7 @@ export function ServicePlanItem({
         >
           <ItemLabel item={item} />
         </div>
-        {isActive && <span className="text-[10px] font-medium text-red-500">Live</span>}
+        {isPresented && <span className="text-[10px] font-medium text-red-500">Live</span>}
 
         {editable && (
           <Button
@@ -123,7 +125,7 @@ export function ServicePlanItem({
 
       {isAnnouncement && <AnnouncementLiveRow item={item} />}
 
-      {isActive && pendingAdvanceDeadline != null && pendingAdvanceTotalMs != null && (
+      {isPresented && pendingAdvanceDeadline != null && pendingAdvanceTotalMs != null && (
         <AdvanceProgressBar
           deadline={pendingAdvanceDeadline}
           totalMs={pendingAdvanceTotalMs}

@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 
 /// Allowed image extensions (lowercased, no dot). Mirrors `images.rs`.
 const IMAGE_EXTS: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "avif", "heic",
-    "heif", "svg", "ico", "jfif", "apng",
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "avif", "heic", "heif", "svg",
+    "ico", "jfif", "apng",
 ];
 
 fn brand_dir() -> PathBuf {
@@ -72,24 +72,24 @@ impl BrandKind {
     }
 }
 
-/// Copy a picked file into `brand/<kind>.<ext>`, returning the stored path.
-/// Removes any prior brand file for this kind (any extension) first.
+/// Copy a picked image to a fresh managed path, preserving the current asset.
 #[tauri::command]
 pub fn save_brand_asset(kind: BrandKind, src_path: String) -> Result<String, String> {
-    let ext = ext_of(&PathBuf::from(&src_path));
+    replace_brand_asset(&kind, &src_path, &brand_dir())
+}
+
+fn replace_brand_asset(
+    kind: &BrandKind,
+    src_path: &str,
+    directory: &Path,
+) -> Result<String, String> {
+    let ext = ext_of(&PathBuf::from(src_path));
     if !IMAGE_EXTS.contains(&ext.as_str()) {
         return Err("Refusing to import a non-image file".into());
     }
-    let dir = brand_dir();
-    if let Ok(entries) = std::fs::read_dir(&dir) {
-        for entry in entries.flatten() {
-            let p = entry.path();
-            if p.file_stem().and_then(|s| s.to_str()) == Some(kind.stem()) {
-                let _ = std::fs::remove_file(p);
-            }
-        }
-    }
-    copy_image_into(&src_path, &dir, &format!("{}.{ext}", kind.stem()))
+    // Keep prior copies until Reset; settings may fail to save the new path.
+    let filename = format!("{}-{}.{}", kind.stem(), uuid::Uuid::new_v4(), ext);
+    copy_image_into(src_path, directory, &filename)
 }
 
 /// Remove the brand file(s) for a kind. Idempotent.
@@ -99,7 +99,9 @@ pub fn delete_brand_asset(kind: BrandKind) -> Result<(), String> {
     if let Ok(entries) = std::fs::read_dir(&dir) {
         for entry in entries.flatten() {
             let p = entry.path();
-            if p.file_stem().and_then(|s| s.to_str()) == Some(kind.stem()) {
+            if p.file_stem().and_then(|s| s.to_str()).is_some_and(|stem| {
+                stem == kind.stem() || stem.starts_with(&format!("{}-", kind.stem()))
+            }) {
                 let _ = std::fs::remove_file(p);
             }
         }
@@ -137,5 +139,27 @@ mod tests {
         assert!(is_image(Path::new("a.jpeg")));
         assert!(!is_image(Path::new("a.txt")));
         assert!(!is_image(Path::new("a")));
+    }
+    #[test]
+    fn failed_replacement_preserves_the_existing_image() {
+        let dir = tempdir().unwrap();
+        let old = write_png(dir.path(), "logo.png");
+        assert!(replace_brand_asset(
+            &BrandKind::Logo,
+            dir.path().join("missing.png").to_str().unwrap(),
+            dir.path()
+        )
+        .is_err());
+        assert!(Path::new(&old).is_file());
+    }
+    #[test]
+    fn replacement_has_a_fresh_url_and_keeps_the_previous_path_until_settings_are_saved() {
+        let dir = tempdir().unwrap();
+        let old = write_png(dir.path(), "logo.png");
+        let src = write_png(dir.path(), "replacement.png");
+        let stored = replace_brand_asset(&BrandKind::Logo, &src, dir.path()).unwrap();
+        assert_ne!(stored, old);
+        assert!(Path::new(&old).is_file());
+        assert_eq!(std::fs::read(stored).unwrap(), std::fs::read(src).unwrap());
     }
 }

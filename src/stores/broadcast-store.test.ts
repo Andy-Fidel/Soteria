@@ -21,6 +21,18 @@ describe("broadcast store sync", () => {
     vi.resetModules()
   })
 
+  it("hides both outputs without losing the content needed by remote Show", async () => {
+    const { useBroadcastStore } = await import("./broadcast-store")
+    const verse = { reference: "John 3:16 (KJV)", segments: [{ text: "For God so loved the world", verseNumber: 16 }] }
+    useBroadcastStore.setState({ liveVerse: verse, isLive: true })
+    useBroadcastStore.getState().setLive(false)
+    for (const output of ["main", "alt"]) expect(emitMock).toHaveBeenCalledWith(`broadcast:verse-update:${output}`, expect.objectContaining({ hidden: true }))
+    expect(useBroadcastStore.getState().liveVerse).toEqual(verse)
+    emitMock.mockClear()
+    useBroadcastStore.getState().setLive(true)
+    for (const output of ["main", "alt"]) expect(emitMock).toHaveBeenCalledWith(`broadcast:verse-update:${output}`, expect.objectContaining({ hidden: false, verse }))
+  })
+
   it("sends the chosen video or still-image mode to both outputs", async () => {
     const { useBroadcastStore } = await import("./broadcast-store")
     const { useSettingsStore } = await import("./settings-store")

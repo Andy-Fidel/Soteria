@@ -5,6 +5,7 @@
 
 mod capture;
 mod direct;
+mod lifecycle;
 mod quotation;
 mod reading;
 mod recorded_segment;
@@ -68,15 +69,23 @@ pub async fn start_transcription(
     // after a perceived disconnect (e.g. Deepgram silence-close) while the
     // backend is still happily reconnecting — rejecting with an error strands
     // the user. A no-op start keeps UI and backend in sync.
-    let (stt_active, audio_active) = {
+    {
         let app_state = state.lock().map_err(|e| e.to_string())?;
+        if app_state.stt_stopping {
+            return Err("Transcription is still stopping. Try again when it finishes.".into());
+        }
         if app_state.stt_active.load(Ordering::Relaxed) {
+            if app_state.transcription_session_id != session_id {
+                return Err(
+                    "Another session is using the microphone. End it before starting this session."
+                        .into(),
+                );
+            }
             log::info!("start_transcription called but already running — no-op");
             let _ = app.emit("stt_connected", ());
             return Ok(());
         }
-        (app_state.stt_active.clone(), app_state.audio_active.clone())
-    };
+    }
 
     let provider_name = provider.as_deref().unwrap_or("deepgram");
 
@@ -174,14 +183,32 @@ pub async fn start_transcription(
         }
     };
 
-    stt_active.store(true, Ordering::SeqCst);
-    audio_active.store(true, Ordering::SeqCst);
-
-    // Store provider handle so `stop_transcription` can call `.stop()` directly.
-    {
+    let (stt_active, audio_active) = {
         let mut app_state = state.lock().map_err(|e| e.to_string())?;
+        if app_state.stt_stopping || app_state.stt_active.load(Ordering::SeqCst) {
+            return Err("Transcription is already starting or stopping.".into());
+        }
+        if app_state
+            .capture_thread
+            .as_ref()
+            .is_some_and(|thread| !thread.is_finished())
+            || app_state
+                .provider_task
+                .as_ref()
+                .is_some_and(|task| !task.inner().is_finished())
+            || app_state
+                .transcript_task
+                .as_ref()
+                .is_some_and(|task| !task.inner().is_finished())
+        {
+            return Err("The previous recording is still closing. Try again.".into());
+        }
+        app_state.transcription_session_id = session_id;
+        app_state.stt_active = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        app_state.audio_active = Arc::new(std::sync::atomic::AtomicBool::new(true));
         app_state.stt_provider = Some(stt_provider.clone());
-    }
+        (app_state.stt_active.clone(), app_state.audio_active.clone())
+    };
 
     // ── 3. Prepare channels ─────────────────────────────────────────────
     let (audio_send_tx, audio_send_rx) = crossbeam_channel::bounded::<Vec<i16>>(64);
@@ -240,33 +267,48 @@ pub async fn start_transcription(
         };
     }
 
-    // Recording pause flag — fresh start clears any stale pause from a prior run.
-    let recording_paused = {
-        let app_state = state.lock().map_err(|e| e.to_string())?;
-        app_state.recording_paused.store(false, Ordering::SeqCst);
-        app_state.recording_paused.clone()
-    };
-
     let (capture_ready_tx, capture_ready_rx) = tokio::sync::oneshot::channel();
-    capture::spawn(capture::CaptureConfig {
-        app: app.clone(),
-        active: stt_active.clone(),
-        recording_paused,
-        device_id,
-        gain: gain_val,
-        session_dir,
-        session_id,
-        audio_send_tx,
-        ready_tx: capture_ready_tx,
-    })
-    .map_err(|e| {
-        stt_active.store(false, Ordering::SeqCst);
-        audio_active.store(false, Ordering::SeqCst);
-        format!("Failed to spawn audio fanout thread: {e}")
-    })?;
+    {
+        let mut starting_state = state.lock().map_err(|e| e.to_string())?;
+        if !stt_active.load(Ordering::SeqCst)
+            || !Arc::ptr_eq(&starting_state.stt_active, &stt_active)
+        {
+            return Err("Transcription startup was cancelled.".into());
+        }
+        starting_state
+            .recording_paused
+            .store(false, Ordering::SeqCst);
+        let recording_paused = starting_state.recording_paused.clone();
+        let capture_thread = capture::spawn(capture::CaptureConfig {
+            app: app.clone(),
+            active: stt_active.clone(),
+            recording_paused,
+            device_id,
+            gain: gain_val,
+            session_dir,
+            session_id,
+            audio_send_tx,
+            ready_tx: capture_ready_tx,
+        })
+        .map_err(|e| {
+            stt_active.store(false, Ordering::SeqCst);
+            audio_active.store(false, Ordering::SeqCst);
+            format!("Failed to spawn audio fanout thread: {e}")
+        })?;
 
+        starting_state.capture_thread = Some(capture_thread);
+    }
     // Do not open a speech session or report successful startup without audio.
-    capture::wait_until_ready(capture_ready_rx, &stt_active, &audio_active).await?;
+    if let Err(error) =
+        capture::wait_until_ready(capture_ready_rx, &stt_active, &audio_active).await
+    {
+        lifecycle::stop_current(&state, session_id, Some(&stt_active)).await?;
+        return Err(error);
+    }
+    let mut running_state = state.lock().map_err(|e| e.to_string())?;
+    if !stt_active.load(Ordering::SeqCst) || running_state.stt_stopping {
+        return Err("Transcription startup was cancelled.".into());
+    }
 
     // ── 5. Spawn the STT provider on the tokio runtime ──────────────────
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel::<TranscriptEvent>(64);
@@ -275,14 +317,14 @@ pub async fn start_transcription(
     let provider_log_name = stt_provider.name().to_string();
 
     // Task A: run the STT provider (Deepgram WS+REST or Whisper local).
-    tauri::async_runtime::spawn(async move {
+    running_state.provider_task = Some(tauri::async_runtime::spawn(async move {
         let result = stt_provider.start(audio_send_rx, event_tx).await;
         if let Err(e) = result {
             log::error!("[STT-{provider_log_name}] Provider failed: {e}");
         }
         conn_active.store(false, Ordering::SeqCst);
         log::info!("[STT-{provider_log_name}] Provider task exited");
-    });
+    }));
 
     // Task B: consume TranscriptEvents, emit to frontend, run detection
     let evt_active = stt_active.clone();
@@ -293,11 +335,16 @@ pub async fn start_transcription(
 
     // Spawn semantic detection worker (runs ONNX inference without blocking transcript)
     let sem_app = app.clone();
-    tauri::async_runtime::spawn(async move {
+    let semantic_active = stt_active.clone();
+    let semantic_worker = tauri::async_runtime::spawn(async move {
         while let Some(text) = semantic_rx.recv().await {
+            if !semantic_active.load(Ordering::SeqCst) {
+                break;
+            }
             let worker_app = sem_app.clone();
+            let worker_active = semantic_active.clone();
             if let Err(e) = tauri::async_runtime::spawn_blocking(move || {
-                run_semantic_detection(&worker_app, &text)
+                run_semantic_detection(&worker_app, &text, &worker_active)
             })
             .await
             {
@@ -310,13 +357,17 @@ pub async fn start_transcription(
     let (quotation_tx, mut quotation_rx) = tokio::sync::mpsc::channel::<String>(8);
 
     let quot_app = app.clone();
-    tauri::async_runtime::spawn(async move {
+    let quotation_active = stt_active.clone();
+    let quotation_worker = tauri::async_runtime::spawn(async move {
         while let Some(text) = quotation_rx.recv().await {
-            run_quotation_matching(&quot_app, &text);
+            if !quotation_active.load(Ordering::SeqCst) {
+                break;
+            }
+            run_quotation_matching(&quot_app, &text, &quotation_active);
         }
     });
 
-    tauri::async_runtime::spawn(async move {
+    running_state.transcript_task = Some(tauri::async_runtime::spawn(async move {
         // Sentence buffer accumulates is_final fragments into complete sentences.
         // Flushes on sentence-ending punctuation or speech_final signal.
         let mut sentence_buf = rhema_detection::SentenceBuffer::new();
@@ -421,34 +472,27 @@ pub async fn start_transcription(
             }
         }
 
+        drop(semantic_tx);
+        drop(quotation_tx);
+        let _ = semantic_worker.await;
+        let _ = quotation_worker.await;
         // Always notify frontend that transcription has stopped
         let _ = event_app.emit("stt_disconnected", ());
         evt_active.store(false, Ordering::SeqCst);
         log::info!("Transcript event consumer task exited");
-    });
+    }));
+    drop(running_state);
 
     Ok(())
 }
 
 /// Stop the transcription pipeline (audio capture + STT provider).
 #[tauri::command]
-pub fn stop_transcription(state: State<'_, Mutex<AppState>>) -> Result<(), String> {
-    let mut app_state = state.lock().map_err(|e| e.to_string())?;
-
-    // Always reset flags — idempotent stop handles cases where the frontend
-    // reloaded (e.g., hot reload during dev) while transcription was running.
-    app_state.stt_active.store(false, Ordering::SeqCst);
-    app_state.audio_active.store(false, Ordering::SeqCst);
-
-    // Direct provider cancellation — flips the WS client's internal
-    // `cancelled` flag so the reconnect loop exits immediately instead of
-    // waiting for the audio channel to disconnect via the fanout thread.
-    if let Some(provider) = app_state.stt_provider.take() {
-        provider.stop();
-    }
-
-    log::info!("Transcription stop requested");
-    Ok(())
+pub async fn stop_transcription(
+    state: State<'_, Mutex<AppState>>,
+    session_id: Option<i64>,
+) -> Result<(), String> {
+    lifecycle::stop(&state, session_id).await
 }
 
 /// Whether the transcription/recording pipeline is currently running.

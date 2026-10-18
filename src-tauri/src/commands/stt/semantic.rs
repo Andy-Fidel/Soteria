@@ -15,7 +15,11 @@ const SEMANTIC_COOLDOWN_MS: u64 = 3000;
 static LAST_SEMANTIC_EMIT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Run semantic (ONNX embedding) detection. Slow, runs in background worker.
-pub(super) fn run_semantic_detection(app: &AppHandle, transcript: &str) {
+pub(super) fn run_semantic_detection(
+    app: &AppHandle,
+    transcript: &str,
+    active: &std::sync::atomic::AtomicBool,
+) {
     // Char-safe truncation — raw byte slice panics on multi-byte UTF-8.
     let preview: String = transcript.chars().take(80).collect();
     log::info!("[DET-SEMANTIC] Running on: {preview:?}");
@@ -70,6 +74,9 @@ pub(super) fn run_semantic_detection(app: &AppHandle, transcript: &str) {
             return;
         }
     };
+    if !active.load(std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
     // Semantic hits carry database IDs; context scoring needs real coordinates.
     for merged in &mut detections {
         crate::commands::detection::resolve_semantic_reference(&app_state, merged);

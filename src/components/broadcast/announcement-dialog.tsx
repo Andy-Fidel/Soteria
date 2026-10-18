@@ -1,3 +1,4 @@
+import { markPlanItemPresented } from "@/components/service-plan/(lib)/presentation"
 import { useState } from "react"
 import {
   Drawer,
@@ -90,6 +91,7 @@ function AnnouncementEditor({ editingItem, closeAnnouncement }: {
       mode,
       duration,
     })
+    markPlanItemPresented(editingItem.id)
     closeAnnouncement()
   }
 

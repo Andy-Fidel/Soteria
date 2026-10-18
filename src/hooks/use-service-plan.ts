@@ -23,7 +23,10 @@ export function useServicePlan() {
       store.setPlan(null)
       return
     }
+    const current = useServicePlanStore.getState().plan
+    if (current?.planId === activeSessionId && current.planKind === "session") return
     let cancelled = false
+    store.setPlan(null)
     invoke<Plan>("plan_get", { planId: activeSessionId, planKind: "session" })
       .then((plan) => {
         if (!cancelled) store.setPlan(plan)

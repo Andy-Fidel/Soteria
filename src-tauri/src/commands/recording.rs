@@ -123,9 +123,12 @@ fn concat_segments(dir: &Path) -> std::io::Result<Option<PathBuf>> {
 /// `audio_path` to the final file, or clears it if no audio was produced.
 #[tauri::command]
 pub fn finalize_session_audio(
+    state: State<'_, Mutex<crate::state::AppState>>,
     db: State<'_, Mutex<SessionDb>>,
     session_id: i64,
 ) -> Result<Option<String>, String> {
+    let state = state.lock().map_err(|error| error.to_string())?;
+    state.ensure_session_audio_idle(session_id)?;
     let dir = session_dir(session_id);
     let final_path = concat_segments(&dir).map_err(|e| e.to_string())?;
 
@@ -199,11 +202,13 @@ pub fn get_session_audio_timeline(
 /// segments) and clear the `audio_path` column. Idempotent.
 #[tauri::command]
 pub fn delete_session_audio(
+    state: State<'_, Mutex<crate::state::AppState>>,
     db: State<'_, Mutex<SessionDb>>,
     session_id: i64,
 ) -> Result<(), String> {
+    let state = state.lock().map_err(|error| error.to_string())?;
     let db = db.lock().map_err(|error| error.to_string())?;
-    delete_recording(&db, session_id, &session_dir(session_id))
+    delete_recording(&state, &db, session_id, &session_dir(session_id))
 }
 
 fn remove_recording_file(path: &Path) -> Result<(), String> {
@@ -214,7 +219,13 @@ fn remove_recording_file(path: &Path) -> Result<(), String> {
     }
 }
 
-fn delete_recording(db: &SessionDb, session_id: i64, dir: &Path) -> Result<(), String> {
+fn delete_recording(
+    state: &crate::state::AppState,
+    db: &SessionDb,
+    session_id: i64,
+    dir: &Path,
+) -> Result<(), String> {
+    state.ensure_session_audio_idle(session_id)?;
     let session = db
         .get_session(session_id)
         .map_err(|error| error.to_string())?;
@@ -281,7 +292,7 @@ mod tests {
         db.set_session_audio_path(session.id, audio_path.to_str().unwrap())
             .unwrap();
 
-        delete_recording(&db, session.id, dir.path()).unwrap();
+        delete_recording(&crate::state::AppState::new(), &db, session.id, dir.path()).unwrap();
         let reloaded = db.get_session(session.id).unwrap();
         assert_eq!(reloaded.audio_path, None);
         assert!(!audio_path.exists());
@@ -436,7 +447,7 @@ mod tests {
         std::fs::write(&sidecar, b"timing").unwrap();
         std::fs::write(&manifest, b"manifest").unwrap();
 
-        assert!(delete_recording(&db, session.id, p).is_err());
+        assert!(delete_recording(&crate::state::AppState::new(), &db, session.id, p).is_err());
         assert_eq!(
             db.get_session(session.id).unwrap().audio_path.as_deref(),
             final_path.to_str()
@@ -447,10 +458,41 @@ mod tests {
 
         std::fs::remove_dir(&blocked).unwrap();
         std::fs::write(&blocked, b"segment audio").unwrap();
-        delete_recording(&db, session.id, p).unwrap();
+        delete_recording(&crate::state::AppState::new(), &db, session.id, p).unwrap();
         assert_eq!(db.get_session(session.id).unwrap().audio_path, None);
         assert!(!sidecar.exists());
         assert!(!manifest.exists());
         assert_eq!(concat_segments(p).unwrap(), None);
+    }
+    #[test]
+    fn active_recording_deletion_leaves_audio_and_db_path_untouched() {
+        let dir = tempdir().unwrap();
+        let db = SessionDb::open(&dir.path().join("session.db")).unwrap();
+        let session = db
+            .create_session(&CreateSessionRequest {
+                title: "Recording".into(),
+                title_is_automatic: false,
+                date: "2026-10-18".into(),
+                speaker: None,
+                series_name: None,
+                tags: vec![],
+                planned_scriptures: vec![],
+            })
+            .unwrap();
+        let audio = dir.path().join("audio-seg-0000000000001.mp3");
+        std::fs::write(&audio, b"captured audio").unwrap();
+        db.set_session_audio_path(session.id, audio.to_str().unwrap())
+            .unwrap();
+        let mut state = crate::state::AppState::new();
+        state.transcription_session_id = Some(session.id);
+        state
+            .stt_active
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        assert!(delete_recording(&state, &db, session.id, dir.path()).is_err());
+        assert_eq!(std::fs::read(&audio).unwrap(), b"captured audio");
+        assert_eq!(
+            db.get_session(session.id).unwrap().audio_path.as_deref(),
+            audio.to_str()
+        );
     }
 }

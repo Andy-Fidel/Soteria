@@ -177,6 +177,7 @@ function wrapAnnouncement(
 }
 
 interface BroadcastPayload {
+  hidden?: boolean
   theme: BroadcastTheme
   verse: VerseRenderData | null
   blankLogo?: boolean
@@ -232,7 +233,7 @@ export function BroadcastCanvas() {
   const renderFrame = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number) => {
       const data = latestData.current
-      if (!data) {
+      if (!data || data.hidden) {
         ctx.fillStyle = "#000"
         ctx.fillRect(0, 0, width, height)
         return
@@ -461,7 +462,7 @@ export function BroadcastCanvas() {
 
   const syncVideo = useCallback(() => {
     const data = latestData.current
-    const url = data?.blankLogo && !data.fullscreenImage && !data.notes && announcementRef.current?.mode !== "slide"
+    const url = !data?.hidden && data?.blankLogo && !data.fullscreenImage && !data.notes && announcementRef.current?.mode !== "slide"
       ? data.blankVideoUrl ?? null : null
     if (url === videoUrlRef.current) return
     videoLoopRef.current?.stop()

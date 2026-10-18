@@ -7,6 +7,11 @@ use rhema_stt::SttProvider;
 
 pub struct AppState {
     pub bible_db: Option<BibleDb>,
+    pub transcription_session_id: Option<i64>,
+    pub capture_thread: Option<std::thread::JoinHandle<()>>,
+    pub provider_task: Option<tauri::async_runtime::JoinHandle<()>>,
+    pub transcript_task: Option<tauri::async_runtime::JoinHandle<()>>,
+    pub stt_stopping: bool,
     pub detection_pipeline: Arc<Mutex<DetectionPipeline>>,
     pub sermon_context: SermonContext,
     pub quotation_matcher: QuotationMatcher,
@@ -34,9 +39,28 @@ pub struct AppState {
 }
 
 impl AppState {
+    pub fn ensure_session_audio_idle(&self, session_id: i64) -> Result<(), String> {
+        if self.transcription_session_id == Some(session_id)
+            && (self.stt_active.load(std::sync::atomic::Ordering::SeqCst)
+                || self.stt_stopping
+                || self
+                    .capture_thread
+                    .as_ref()
+                    .is_some_and(|thread| !thread.is_finished()))
+        {
+            return Err("Stop this session's recording before changing its audio files.".into());
+        }
+        Ok(())
+    }
+
     pub fn new() -> Self {
         Self {
             bible_db: None,
+            transcription_session_id: None,
+            capture_thread: None,
+            provider_task: None,
+            transcript_task: None,
+            stt_stopping: false,
             detection_pipeline: Arc::new(Mutex::new(DetectionPipeline::new())),
             sermon_context: SermonContext::new(),
             quotation_matcher: QuotationMatcher::new(),
@@ -128,5 +152,36 @@ mod tests {
         release_tx.send(()).unwrap();
         worker.join().unwrap();
         assert!(available, "Inference blocked unrelated AppState operations");
+    }
+}
+
+#[cfg(test)]
+mod recording_ownership_tests {
+    use super::*;
+    use std::sync::atomic::Ordering;
+    #[test]
+    fn refuses_audio_mutations_for_the_capture_owner_even_while_stopping() {
+        let mut state = AppState::new();
+        state.transcription_session_id = Some(7);
+        state.stt_active.store(true, Ordering::SeqCst);
+        assert!(state.ensure_session_audio_idle(7).is_err());
+        assert!(state.ensure_session_audio_idle(8).is_ok());
+        state.stt_active.store(false, Ordering::SeqCst);
+        state.stt_stopping = true;
+        assert!(state.ensure_session_audio_idle(7).is_err());
+    }
+    #[test]
+    fn refuses_a_still_flushing_writer_after_the_active_flag_is_cleared() {
+        let mut state = AppState::new();
+        let (tx, rx) = std::sync::mpsc::channel();
+        state.transcription_session_id = Some(7);
+        state.capture_thread = Some(std::thread::spawn(move || {
+            rx.recv().unwrap();
+        }));
+        let blocked = state.ensure_session_audio_idle(7).is_err();
+        tx.send(()).unwrap();
+        state.capture_thread.take().unwrap().join().unwrap();
+        assert!(blocked);
+        assert!(state.ensure_session_audio_idle(7).is_ok());
     }
 }

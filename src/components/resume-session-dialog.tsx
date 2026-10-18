@@ -1,3 +1,4 @@
+import { toast } from "sonner"
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { useTranscriptStore, useSettingsStore } from "@/stores"
@@ -73,11 +74,11 @@ export function ResumeSessionDialog() {
       try {
         // Merge any audio segments captured before the crash into the final
         // recording so it isn't lost when the session is closed.
-        const { ensureSessionAudioMerged } = await import("@/lib/finalize-recording")
-        await ensureSessionAudioMerged(orphanedSession.id)
-        await invoke("end_session", { id: orphanedSession.id })
-      } catch {
-        // already ended or error — ignore
+        const { endSession } = await import("@/lib/end-session")
+        await endSession(orphanedSession.id)
+      } catch (error) {
+        toast.error(`Could not end session: ${String(error)}`)
+        return
       }
     }
     setOpen(false)
