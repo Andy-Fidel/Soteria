@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { PanelHeader } from "@/components/ui/panel-header"
 import { ConfidenceDot } from "@/components/ui/confidence-dot"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { useQueueStore, useBroadcastStore, useBibleStore, useTranscriptStore, us
 import { toVerseRenderData } from "@/hooks/use-broadcast"
 import { presentQueuedVerseLive } from "@/lib/queue-verse"
 import { getWorkspaceMode, getWorkspaceModeCopy } from "@/lib/workspace-mode"
-import { invoke } from "@tauri-apps/api/core"
+import { retranslateDetections } from "@/lib/retranslate-detections"
 import type { DetectionResult } from "@/types"
 
 const SOURCE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -30,35 +30,20 @@ function SourceBadge({ source }: { source: string }) {
 
 function DetectionCard({ detection }: { detection: DetectionResult }) {
   const liveVerse = useBroadcastStore((s) => s.liveVerse)
-  const isThisLive = liveVerse?.reference?.startsWith(detection.verse_ref) ?? false
-  const [verseText, setVerseText] = useState(detection.verse_text)
-  const [verseInvalid, setVerseInvalid] = useState(false)
-
-  // Fetch verse text from DB if it arrived empty (lock contention on Rust side)
-  // If the verse doesn't exist in the DB, mark it as invalid to hide the card
-  useEffect(() => {
-    if (detection.verse_text || verseText) return
-    if (detection.book_number <= 0) return
-    const translationId = useBibleStore.getState().activeTranslationId
-    invoke<{ text: string } | null>("get_verse", {
-      translationId,
-      bookNumber: detection.book_number,
-      chapter: detection.chapter,
-      verse: detection.verse,
-    }).then((v) => {
-      if (v?.text) {
-        setVerseText(v.text)
-      } else {
-        setVerseInvalid(true)
-      }
-    }).catch(() => setVerseInvalid(true))
-  }, [detection, verseText])
-
-  if (verseInvalid) return null
+  const translations = useBibleStore((s) => s.translations)
+  const activeTranslationId = useBibleStore((s) => s.activeTranslationId)
+  const verseText = detection.verse_text
+  const canPresent = Boolean(detection.translation_id && verseText)
+  const translation = detection.translation_id
+    ? translations.find((item) => item.id === detection.translation_id)?.abbreviation ?? "Unknown"
+    : "Original text"
+  const isThisLive = canPresent &&
+    (liveVerse?.reference?.startsWith(`${detection.verse_ref} (`) ?? false) &&
+    (liveVerse?.reference?.endsWith(`(${translation})`) ?? false)
 
   const verseFromDetection = () => ({
     id: 0,
-    translation_id: 1,
+    translation_id: detection.translation_id ?? 0,
     book_number: detection.book_number,
     book_name: detection.book_name,
     book_abbreviation: "",
@@ -68,14 +53,13 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
   })
 
   const previewDetection = () => {
+    if (!canPresent) return
     const verse = verseFromDetection()
-    const translation = useBibleStore.getState().translations
-      .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
     useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, translation))
   }
 
   const goLiveDetection = () => {
-    if (isThisLive) return
+    if (!canPresent || isThisLive) return
     presentQueuedVerseLive(verseFromDetection(), detection.confidence)
   }
 
@@ -101,6 +85,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
         <span className="text-sm font-semibold text-foreground">
           {detection.verse_ref}
         </span>
+        <span className="text-[0.625rem] text-muted-foreground">{translation}</span>
         <span className="text-[0.625rem] tabular-nums text-muted-foreground">
           {Math.round(detection.confidence * 100)}%
         </span>
@@ -118,9 +103,15 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
         </p>
       )}
 
+      {detection.translation_id !== activeTranslationId && (
+        <p className="mt-1 text-[0.625rem] text-muted-foreground">
+          Showing retained text; selected translation text is not loaded.
+        </p>
+      )}
       <div className="mt-2 flex gap-1.5">
         <Button
           size="xs"
+          disabled={!canPresent}
           className={`gap-1 rounded-full px-2.5 text-[10px] ${isThisLive ? "bg-red-600 text-white hover:bg-red-700" : ""}`}
           onClick={(e) => {
             e.stopPropagation()
@@ -142,9 +133,11 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
         <Button
           variant="outline"
           size="xs"
+          disabled={!canPresent}
           className="gap-1 rounded-full px-2.5 text-[10px]"
           onClick={(e) => {
             e.stopPropagation()
+            if (!canPresent) return
             const verse = verseFromDetection()
             const wasEmpty = useQueueStore.getState().items.length === 0
             useQueueStore.getState().addItem({
@@ -157,9 +150,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
               added_at: Date.now(),
             })
             if (wasEmpty) {
-              const trans = useBibleStore.getState().translations
-                .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-              useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, trans))
+              useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, translation))
             }
           }}
         >
@@ -174,6 +165,18 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
 
 export function DetectionsPanel() {
   const { detections } = useDetection()
+  // Resolve new native detections too, including payloads without translation metadata.
+  useEffect(() => {
+    const translationId = useBibleStore.getState().activeTranslationId
+    const sessionId = useSessionStore.getState().activeSession?.id
+    let cancelled = false
+    void retranslateDetections(translationId, {
+      isCurrent: () => !cancelled &&
+        useBibleStore.getState().activeTranslationId === translationId &&
+        useSessionStore.getState().activeSession?.id === sessionId,
+    })
+    return () => { cancelled = true }
+  }, [detections])
   const isTranscribing = useTranscriptStore((s) => s.isTranscribing)
   const activeSession = useSessionStore((s) => s.activeSession)
   const pendingServiceStart = useSessionStore((s) => s.pendingServiceStart)

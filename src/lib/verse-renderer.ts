@@ -463,6 +463,7 @@ function drawVerseText(
 
   for (const [index, line] of wrappedLines.entries()) {
     const isJustifiedLine = verseAlign === "justify" && index < wrappedLines.length - 1 && /\s+/.test(line)
+    ctx.textAlign = isJustifiedLine ? "left" : effectiveAlign
     if (isJustifiedLine) {
       const words = line.trim().split(/\s+/).filter(Boolean)
       if (words.length > 1) {
@@ -861,26 +862,36 @@ function computeWordHits(
   const fullText = applyTextTransform(`${prefix}${segment.text}`.trim(), transform)
   ctx.save()
   ctx.font = `${vt.fontWeight} ${vt.fontSize}px "${vt.fontFamily}", serif`
+  if (vt.letterSpacing > 0) {
+    try { ctx.letterSpacing = `${vt.letterSpacing}px` } catch { /* unsupported in some WebViews */ }
+  }
   const centered = (theme.verseText as Record<string, unknown>).lineBreakMode === "centered-lines"
   const lines = centered ? breakIntoCenteredLines(fullText) : wrapText(ctx, fullText, textRect.width)
   const hits: WordHitBox[] = []
   let sourceIndex = 0
   for (const [lineIndex, line] of lines.entries()) {
-    const words = line.match(/\S+/g) ?? []
+    const words = [...line.matchAll(/\S+/g)]
     const justified = verseAlign === "justify" && lineIndex < lines.length - 1 && words.length > 1
-    const wordsWidth = words.reduce((sum, word) => sum + ctx.measureText(word).width, 0)
+    const wordsWidth = words.reduce((sum, word) => sum + ctx.measureText(word[0]).width, 0)
     const gap = justified
       ? (textRect.width - wordsWidth) / (words.length - 1)
       : ctx.measureText(" ").width
     const lineWidth = justified ? textRect.width : ctx.measureText(line).width
     const align = centered ? "center" : verseAlign === "justify" ? "left" : verseAlign
-    let x = align === "center"
+    const lineX = align === "center"
       ? textRect.x + (textRect.width - lineWidth) / 2
       : align === "right"
         ? textRect.x + textRect.width - lineWidth
         : textRect.x
-    for (const word of words) {
-      const width = ctx.measureText(word).width
+    let cursorX = lineX
+    for (const match of words) {
+      const word = match[0]
+      // Measure prefixes like fillText(line) does, including spacing and kerning.
+      const prefixWidth = justified ? 0 : ctx.measureText(line.slice(0, match.index)).width
+      const x = justified ? cursorX : lineX + prefixWidth
+      const width = justified
+        ? ctx.measureText(word).width
+        : ctx.measureText(line.slice(0, match.index + word.length)).width - prefixWidth
       const source = sourceWords[sourceIndex]
       if (source && applyTextTransform(source.text, transform).toLocaleLowerCase() === word.toLocaleLowerCase()) {
         hits.push({
@@ -894,7 +905,7 @@ function computeWordHits(
         })
         sourceIndex += 1
       }
-      x += width + gap
+      cursorX += width + gap
     }
     startY += lineHeight
   }
@@ -905,9 +916,25 @@ function computeWordHits(
 function highlightRectsFor(verse: VerseRenderData, hits: readonly WordHitBox[]): HighlightLayoutRect[] {
   if (verse.segments.length !== 1 || hits.length === 0) return []
   const highlights = validHighlights(verse.segments[0].text, verse.highlights ?? [])
-  return highlights.flatMap((highlight) => hits
-    .filter((hit) => hit.segmentIndex === highlight.segmentIndex && hit.end > highlight.start && hit.start < highlight.end)
-    .map((hit) => ({ x: hit.x - 3, y: hit.y + hit.height * 0.08, width: hit.width + 6, height: hit.height * 0.84, color: highlight.color })))
+  return highlights.flatMap((highlight) => {
+    const lines = new Map<number, HighlightLayoutRect>()
+    for (const hit of hits) {
+      if (hit.segmentIndex !== highlight.segmentIndex || hit.end <= highlight.start || hit.start >= highlight.end) continue
+      const padding = Math.min(3, hit.height * 0.04)
+      const left = hit.x - padding
+      const right = hit.x + hit.width + padding
+      const previous = lines.get(hit.y)
+      if (previous) {
+        const lineRight = Math.max(previous.x + previous.width, right)
+        previous.x = Math.min(previous.x, left)
+        previous.width = lineRight - previous.x
+      } else {
+        lines.set(hit.y, { x: left, y: hit.y + hit.height * 0.08,
+          width: right - left, height: hit.height * 0.84, color: highlight.color })
+      }
+    }
+    return [...lines.values()]
+  })
 }
 
 function breakIntoCenteredLines(text: string): string[] {

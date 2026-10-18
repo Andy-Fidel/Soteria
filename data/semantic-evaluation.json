@@ -1,0 +1,302 @@
+[
+  {
+    "category": "quote",
+    "text": "For God so loved the world that he gave his only begotten Son",
+    "expected": "John 3:16",
+    "split": "calibration"
+  },
+  {
+    "category": "quote",
+    "text": "The Lord is my shepherd I shall not want",
+    "expected": "Psalms 23:1",
+    "split": "calibration"
+  },
+  {
+    "category": "quote",
+    "text": "I can do all things through Christ which strengtheneth me",
+    "expected": "Philippians 4:13",
+    "split": "calibration"
+  },
+  {
+    "category": "quote",
+    "text": "In the beginning God created the heaven and the earth",
+    "expected": "Genesis 1:1",
+    "split": "calibration"
+  },
+  {
+    "category": "quote",
+    "text": "Trust in the Lord with all thine heart and lean not unto thine own understanding",
+    "expected": "Proverbs 3:5",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "God loved everyone so much that he sent his only Son so believers could live forever",
+    "expected": "John 3:16",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Do not worry about tomorrow because tomorrow will bring its own troubles",
+    "expected": "Matthew 6:34",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Put Gods kingdom first and he will provide everything else you need",
+    "expected": "Matthew 6:33",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Give all your worries to God because he cares about you",
+    "expected": "I Peter 5:7",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "God is working everything together for the good of those who love him",
+    "expected": "Romans 8:28",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Your word is a lamp that guides my feet and lights my path",
+    "expected": "Psalms 119:105",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "When you pass through deep waters I will be with you and the rivers will not overwhelm you",
+    "expected": "Isaiah 43:2",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Anyone who belongs to Christ has become a new person the old life is gone",
+    "expected": "II Corinthians 5:17",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Faith means being sure of what we hope for and certain of what we cannot see",
+    "expected": "Hebrews 11:1",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Do not copy the behavior of this world let God change how you think",
+    "expected": "Romans 12:2",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Nothing can separate us from Gods love that is in Christ Jesus our Lord",
+    "expected": "Romans 8:39",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "If we admit our sins he is faithful to forgive and cleanse us",
+    "expected": "I John 1:9",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Ask and you will receive seek and you will find knock and the door will open",
+    "expected": "Matthew 7:7",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "We walk by trusting God instead of relying on what we can see",
+    "expected": "II Corinthians 5:7",
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "My grace is enough for you my power works best in weakness",
+    "expected": "II Corinthians 12:9",
+    "split": "calibration"
+  },
+  {
+    "category": "negative",
+    "text": "Please turn off your phones before the service begins",
+    "expected": null,
+    "split": "calibration"
+  },
+  {
+    "category": "negative",
+    "text": "The worship team will practice after lunch next Saturday",
+    "expected": null,
+    "split": "calibration"
+  },
+  {
+    "category": "negative",
+    "text": "Our church building needs new chairs and better microphones",
+    "expected": null,
+    "split": "calibration"
+  },
+  {
+    "category": "negative",
+    "text": "We thank everyone who helped organize the youth conference",
+    "expected": null,
+    "split": "calibration"
+  },
+  {
+    "category": "negative",
+    "text": "God bless everyone who came to church this morning",
+    "expected": null,
+    "split": "calibration"
+  },
+  {
+    "category": "negative",
+    "text": "We are talking about faith and love in our community today",
+    "expected": null,
+    "split": "calibration"
+  },
+  {
+    "category": "negative",
+    "text": "The pastor will explain more about prayer after the announcement",
+    "expected": null,
+    "split": "calibration"
+  },
+  {
+    "category": "negative",
+    "text": "There is a red car parked outside the main entrance",
+    "expected": null,
+    "split": "calibration"
+  },
+  {
+    "category": "negative",
+    "text": "Please remember to bring your notebooks next week",
+    "expected": null,
+    "split": "calibration"
+  },
+  {
+    "category": "negative",
+    "text": "Let us welcome the choir for the next song",
+    "expected": null,
+    "split": "calibration"
+  },
+  {
+    "category": "paraphrase",
+    "text": "If you lack wisdom ask God who gives generously without finding fault",
+    "expected": "James 1:5",
+    "split": "holdout"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Stop worrying about anything instead pray about everything and thank God",
+    "expected": "Philippians 4:6",
+    "split": "holdout"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Come to me all who are tired and carrying heavy burdens and I will give you rest",
+    "expected": "Matthew 11:28",
+    "split": "holdout"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Be strong and courageous do not be afraid because the Lord your God is with you wherever you go",
+    "expected": "Joshua 1:9",
+    "split": "holdout"
+  },
+  {
+    "category": "paraphrase",
+    "text": "The payment for sin is death but Gods free gift is eternal life through Jesus Christ",
+    "expected": "Romans 6:23",
+    "split": "holdout"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Whatever you do work at it wholeheartedly as though working for the Lord rather than people",
+    "expected": "Colossians 3:23",
+    "split": "holdout"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Nothing is impossible with God",
+    "expected": "Luke 1:37",
+    "split": "holdout"
+  },
+  {
+    "category": "paraphrase",
+    "text": "God has not given us a spirit of fear but power love and a sound mind",
+    "expected": "II Timothy 1:7",
+    "split": "holdout"
+  },
+  {
+    "category": "paraphrase",
+    "text": "Everyone has sinned and fallen short of Gods glory",
+    "expected": "Romans 3:23",
+    "split": "holdout"
+  },
+  {
+    "category": "paraphrase",
+    "text": "The thief comes to steal kill and destroy but I came to give abundant life",
+    "expected": "John 10:10",
+    "split": "holdout"
+  },
+  {
+    "category": "negative",
+    "text": "Our prayer meeting has moved from Wednesday evening to Thursday morning",
+    "expected": null,
+    "split": "holdout"
+  },
+  {
+    "category": "negative",
+    "text": "The church office will be closed during the public holiday",
+    "expected": null,
+    "split": "holdout"
+  },
+  {
+    "category": "negative",
+    "text": "We need two volunteers to help with the childrens Bible class",
+    "expected": null,
+    "split": "holdout"
+  },
+  {
+    "category": "negative",
+    "text": "The sermon recording will be available on our website tonight",
+    "expected": null,
+    "split": "holdout"
+  },
+  {
+    "category": "negative",
+    "text": "The new microphones will help everyone hear the preaching clearly",
+    "expected": null,
+    "split": "holdout"
+  },
+  {
+    "category": "negative",
+    "text": "Please put the offering envelopes on the table by the entrance",
+    "expected": null,
+    "split": "holdout"
+  },
+  {
+    "category": "negative",
+    "text": "The choir needs the words on the screen before the next song",
+    "expected": null,
+    "split": "holdout"
+  },
+  {
+    "category": "negative",
+    "text": "The pastor is away at a conference this coming weekend",
+    "expected": null,
+    "split": "holdout"
+  },
+  {
+    "category": "negative",
+    "text": "We will discuss our community outreach budget after the service",
+    "expected": null,
+    "split": "holdout"
+  },
+  {
+    "category": "negative",
+    "text": "Please make sure the projector is connected to the laptop",
+    "expected": null,
+    "split": "holdout"
+  }
+]

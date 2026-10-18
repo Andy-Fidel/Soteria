@@ -4,6 +4,7 @@ import type { Verse } from "@/types"
 import { useBibleStore } from "@/stores/bible-store"
 import { useSessionStore } from "@/stores/session-store"
 import { retranslateBroadcastVerses } from "@/hooks/use-broadcast"
+import { retranslateDetections } from "./retranslate-detections"
 import { retranslateQueuedScriptures } from "./retranslate-queue-live"
 
 interface TranslationRequest {
@@ -89,6 +90,7 @@ function ensureWorker(): Promise<void> {
             onFailure: reportFailure,
           }),
           retranslateSelectedVerse(request.id, isCurrent, reportFailure),
+          retranslateDetections(request.id, { isCurrent, onFailure: reportFailure }),
         ])
       } catch (error) {
         console.error("[switch-translation]", error)

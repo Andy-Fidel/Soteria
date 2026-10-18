@@ -49,6 +49,12 @@ pub trait WsProvider: Send + Sync + 'static {
     /// Final text frame sent before closing (e.g. `{"type":"CloseStream"}`).
     fn close_frame(&self) -> String;
 
+    /// AssemblyAI confirms that its session is usable with a Begin frame.
+    /// A WebSocket upgrade alone is not a speech-session readiness signal.
+    fn requires_session_begin(&self) -> bool {
+        false
+    }
+
     /// Parse one text frame and forward events.
     ///
     /// Returns `Ok(true)` to break out of the receive loop (e.g. explicit
@@ -85,7 +91,14 @@ pub async fn run_stream<P: WsProvider>(
             break;
         }
 
-        match try_connect(provider, audio_rx.clone(), event_tx.clone(), cancelled.clone()).await {
+        match try_connect(
+            provider,
+            audio_rx.clone(),
+            event_tx.clone(),
+            cancelled.clone(),
+        )
+        .await
+        {
             Ok(()) => {
                 if cancelled.load(Ordering::SeqCst) {
                     log::info!("{tag}: connection closed normally (cancelled)");
@@ -129,6 +142,82 @@ pub async fn run_stream<P: WsProvider>(
     Ok(())
 }
 
+type SpeechSocket = tokio_tungstenite::WebSocketStream<crate::connection_warmup::SpeechStream>;
+type UpgradeResponse = tokio_tungstenite::tungstenite::handshake::client::Response;
+
+async fn connect_session(
+    request: tokio_tungstenite::tungstenite::handshake::client::Request,
+    prepared: Option<crate::connection_warmup::SpeechStream>,
+) -> Result<(SpeechSocket, UpgradeResponse, bool), SttError> {
+    let (mut socket, response, reused) = connect_request(request.clone(), prepared).await?;
+    match wait_for_session_begin(&mut socket).await {
+        Ok(()) => Ok((socket, response, reused)),
+        Err(error) if reused => {
+            log::warn!("Prepared speech transport upgraded but session was not ready: {error}; retrying fresh");
+            drop(socket);
+            let (mut socket, response, _) = connect_request(request, None).await?;
+            wait_for_session_begin(&mut socket).await?;
+            Ok((socket, response, false))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+async fn wait_for_session_begin(socket: &mut SpeechSocket) -> Result<(), SttError> {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while let Some(frame) = socket.next().await {
+            match frame
+                .map_err(|_| SttError::ConnectionFailed("Speech session read failed".into()))?
+            {
+                Message::Text(text) => {
+                    let json: serde_json::Value = serde_json::from_str(&text).map_err(|_| {
+                        SttError::ParseError("Invalid speech session response".into())
+                    })?;
+                    if json["type"] == "Begin" {
+                        log::info!("Speech session Begin received; ready for audio");
+                        return Ok(());
+                    }
+                    if json.get("error").is_some() || json["type"] == "Termination" {
+                        return Err(SttError::ConnectionFailed(
+                            "Speech server rejected the session".into(),
+                        ));
+                    }
+                }
+                Message::Close(_) => break,
+                _ => {}
+            }
+        }
+        Err(SttError::ConnectionFailed(
+            "Speech connection closed before session Begin".into(),
+        ))
+    })
+    .await
+    .map_err(|_| SttError::ConnectionFailed("Speech session Begin timed out".into()))?
+}
+
+async fn connect_request(
+    request: tokio_tungstenite::tungstenite::handshake::client::Request,
+    prepared: Option<crate::connection_warmup::SpeechStream>,
+) -> Result<(SpeechSocket, UpgradeResponse, bool), SttError> {
+    if let Some(stream) = prepared {
+        match tokio::time::timeout(
+            Duration::from_secs(3),
+            tokio_tungstenite::client_async(request.clone(), stream),
+        )
+        .await
+        {
+            Ok(Ok((socket, response))) => return Ok((socket, response, true)),
+            _ => log::info!(
+                "Prepared speech connection expired at server; retrying a fresh connection"
+            ),
+        }
+    }
+    let (socket, response) = tokio_tungstenite::connect_async(request)
+        .await
+        .map_err(|e| SttError::ConnectionFailed(e.to_string()))?;
+    Ok((socket, response, false))
+}
+
 async fn try_connect<P: WsProvider>(
     provider: &P,
     audio_rx: Receiver<Vec<i16>>,
@@ -146,16 +235,17 @@ async fn try_connect<P: WsProvider>(
         request.headers_mut().insert("Authorization", auth);
     }
 
-    let (ws_stream, response) = tokio_tungstenite::connect_async(request)
-        .await
-        .map_err(|e| {
-            log::error!("{tag}: WebSocket handshake failed: {e}");
-            SttError::ConnectionFailed(e.to_string())
-        })?;
-
+    let started = std::time::Instant::now();
+    let prepared = crate::connection_warmup::take(url.host_str().unwrap_or_default()).await;
+    let (ws_stream, response, reused) = if provider.requires_session_begin() {
+        connect_session(request, prepared).await?
+    } else {
+        connect_request(request, prepared).await?
+    };
     log::info!(
-        "{tag}: connected (HTTP {} during WS upgrade)",
-        response.status()
+        "{tag}: connected (HTTP {}), elapsed_ms={}, prepared_connection={reused}",
+        response.status(),
+        started.elapsed().as_millis()
     );
     let _ = event_tx.send(TranscriptEvent::Connected).await;
 
@@ -240,6 +330,7 @@ async fn try_connect<P: WsProvider>(
 
     // Async writer: tokio channel → WebSocket.
     let ws_writer = tokio::spawn(async move {
+        let mut sent_audio = false;
         while let Some(cmd) = ws_rx.recv().await {
             match cmd {
                 WsCommand::Audio(data) => {
@@ -247,6 +338,10 @@ async fn try_connect<P: WsProvider>(
                         log::error!("{tag} ws_writer: audio send error: {e}");
                         send_err.store(true, Ordering::SeqCst);
                         break;
+                    }
+                    if !sent_audio {
+                        log::info!("{tag}: first audio batch sent");
+                        sent_audio = true;
                     }
                 }
                 WsCommand::KeepAlive => {
@@ -315,4 +410,218 @@ async fn try_connect<P: WsProvider>(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod prepared_connection_tests {
+    use super::*;
+    use tokio::net::TcpListener;
+    #[tokio::test]
+    async fn fresh_session_without_begin_returns_a_timeout() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let _socket = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            std::future::pending::<()>().await;
+        });
+        let request = format!("ws://{addr}/").into_client_request().unwrap();
+        let result =
+            tokio::time::timeout(Duration::from_secs(7), connect_session(request, None)).await;
+        assert!(
+            matches!(result, Ok(Err(SttError::ConnectionFailed(ref message))) if message.contains("Begin timed out"))
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn rejected_session_does_not_report_readiness() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            socket
+                .send(Message::Text(r#"{"error":"session rejected"}"#.into()))
+                .await
+                .unwrap();
+        });
+        let request = format!("ws://{addr}/").into_client_request().unwrap();
+        let result = connect_session(request, None).await;
+        assert!(
+            matches!(result, Err(SttError::ConnectionFailed(ref message)) if message.contains("rejected"))
+        );
+        server.await.unwrap();
+    }
+    #[tokio::test]
+    async fn silent_prepared_session_reconnects_before_delivering_transcripts() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let _silent = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut fresh = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            fresh
+                .send(Message::Text(r#"{"type":"Begin"}"#.into()))
+                .await
+                .unwrap();
+            fresh
+                .send(Message::Text(
+                    r#"{"type":"Turn","transcript":"For God so loved the world"}"#.into(),
+                ))
+                .await
+                .unwrap();
+        });
+        let request = format!("ws://{addr}/").into_client_request().unwrap();
+        let (mut socket, _, reused) =
+            connect_session(request, Some(tokio_tungstenite::MaybeTlsStream::Plain(tcp)))
+                .await
+                .unwrap();
+        let message = tokio::time::timeout(Duration::from_secs(7), socket.next()).await;
+        assert!(
+            matches!(message, Ok(Some(Ok(Message::Text(ref text)))) if text.contains("For God so loved the world")),
+            "A successful upgrade without Begin must recover instead of silently waiting"
+        );
+        assert!(!reused);
+        server.await.unwrap();
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "sends generated speech to AssemblyAI; requires key and MANNA_TEST_PCM"]
+    async fn live_runtime_transcribes_generated_speech() {
+        use crate::SttProvider;
+        struct ProbeLogger;
+        impl log::Log for ProbeLogger {
+            fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+                true
+            }
+            fn log(&self, record: &log::Record<'_>) {
+                let message = record.args().to_string();
+                if record.target().ends_with("ws_runtime")
+                    || message.starts_with("[AssemblyAI] recv")
+                {
+                    println!("{}", message);
+                }
+            }
+            fn flush(&self) {}
+        }
+        static LOGGER: ProbeLogger = ProbeLogger;
+        let _ = log::set_logger(&LOGGER);
+        log::set_max_level(log::LevelFilter::Info);
+        let bytes = std::fs::read(std::env::var("MANNA_TEST_PCM").unwrap()).unwrap();
+        let samples: Vec<i16> = bytes
+            .chunks_exact(2)
+            .map(|b| i16::from_le_bytes([b[0], b[1]]))
+            .collect();
+        assert!(
+            samples.len() > 16000 && samples.iter().any(|sample| sample.abs() > 1000),
+            "Generated speech fixture is empty or silent"
+        );
+        for prepared in [false, true] {
+            let provider = Arc::new(crate::AssemblyAIClient::new(crate::SttConfig {
+                api_key: std::env::var("ASSEMBLYAI_API_KEY").expect("API key required"),
+                ..Default::default()
+            }));
+            if prepared {
+                crate::connection_warmup::prepare("assemblyai")
+                    .await
+                    .unwrap();
+                tokio::time::sleep(Duration::from_secs(3)).await;
+            }
+            let (audio_tx, audio_rx) = crossbeam_channel::bounded(64);
+            let (event_tx, mut event_rx) = mpsc::channel(64);
+            let runner = provider.clone();
+            let task = tokio::spawn(async move { runner.start(audio_rx, event_tx).await });
+            assert!(matches!(
+                tokio::time::timeout(Duration::from_secs(15), event_rx.recv()).await,
+                Ok(Some(TranscriptEvent::Connected))
+            ));
+            let speech = samples.clone();
+            let sender = tokio::spawn(async move {
+                for chunk in speech.chunks(4000) {
+                    audio_tx.send(chunk.to_vec()).unwrap();
+                    tokio::time::sleep(Duration::from_millis(250)).await;
+                }
+                for _ in 0..16 {
+                    audio_tx.send(vec![0; 4000]).unwrap();
+                    tokio::time::sleep(Duration::from_millis(250)).await;
+                }
+                audio_tx
+            });
+            let transcript = tokio::time::timeout(Duration::from_secs(25), async {
+                while let Some(event) = event_rx.recv().await {
+                    if let TranscriptEvent::Final { transcript, .. } = event {
+                        return transcript.to_lowercase().contains("god");
+                    }
+                }
+                false
+            })
+            .await
+            .unwrap_or(false);
+            println!("runtime prepared={prepared}, expected_transcript_received={transcript}");
+            provider.stop();
+            sender.abort();
+            let _ = tokio::time::timeout(Duration::from_secs(3), task).await;
+            assert!(
+                transcript,
+                "Runtime failed to transcribe; prepared={prepared}"
+            );
+        }
+    }
+    #[tokio::test]
+    async fn websocket_upgrade_reuses_prepared_transport() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let _socket = tokio_tungstenite::accept_async(tcp).await.unwrap();
+        });
+        let tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let request = format!("ws://{addr}/").into_client_request().unwrap();
+        let (_, _, reused) =
+            connect_request(request, Some(tokio_tungstenite::MaybeTlsStream::Plain(tcp)))
+                .await
+                .unwrap();
+        assert!(reused);
+        server.await.unwrap();
+    }
+    #[tokio::test]
+    async fn closed_prepared_transport_falls_back_to_a_fresh_connection() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let (stale, _) = listener.accept().await.unwrap();
+        drop(stale);
+        let server = tokio::spawn(async move {
+            let (fresh, _) = listener.accept().await.unwrap();
+            let _socket = tokio_tungstenite::accept_async(fresh).await.unwrap();
+        });
+        let request = format!("ws://{addr}/").into_client_request().unwrap();
+        let (_, _, reused) =
+            connect_request(request, Some(tokio_tungstenite::MaybeTlsStream::Plain(tcp)))
+                .await
+                .unwrap();
+        assert!(!reused);
+        server.await.unwrap();
+    }
+    #[tokio::test]
+    async fn unresponsive_prepared_transport_times_out_and_reconnects() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let (stalled, _) = listener.accept().await.unwrap();
+        let server = tokio::spawn(async move {
+            let (fresh, _) = listener.accept().await.unwrap();
+            let _socket = tokio_tungstenite::accept_async(fresh).await.unwrap();
+            drop(stalled);
+        });
+        let request = format!("ws://{addr}/").into_client_request().unwrap();
+        let (_, _, reused) =
+            connect_request(request, Some(tokio_tungstenite::MaybeTlsStream::Plain(tcp)))
+                .await
+                .unwrap();
+        assert!(!reused);
+        server.await.unwrap();
+    }
 }

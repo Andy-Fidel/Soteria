@@ -2,6 +2,8 @@ mod commands;
 mod events;
 mod hymnals;
 mod menu;
+#[cfg(feature = "onnx")]
+mod semantic_resources;
 mod state;
 
 use rhema_notes::SessionDb;
@@ -177,11 +179,8 @@ fn open_devtools(app: tauri::AppHandle) {
     }
 }
 
-/// Pre-warm the reqwest/rustls connection pool for API hosts used later.
-///
-/// Runs a single HEAD request per host at startup so the first user-initiated
-/// verify or summary call doesn't pay the 6–10s cold-TLS penalty. Failures are
-/// silently ignored — warmup is best-effort.
+/// Best-effort API host DNS/TLS warm-up. This HTTP client is not reused by
+/// speech WebSockets; their actual streaming transport is prepared separately.
 async fn warm_connection_pool() {
     const HOSTS: &[&str] = &[
         "https://api.deepgram.com",
@@ -298,6 +297,7 @@ pub fn run() {
             commands::audio::stop_audio_test,
             commands::audio::record_audio_clip,
             commands::stt::start_transcription,
+            commands::stt::prepare_stt_connection,
             commands::stt::stop_transcription,
             commands::stt::get_stt_status,
             commands::stt::set_recording_paused,
@@ -474,10 +474,20 @@ pub fn run() {
             // Try to load ONNX embedding model and pre-computed verse index.
             // In production installs, resources live under $RESOURCE_DIR per the
             // flavor config; in dev mode resolve_resource falls back to project root.
-            let minilm_model = resolve_resource(app, "models/all-MiniLM-L6-v2/onnx/model.onnx");
-            let minilm_tok = resolve_resource(app, "models/all-MiniLM-L6-v2/tokenizer.json");
-            let minilm_emb = resolve_resource(app, "embeddings/kjv-minilm-l6-v2.bin");
-            let minilm_ids = resolve_resource(app, "embeddings/kjv-minilm-l6-v2-ids.bin");
+            let bundled_minilm = [
+                "models/fallback-minilm/model.onnx",
+                "models/fallback-minilm/tokenizer.json",
+                "models/fallback-minilm/kjv-minilm-l6-v2.bin",
+                "models/fallback-minilm/kjv-minilm-l6-v2-ids.bin",
+            ].map(|path| resolve_resource(app,path));
+            let [minilm_model,minilm_tok,minilm_emb,minilm_ids] = if bundled_minilm.iter().all(|path|path.is_file()) {
+                bundled_minilm
+            } else {
+                ["models/all-MiniLM-L6-v2/onnx/model.onnx",
+                 "models/all-MiniLM-L6-v2/tokenizer.json",
+                 "embeddings/kjv-minilm-l6-v2.bin",
+                 "embeddings/kjv-minilm-l6-v2-ids.bin"].map(|path|resolve_resource(app,path))
+            };
 
             let qwen_int8 = resolve_resource(app, "models/qwen3-embedding-0.6b-int8/model_quantized.onnx");
             let qwen_fp32 = resolve_resource(app, "models/qwen3-embedding-0.6b/model.onnx");
@@ -533,28 +543,46 @@ pub fn run() {
                     log::info!("Using {label}");
                     match rhema_detection::OnnxEmbedder::load(&model_path, &tokenizer_path) {
                         Ok(embedder) => {
+                            if let Err(e) = embedder.embed("Find the Bible verse about faith and hope") {
+                                log::warn!("{label} inference check failed: {e}");
+                                continue;
+                            }
                             let dim = embedder.dimension();
                             match rhema_detection::HnswVectorIndex::load(&embeddings_path, &ids_path, dim) {
                                 Ok(index) => {
                                     log::info!("ONNX embedding model loaded");
                                     log::info!("Verse embeddings loaded ({} vectors)", index.len());
+                                    let base_count = index.len();
                                     let managed_state = app.state::<Mutex<state::AppState>>();
-                                    match managed_state.lock() {
-                                        Ok(mut state) => {
-                                            state.detection_pipeline.set_semantic(
-                                                rhema_detection::SemanticDetector::new(
-                                                    Box::new(embedder),
-                                                    Box::new(index),
-                                                ),
-                                            );
-                                            semantic_loaded = true;
-                                            break;
-                                        }
-                                        Err(_) => {
-                                            log::error!("AppState lock unavailable; semantic search disabled this session");
-                                            break;
-                                        }
+                                    let pipeline = match state::detection_pipeline(&managed_state) {
+                                        Ok(pipeline) => pipeline,
+                                        Err(e) => { log::error!("Pipeline unavailable: {e}"); break; }
                                     };
+                                    let stem = embeddings_path.file_stem().and_then(|s|s.to_str()).unwrap_or_default();
+                                    let index = match managed_state.lock() {
+                                        Ok(state) => semantic_resources::add_translations(
+                                            index,state.bible_db.as_ref(),&model_path,&tokenizer_path,stem,dim,
+                                            |path| resolve_resource(app,path),
+                                        ),
+                                        Err(e) => { log::error!("Bible database unavailable: {e}"); break; }
+                                    };
+                                    match pipeline.lock() {
+                                        Ok(mut pipeline) => {
+                                            let expanded = index.len() > base_count;
+                                            let mut detector = rhema_detection::SemanticDetector::new(Box::new(embedder),index);
+                                            if expanded { detector.set_confidence_threshold(rhema_detection::semantic::multi_translation::CONFIDENCE_THRESHOLD); }
+                                            let warm_started=std::time::Instant::now();
+                                            if let Err(e)=detector.warm_up() {
+                                                log::warn!("Semantic warm-up failed: {e}");
+                                            } else {
+                                                log::info!("Semantic detection ready: full warm-up elapsed_ms={}",warm_started.elapsed().as_millis());
+                                            }
+                                            pipeline.set_semantic(detector);
+                                            semantic_loaded = true;
+                                        }
+                                        Err(e) => log::error!("Semantic startup lock failed: {e}"),
+                                    }
+                                    if semantic_loaded { break; }
                                 }
                                 Err(e) => {
                                     log::warn!("Failed to load verse embeddings for {label}: {e}");

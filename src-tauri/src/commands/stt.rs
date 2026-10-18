@@ -28,6 +28,14 @@ use crate::events::{TranscriptPayload, EVENT_TRANSCRIPT_FINAL, EVENT_TRANSCRIPT_
 use crate::state::AppState;
 use rhema_stt::{DeepgramClient, SttConfig, SttProvider, TranscriptEvent};
 
+/// Prepare a short-lived TLS connection; never starts audio or authenticates a session.
+#[tauri::command]
+pub async fn prepare_stt_connection(provider: String) -> Result<bool, String> {
+    rhema_stt::connection_warmup::prepare(&provider)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Start the full audio-capture-to-transcription pipeline.
 ///
 /// 1. Opens the microphone via cpal (on a dedicated thread so the non-Send
@@ -125,10 +133,7 @@ pub async fn start_transcription(
                 );
             }
 
-            let key_preview: String = resolved_api_key.chars().take(8).collect();
-            log::info!(
-                "Starting AssemblyAI transcription: api_key={key_preview}..., device_id={device_id:?}, gain={gain:?}"
-            );
+            log::info!("Starting AssemblyAI transcription: device_id={device_id:?}, gain={gain:?}");
 
             let stt_config = SttConfig {
                 api_key: resolved_api_key,
@@ -155,10 +160,7 @@ pub async fn start_transcription(
                 );
             }
 
-            let key_preview: String = resolved_api_key.chars().take(8).collect();
-            log::info!(
-                "Starting Deepgram transcription: api_key={key_preview}..., device_id={device_id:?}, gain={gain:?}"
-            );
+            log::info!("Starting Deepgram transcription: device_id={device_id:?}, gain={gain:?}");
 
             let stt_config = SttConfig {
                 api_key: resolved_api_key,
@@ -245,6 +247,7 @@ pub async fn start_transcription(
         app_state.recording_paused.clone()
     };
 
+    let (capture_ready_tx, capture_ready_rx) = tokio::sync::oneshot::channel();
     capture::spawn(capture::CaptureConfig {
         app: app.clone(),
         active: stt_active.clone(),
@@ -254,12 +257,16 @@ pub async fn start_transcription(
         session_dir,
         session_id,
         audio_send_tx,
+        ready_tx: capture_ready_tx,
     })
     .map_err(|e| {
         stt_active.store(false, Ordering::SeqCst);
         audio_active.store(false, Ordering::SeqCst);
         format!("Failed to spawn audio fanout thread: {e}")
     })?;
+
+    // Do not open a speech session or report successful startup without audio.
+    capture::wait_until_ready(capture_ready_rx, &stt_active, &audio_active).await?;
 
     // ── 5. Spawn the STT provider on the tokio runtime ──────────────────
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel::<TranscriptEvent>(64);
@@ -288,7 +295,14 @@ pub async fn start_transcription(
     let sem_app = app.clone();
     tauri::async_runtime::spawn(async move {
         while let Some(text) = semantic_rx.recv().await {
-            run_semantic_detection(&sem_app, &text);
+            let worker_app = sem_app.clone();
+            if let Err(e) = tauri::async_runtime::spawn_blocking(move || {
+                run_semantic_detection(&worker_app, &text)
+            })
+            .await
+            {
+                log::error!("Semantic worker failed: {e}");
+            }
         }
     });
 

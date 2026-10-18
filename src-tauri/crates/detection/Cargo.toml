@@ -20,6 +20,7 @@ ort = { version = "2.0.0-rc.12", optional = true, features = ["half"] }
 half = { version = "2", optional = true }
 ndarray = { version = "0.16", optional = true }
 tokenizers = { version = "0.22", optional = true }
+sha2 = { version = "0.10", optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 
 # Dependencies only needed by the precompute binary
@@ -28,10 +29,17 @@ env_logger = { version = "0.11", optional = true }
 [features]
 default = []
 onnx = ["ort", "ndarray", "tokenizers", "half"]
-vector-search = ["bytemuck"]
+vector-search = ["bytemuck", "sha2"]
 precompute-bin = ["onnx", "vector-search", "env_logger"]
 
 [[bin]]
 name = "precompute"
 path = "src/bin/precompute.rs"
 required-features = ["precompute-bin"]
+
+[dev-dependencies]
+tempfile = "3"
+
+[[example]]
+name = "semantic_benchmark"
+required-features = ["onnx", "vector-search"]

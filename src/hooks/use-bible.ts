@@ -19,18 +19,23 @@ async function loadBooks(translationId?: number) {
   return books
 }
 
+let chapterRequest = 0
+
 async function loadChapter(
   bookNumber: number,
   chapter: number,
   translationId?: number
 ) {
   const id = translationId ?? useBibleStore.getState().activeTranslationId
+  const request = ++chapterRequest
   const verses = await invoke<Verse[]>("get_chapter", {
     translationId: id,
     bookNumber,
     chapter,
   })
-  useBibleStore.getState().setCurrentChapter(verses)
+  if (request === chapterRequest) {
+    useBibleStore.getState().setCurrentChapter(verses)
+  }
   return verses
 }
 

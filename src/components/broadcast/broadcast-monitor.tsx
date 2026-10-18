@@ -180,6 +180,14 @@ export function BroadcastMonitor() {
           <div className="flex items-center gap-1">
             {announcement && <AnnouncementControl announcement={announcement} />}
             <button
+              onClick={() => handleLiveHighlightsChange([])}
+              disabled={!liveVerse?.highlights?.length || !!fullscreenImage || blankLogo}
+              className="rounded border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase text-white/60 transition-colors hover:bg-white/[0.08] disabled:opacity-25 disabled:hover:bg-white/[0.04]"
+              title="Remove all highlights from the live scripture"
+            >
+              Clear highlights
+            </button>
+            <button
               onClick={() => {
                 const b = useBroadcastStore.getState()
                 b.setBlankLogo(true)

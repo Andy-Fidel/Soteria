@@ -1,3 +1,4 @@
+import { capitalizeSongLyrics } from "@/lib/song-capitalization"
 import { useState, useEffect, useRef } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { PanelHeader } from "@/components/ui/panel-header"
@@ -54,6 +55,7 @@ function QueueItemCard({
       return
     }
     bibleActions.selectVerse(item.verse)
+    bibleActions.navigateToVerse(item.verse.book_number, item.verse.chapter, item.verse.verse)
     const verseData = queueVerseToRenderData(item)
     useBroadcastStore.getState().setPreviewVerse(verseData)
     useBroadcastStore.getState().goLive()
@@ -75,6 +77,7 @@ function QueueItemCard({
       return
     }
     bibleActions.selectVerse(item.verse)
+    bibleActions.navigateToVerse(item.verse.book_number, item.verse.chapter, item.verse.verse)
     const verseData = queueVerseToRenderData(item)
     useBroadcastStore.getState().setPreviewVerse(verseData)
   }
@@ -168,7 +171,7 @@ function QueueItemCard({
                 isActive ? "text-primary-foreground/85" : "text-foreground/80"
               )}
             >
-              {item.text}
+              {capitalizeSongLyrics(item.text)}
             </p>
           )}
         </div>

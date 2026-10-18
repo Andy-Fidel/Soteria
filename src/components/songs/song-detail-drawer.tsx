@@ -1,3 +1,4 @@
+import { capitalizeSongLyrics } from "@/lib/song-capitalization"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Wand2Icon, Undo2Icon } from "lucide-react"
@@ -128,7 +129,7 @@ function SongDetailContent({ songId, onClose }: { songId: string; onClose: () =>
         </div>
         <div className="space-y-0.5 text-sm leading-relaxed">
           {stanza.lines.map((line, i) => (
-            <div key={i}>{line}</div>
+            <div key={i}>{capitalizeSongLyrics(line)}</div>
           ))}
         </div>
       </div>

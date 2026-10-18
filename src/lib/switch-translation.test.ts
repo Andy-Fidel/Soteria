@@ -6,6 +6,7 @@ import { useBroadcastStore } from "@/stores/broadcast-store"
 import { useQueueStore } from "@/stores/queue-store"
 import { useSettingsStore } from "@/stores/settings-store"
 import { useSessionStore } from "@/stores/session-store"
+import { useDetectionStore } from "@/stores/detection-store"
 import { switchTranslation } from "./switch-translation"
 
 const toastError = vi.hoisted(() => vi.fn())
@@ -39,6 +40,11 @@ function deferred<T>() {
 
 beforeEach(() => {
   useSessionStore.setState({ activeSession: null })
+  useDetectionStore.setState({ detections: [{
+    verse_ref: "John 3:16", verse_text: "KJV text", translation_id: 1, book_name: "John",
+    book_number: 43, chapter: 3, verse: 16, confidence: 0.95,
+    source: "direct", auto_queued: false, transcript_snippet: "Pastor's original words",
+  }] })
   mockedInvoke.mockReset()
   toastError.mockReset()
   useBibleStore.setState({
@@ -148,6 +154,10 @@ it("coalesces a rapid switch and lets only the current generation update every s
   expect(useBroadcastStore.getState().liveVerse).toMatchObject({
     reference: "John 3:16 (ESV)",
     segments: [{ text: "ESV text" }],
+  })
+  expect(useDetectionStore.getState().detections[0]).toMatchObject({
+    verse_text: "ESV text", translation_id: 3,
+    transcript_snippet: "Pastor's original words", confidence: 0.95,
   })
   const persisted = mockedInvoke.mock.calls.filter(
     ([command]) => command === "set_active_translation"
@@ -273,6 +283,9 @@ it("reports current translation failures once while retaining failed scripture",
 
   expect(useQueueStore.getState().items[0]).toMatchObject({ verse: kjv })
   expect(useBibleStore.getState().selectedVerse).toBe(kjv)
+  expect(useDetectionStore.getState().detections[0]).toMatchObject({
+    verse_text: "KJV text", translation_id: 1, transcript_snippet: "Pastor's original words",
+  })
   expect(toastError).toHaveBeenCalledOnce()
   expect(toastError).toHaveBeenCalledWith(
     "Some scripture could not be translated. Original text was retained."

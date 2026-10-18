@@ -10,6 +10,7 @@ import {
   clearHighlightRange,
   rangeFromWordHits,
   wordHitAtPoint,
+  nearestWordHitAtPoint,
 } from "@/lib/text-highlights"
 
 type SelectionRange = Pick<TextHighlight, "segmentIndex" | "start" | "end">
@@ -29,7 +30,7 @@ export function InteractiveVersePreview({
 }: InteractiveVersePreviewProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const hitsRef = useRef<WordHitBox[]>([])
-  const anchorRef = useRef<WordHitBox | null>(null)
+  const anchorRef = useRef<{ word: WordHitBox; x: number; y: number; pointerId: number } | null>(null)
   const [selection, setSelection] = useState<SelectionRange | null>(null)
   const [toolbar, setToolbar] = useState<{ x: number; y: number } | null>(null)
 
@@ -38,7 +39,6 @@ export function InteractiveVersePreview({
   }, [])
 
   useEffect(() => {
-    if (!toolbar) return
     const dismiss = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) {
         setToolbar(null)
@@ -47,6 +47,7 @@ export function InteractiveVersePreview({
     }
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        anchorRef.current = null
         setToolbar(null)
         setSelection(null)
       }
@@ -57,40 +58,70 @@ export function InteractiveVersePreview({
       window.removeEventListener("pointerdown", dismiss)
       window.removeEventListener("keydown", escape)
     }
-  }, [toolbar])
+  }, [])
 
-  const hitFromEvent = (event: React.PointerEvent<HTMLDivElement>) => {
+  const hitFromEvent = (event: React.PointerEvent<HTMLDivElement>, dragging = false) => {
     const canvas = rootRef.current?.querySelector("canvas")
     if (!canvas) return null
     const rect = canvas.getBoundingClientRect()
-    return wordHitAtPoint(hitsRef.current, event.clientX - rect.left, event.clientY - rect.top)
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+    return dragging
+      ? nearestWordHitAtPoint(hitsRef.current, x, y)
+      : wordHitAtPoint(hitsRef.current, x, y, 4)
   }
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!event.isPrimary || event.button !== 0) return
     const hit = hitFromEvent(event)
-    if (!hit) return
+    if (!hit) {
+      setToolbar(null)
+      setSelection(null)
+      return
+    }
     event.currentTarget.setPointerCapture(event.pointerId)
-    anchorRef.current = hit
+    anchorRef.current = { word: hit, x: event.clientX, y: event.clientY, pointerId: event.pointerId }
     setToolbar(null)
     setSelection({ segmentIndex: hit.segmentIndex, start: hit.start, end: hit.end })
   }
 
+  const rangeFromEvent = (event: React.PointerEvent<HTMLDivElement>) => {
+    const anchor = anchorRef.current
+    if (!anchor || event.pointerId !== anchor.pointerId) return null
+    // A click or small hand movement must keep exactly the word first selected.
+    const dragging = Math.hypot(event.clientX - anchor.x, event.clientY - anchor.y) >= 4
+    return rangeFromWordHits(anchor.word, dragging ? hitFromEvent(event, true) : anchor.word)
+  }
+
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!anchorRef.current || !event.currentTarget.hasPointerCapture(event.pointerId)) return
-    const range = rangeFromWordHits(anchorRef.current, hitFromEvent(event))
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+    const range = rangeFromEvent(event)
     if (range) setSelection(range)
   }
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!anchorRef.current) return
-    event.currentTarget.releasePointerCapture(event.pointerId)
+    if (!anchorRef.current || event.pointerId !== anchorRef.current.pointerId || event.button !== 0) return
+    // Read the release position directly; the last pointermove may not have rendered.
+    const range = rangeFromEvent(event)
     anchorRef.current = null
-    if (!selection) return
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    const text = verse?.segments[0]?.text
+    if (!range || !verse || !text) return
+    setSelection(range)
     const rect = event.currentTarget.getBoundingClientRect()
     setToolbar({
       x: Math.max(8, Math.min(event.clientX - rect.left, rect.width - 220)),
       y: Math.max(8, event.clientY - rect.top - 44),
     })
+  }
+
+  const cancelDrag = () => {
+    if (!anchorRef.current) return
+    anchorRef.current = null
+    setSelection(null)
+    setToolbar(null)
   }
 
   const applyColor = (color: string) => {
@@ -132,6 +163,8 @@ export function InteractiveVersePreview({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={cancelDrag}
+      onLostPointerCapture={cancelDrag}
     >
       <CanvasVerse theme={theme} verse={displayVerse} onRenderResult={handleRender} />
       {toolbar ? (

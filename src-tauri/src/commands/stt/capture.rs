@@ -8,6 +8,60 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use super::recorded_segment::RecordedSegment;
 use crate::events::{AudioLevelPayload, EVENT_AUDIO_LEVEL};
 
+pub(super) async fn wait_until_ready(
+    ready: tokio::sync::oneshot::Receiver<Result<(), String>>,
+    stt_active: &AtomicBool,
+    audio_active: &AtomicBool,
+) -> Result<(), String> {
+    let result = match tokio::time::timeout(std::time::Duration::from_secs(15), ready).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(_)) => Err("Microphone startup stopped unexpectedly. Try starting again.".into()),
+        Err(_) => {
+            Err("Microphone startup timed out. Check the input device in Settings → Audio.".into())
+        }
+    };
+    if result.is_err() {
+        stt_active.store(false, Ordering::SeqCst);
+        audio_active.store(false, Ordering::SeqCst);
+    }
+    result
+}
+
+#[cfg(test)]
+mod startup_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn unavailable_microphone_fails_start_and_clears_active_flags() {
+        let stt = AtomicBool::new(true);
+        let audio = AtomicBool::new(true);
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        tx.send(Err("Microphone unavailable".to_owned())).unwrap();
+        let result = wait_until_ready(rx, &stt, &audio).await;
+        assert_eq!(result, Err("Microphone unavailable".to_owned()));
+        assert!(!stt.load(Ordering::SeqCst));
+        assert!(!audio.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn start_waits_for_capture_confirmation() {
+        let stt = AtomicBool::new(true);
+        let audio = AtomicBool::new(true);
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let ready = wait_until_ready(rx, &stt, &audio);
+        tokio::pin!(ready);
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(20), &mut ready)
+                .await
+                .is_err()
+        );
+        tx.send(Ok(())).unwrap();
+        assert_eq!(ready.await, Ok(()));
+        assert!(stt.load(Ordering::SeqCst));
+        assert!(audio.load(Ordering::SeqCst));
+    }
+}
+
 pub(super) struct CaptureConfig {
     pub app: AppHandle,
     pub active: Arc<AtomicBool>,
@@ -17,6 +71,7 @@ pub(super) struct CaptureConfig {
     pub session_dir: Option<std::path::PathBuf>,
     pub session_id: Option<i64>,
     pub audio_send_tx: crossbeam_channel::Sender<Vec<i16>>,
+    pub ready_tx: tokio::sync::oneshot::Sender<Result<(), String>>,
 }
 
 pub(super) fn spawn(config: CaptureConfig) -> std::io::Result<std::thread::JoinHandle<()>> {
@@ -29,6 +84,7 @@ pub(super) fn spawn(config: CaptureConfig) -> std::io::Result<std::thread::JoinH
         session_dir,
         session_id,
         audio_send_tx,
+        ready_tx,
     } = config;
     std::thread::Builder::new()
         .name("audio-fanout".into())
@@ -94,11 +150,17 @@ pub(super) fn spawn(config: CaptureConfig) -> std::io::Result<std::thread::JoinH
                 Err(e) => {
                     log::error!("Failed to start audio capture: {e}");
                     fan_active.store(false, Ordering::SeqCst);
+                    let _ = ready_tx.send(Err(format!(
+                        "Could not open the microphone. Check the input device in Settings → Audio. {e}"
+                    )));
                     return;
                 }
             };
 
             log::info!("Audio capture started on fanout thread");
+            // A stream can open without delivering callbacks. Wait for a real
+            // frame before allowing the speech connection to start.
+            let mut ready_tx = Some(ready_tx);
 
             let mut frame_count: u64 = 0;
 
@@ -125,6 +187,9 @@ pub(super) fn spawn(config: CaptureConfig) -> std::io::Result<std::thread::JoinH
 
                 match audio_rx.recv_timeout(std::time::Duration::from_millis(100)) {
                     Ok(frame) => {
+                        if let Some(ready) = ready_tx.take() {
+                            let _ = ready.send(Ok(()));
+                        }
                         frame_count += 1;
 
                         // (a) Compute audio levels at ~15 Hz

@@ -84,6 +84,10 @@ impl WsProvider for AssemblyAIClient {
         serde_json::json!({ "type": "Terminate" }).to_string()
     }
 
+    fn requires_session_begin(&self) -> bool {
+        true
+    }
+
     fn parse_message<'a>(
         &'a self,
         text: &'a str,

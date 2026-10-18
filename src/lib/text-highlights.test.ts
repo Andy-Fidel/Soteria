@@ -6,6 +6,8 @@ import {
   normalizeHighlightColor,
   rangeFromWordHits,
   validHighlights,
+  wordHitAtPoint,
+  nearestWordHitAtPoint,
 } from "./text-highlights"
 import type { TextHighlight, WordHitBox } from "@/types"
 
@@ -63,4 +65,30 @@ describe("text highlights", () => {
     expect(normalizeHighlightColor("transparent")).toBe(DEFAULT_HIGHLIGHT_COLOR)
     expect(normalizeHighlightColor("#000000")).toBe(DEFAULT_HIGHLIGHT_COLOR)
   })
+})
+
+
+const wordHits: WordHitBox[] = [
+  { segmentIndex: 0, start: 0, end: 3, x: 10, y: 10, width: 30, height: 20 },
+  { segmentIndex: 0, start: 4, end: 7, x: 50, y: 10, width: 30, height: 20 },
+  { segmentIndex: 0, start: 8, end: 10, x: 10, y: 40, width: 20, height: 20 },
+]
+it("allows a drag to start just beside a word or inside a space", () => {
+  expect(wordHitAtPoint(wordHits, 7, 20, 8)).toBe(wordHits[0])
+  expect(wordHitAtPoint(wordHits, 47, 20, 8)).toBe(wordHits[1])
+  expect(wordHitAtPoint(wordHits, 7, 20)).toBeNull()
+  expect(wordHitAtPoint(wordHits, 150, 100, 8)).toBeNull()
+})
+it("snaps a drag endpoint to its line even beyond the line ending", () => {
+  expect(nearestWordHitAtPoint(wordHits, 150, 50)).toBe(wordHits[2])
+  expect(nearestWordHitAtPoint(wordHits, 45, 20)).toBe(wordHits[0])
+  expect(nearestWordHitAtPoint(wordHits, 48, 20)).toBe(wordHits[1])
+})
+it("extends whole-word selection across line gaps and beyond the paragraph", () => {
+  expect(nearestWordHitAtPoint(wordHits, 20, 37)).toBe(wordHits[2])
+  expect(nearestWordHitAtPoint(wordHits, 70, -20)).toBe(wordHits[0])
+  expect(nearestWordHitAtPoint(wordHits, 70, 100)).toBe(wordHits[2])
+  expect(rangeFromWordHits(wordHits[0], nearestWordHitAtPoint(wordHits, 150, 50)))
+    .toEqual({ segmentIndex: 0, start: 0, end: 10 })
+  expect(nearestWordHitAtPoint([], 10, 10)).toBeNull()
 })

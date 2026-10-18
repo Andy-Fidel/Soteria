@@ -1,4 +1,5 @@
 import { useEffect } from "react"
+import { invoke } from "@tauri-apps/api/core"
 import { emit } from "@tauri-apps/api/event"
 import { Workspace } from "@/components/layout/workspace"
 import { useRemoteControl } from "@/hooks/use-remote-control"
@@ -12,6 +13,10 @@ export function App() {
 
   useEffect(() => {
     void hydrateSettings().then(() => {
+      const provider = useSettingsStore.getState().sttProvider
+      if (provider !== "whisper") {
+        void invoke("prepare_stt_connection", { provider }).catch(() => {})
+      }
       // Push the persisted projector calibration with editing=false on every
       // app load. This (a) applies calibration to an already-open projector
       // window, and (b) clears a stuck calibration overlay if the main window

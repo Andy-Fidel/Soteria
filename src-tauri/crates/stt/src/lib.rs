@@ -20,6 +20,7 @@
 //! - `whisper` — enables local Whisper STT provider
 
 pub mod assemblyai;
+pub mod connection_warmup;
 pub mod deepgram;
 pub mod error;
 pub mod keyterms;

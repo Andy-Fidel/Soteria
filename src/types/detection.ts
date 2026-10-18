@@ -1,5 +1,7 @@
 export interface DetectionResult {
   verse_ref: string
+  /** Translation verified for this display text; absent on older native payloads. */
+  translation_id?: number
   verse_text: string
   book_name: string
   book_number: number

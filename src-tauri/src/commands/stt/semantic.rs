@@ -37,21 +37,43 @@ pub(super) fn run_semantic_detection(app: &AppHandle, transcript: &str) {
         log::info!("[DET-SEMANTIC] Cooldown active, skipping");
         return;
     }
-    // KNOWN ISSUE: this holds the AppState mutex for the full ONNX inference
-    // (50-400ms). Other commands touching AppState block during that window.
-    // Proper fix requires extracting SemanticDetector behind its own Arc<Mutex<>>
-    // so inference can run without the outer AppState lock. Tracked separately
-    // — current mitigation is that the semantic worker has its own bounded
-    // mpsc channel (capacity 4) that drops if backlogged.
     let managed: State<'_, Mutex<AppState>> = app.state();
-    let mut app_state = match managed.lock() {
-        Ok(s) => s,
+    let pipeline = match crate::state::detection_pipeline(&managed) {
+        Ok(pipeline) => pipeline,
         Err(e) => {
-            log::error!("Failed to lock AppState for semantic detection: {e}");
+            log::error!("Semantic pipeline unavailable: {e}");
             return;
         }
     };
-    let mut detections = app_state.detection_pipeline.process_semantic(transcript);
+    let wait_started = std::time::Instant::now();
+    let mut detections = match pipeline.lock() {
+        Ok(mut pipeline) => {
+            let wait_ms = wait_started.elapsed().as_millis();
+            let search_started = std::time::Instant::now();
+            let results = pipeline.process_semantic(transcript);
+            log::info!(
+                "[DET-SEMANTIC] timing: wait_ms={wait_ms}, search_ms={}, results={}",
+                search_started.elapsed().as_millis(),
+                results.len()
+            );
+            results
+        }
+        Err(e) => {
+            log::error!("Semantic pipeline lock failed: {e}");
+            return;
+        }
+    };
+    let mut app_state = match managed.lock() {
+        Ok(state) => state,
+        Err(e) => {
+            log::error!("AppState lock failed: {e}");
+            return;
+        }
+    };
+    // Semantic hits carry database IDs; context scoring needs real coordinates.
+    for merged in &mut detections {
+        crate::commands::detection::resolve_semantic_reference(&app_state, merged);
+    }
     if detections.is_empty() {
         log::info!("[DET-SEMANTIC] No detections");
         return;
@@ -67,6 +89,8 @@ pub(super) fn run_semantic_detection(app: &AppHandle, transcript: &str) {
             m.detection.confidence = (m.detection.confidence + boost).min(1.0);
         }
     }
+
+    detections.sort_by(|a, b| b.detection.confidence.total_cmp(&a.detection.confidence));
 
     // Update sermon context with the top detection
     if let Some(top) = detections.first() {
