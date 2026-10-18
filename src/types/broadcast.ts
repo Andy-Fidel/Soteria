@@ -119,12 +119,13 @@ export interface BroadcastTheme {
     superscript: boolean
   }
   reference: {
+    opacity?: number
     fontFamily: string
     fontSize: number
     fontWeight: number
     color: string
     standalone?: {
-      anchor: "top-left" | "top-right" | "bottom-left" | "bottom-right"
+      anchor: "top-left" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right"
       margin: number
     } | null
     horizontalAlign?: TextHorizontalAlign

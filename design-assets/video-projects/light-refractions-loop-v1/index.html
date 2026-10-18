@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920,height=1080">
+<title>Dark Light Refractions — 12 second loop</title>
+<style>
+  html,body { margin:0; width:1920px; height:1080px; background:#020407; overflow:hidden; }
+  #refractions { position:relative; width:1920px; height:1080px; overflow:hidden; }
+  .clip { position:absolute; inset:0; overflow:hidden; }
+  #optical-texture { position:absolute; left:-80px; top:-45px; width:2080px; height:1170px; object-fit:cover; transform-origin:center; animation:refraction-drift 12s linear 1 both; }
+  @keyframes refraction-drift {
+    0% { transform:translate(0px,0px) scale(1.012); }
+    12.5% { transform:translate(12.728px,-3.515px) scale(1.015515); }
+    25% { transform:translate(18px,-12px) scale(1.024); }
+    37.5% { transform:translate(12.728px,-20.485px) scale(1.032485); }
+    50% { transform:translate(0px,-24px) scale(1.036); }
+    62.5% { transform:translate(-12.728px,-20.485px) scale(1.032485); }
+    75% { transform:translate(-18px,-12px) scale(1.024); }
+    87.5% { transform:translate(-12.728px,-3.515px) scale(1.015515); }
+    100% { transform:translate(0px,0px) scale(1.012); }
+  }
+</style>
+</head>
+<body>
+<div id="refractions" data-composition-id="refractions" data-no-timeline data-start="0" data-duration="12" data-width="1920" data-height="1080">
+  <img id="optical-texture" class="clip" data-start="0" data-duration="12" data-track-index="0" src="assets/light-refractions-dark.png" alt="" data-layout-allow-overflow>
+</div>
+</body>
+</html>

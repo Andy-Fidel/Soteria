@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { activatePlanItem } from "./activation-router"
 import type { PlanItem } from "@/types"
+import { WELCOME_SLIDE } from "./(lib)/welcome-slide"
 
 const setLiveVerse = vi.fn()
 const setBlankLogo = vi.fn()
@@ -53,6 +54,16 @@ describe("activation router", () => {
   it("section items are no-op", () => {
     activatePlanItem(mkItem("section", { label: "Worship" }))
     expect(setLiveVerse).not.toHaveBeenCalled()
+  })
+
+  it("presents the welcome template as a fullscreen image", () => {
+    activatePlanItem(mkItem("blank", WELCOME_SLIDE))
+    expect(setFullscreenImage).toHaveBeenCalledWith({
+      url: "/service-slides/ewc-adenta-welcome.png",
+      label: "EWC Adenta — Welcome",
+    })
+    expect(setLiveVerse).not.toHaveBeenCalled()
+    expect(setBlankLogo).not.toHaveBeenCalled()
   })
 
   it("blank item clears live", () => {

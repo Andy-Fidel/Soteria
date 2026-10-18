@@ -9,9 +9,14 @@ import { songStanzaToRenderData } from "@/lib/song-to-render"
 import { findAdjacentBibleVerse, shouldStepWithinQueue } from "@/lib/broadcast-navigation"
 import { chaptersIn } from "@/lib/bible-chapters"
 import { invoke } from "@tauri-apps/api/core"
-import type { TextHighlight, Verse } from "@/types"
+import type { TextHighlight, Verse, VerseRenderData } from "@/types"
 import { CanvasVerse } from "@/components/ui/canvas-verse"
 import { InteractiveVersePreview } from "@/components/panels/interactive-verse-preview"
+
+const THEME_SAMPLE_VERSE: VerseRenderData = {
+  reference: "Psalm 23:1",
+  segments: [{ text: "The Lord is my shepherd" }],
+}
 
 function renderQueueItemAt(index: number) {
   const item = useQueueStore.getState().items[index]
@@ -325,38 +330,23 @@ export function BroadcastMonitor() {
           <div className="grid grid-cols-3 gap-2">
             {themes.map((t) => {
               const isActive = t.id === activeThemeId
-              const bg = t.background
-              const bgStyle: React.CSSProperties = bg.type === "gradient" && bg.gradient
-                ? {
-                    background: bg.gradient.type === "radial"
-                      ? `radial-gradient(${bg.gradient.stops.map(s => `${s.color} ${s.position}%`).join(", ")})`
-                      : `linear-gradient(${bg.gradient.angle}deg, ${bg.gradient.stops.map(s => `${s.color} ${s.position}%`).join(", ")})`,
-                  }
-                : { backgroundColor: bg.color }
               return (
                 <button
                   key={t.id}
                   onClick={() => setActiveTheme(t.id)}
-                  className={`group relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded-md transition-all ${
+                  className={`group relative flex flex-col items-center justify-center overflow-hidden rounded-md bg-black transition-all ${
                     isActive
                       ? "ring-2 ring-primary shadow-[0_0_8px_rgba(61,107,79,0.4)]"
                       : "ring-1 ring-white/[0.08] hover:ring-white/20"
                   }`}
-                  style={bgStyle}
+                  aria-label={`Use ${t.name} theme`}
                 >
-                  <span
-                    className="px-1 text-center text-[5px] leading-tight"
-                    style={{ fontFamily: t.verseText.fontFamily, color: t.verseText.color }}
-                  >
-                    The Lord is my shepherd
-                  </span>
-                  <span
-                    className="mt-0.5 text-[3px] uppercase tracking-widest"
-                    style={{ fontFamily: t.reference.fontFamily, color: t.reference.color }}
-                  >
-                    Psalm 23:1
-                  </span>
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1 pb-0.5 pt-2">
+                  <CanvasVerse
+                    theme={t}
+                    verse={THEME_SAMPLE_VERSE}
+                    className="pointer-events-none"
+                  />
+                  <div className="w-full bg-black/70 px-1 py-1">
                     <span className="text-[5px] font-medium text-white/80">{t.name}</span>
                   </div>
                   {isActive && (

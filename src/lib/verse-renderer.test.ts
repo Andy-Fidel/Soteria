@@ -17,6 +17,34 @@ const verse: VerseRenderData = {
 }
 
 describe("verse renderer layout", () => {
+  it.each([
+    ["builtin-the-word", 1],
+    ["builtin-the-word", 0.25],
+    ["builtin-quiet-light", 1],
+    ["builtin-quiet-light", 0.25],
+    ["builtin-night-sky", 1],
+    ["builtin-night-sky", 0.25],
+    ["builtin-still-waters", 1],
+    ["builtin-still-waters", 0.25],
+    ["builtin-refractions-rush", 1],
+    ["builtin-refractions-rush", 0.25],
+  ] as const)("centers %s reference and keeps highlighted text above it at scale %s", (id, scale) => {
+    const theme = BUILTIN_THEMES.find((theme) => theme.id === id)!
+    const text = "For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life."
+    const metrics = computeVerseLayoutMetrics(measureContext(), theme, {
+      ...verse,
+      segments: [{ text }],
+      highlights: [{ segmentIndex: 0, start: 4, end: 7, color: "#FACC15", sourceText: "God" }],
+    }, { scale, collectWordHits: true })
+
+    const reference = metrics.referenceRect!
+    expect(reference.x + reference.width / 2).toBeCloseTo(theme.resolution.width * scale / 2)
+    expect(reference.y + reference.height).toBeCloseTo((theme.resolution.height - 96) * scale)
+    expect(metrics.verseRect!.y + metrics.verseRect!.height).toBeLessThan(reference.y)
+    expect(metrics.highlightRects).toHaveLength(1)
+    expect(metrics.wordHits.map((hit) => text.slice(hit.start, hit.end)).join(" ")).toBe(text)
+  })
+
   it("maps rendered words back to source offsets and highlight geometry", () => {
     const highlighted: VerseRenderData = {
       ...verse,
@@ -146,4 +174,28 @@ it("draws centered-line text using the same alignment as its selection boxes", (
   }
   expect(renderVerse(context, theme, verse, { collectWordHits: true })).not.toBeNull()
   expect(draws.find((draw) => draw.text.startsWith("For God"))?.align).toBe("center")
+})
+
+it.each(BUILTIN_THEMES)("renders $name references at half opacity without dimming the verse", (theme) => {
+  let alpha = 1
+  const saved: number[] = []
+  const draws: Array<{ text: string; opacity: number }> = []
+  const context = new Proxy({
+    ...measureContext(),
+    save: () => { saved.push(alpha) },
+    restore: () => { alpha = saved.pop() ?? 1 },
+    get globalAlpha() { return alpha },
+    set globalAlpha(value: number) { alpha = value },
+    fillText: (text: string) => { draws.push({ text, opacity: alpha }) },
+  }, {
+    get(target, key) {
+      return key in target ? Reflect.get(target, key) : () => {}
+    },
+  }) as unknown as CanvasRenderingContext2D
+
+  renderVerse(context, theme, verse, { opacity: 0.8 })
+
+  expect(draws.find((draw) => draw.text === verse.reference.toUpperCase())?.opacity).toBeCloseTo(0.4)
+  expect(draws.find((draw) => draw.text.startsWith("For God"))?.opacity).toBeCloseTo(0.8)
+  expect(alpha).toBe(1)
 })

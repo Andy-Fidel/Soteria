@@ -375,6 +375,7 @@ function drawReference(
   const refDecoration = resolveTextDecoration(ref.textDecoration)
 
   ctx.save()
+  ctx.globalAlpha = (ctx.globalAlpha ?? 1) * (ref.opacity ?? 0.5)
   ctx.font = `${ref.fontWeight} ${ref.fontSize}px "${ref.fontFamily}", sans-serif`
   ctx.fillStyle = ref.color
   ctx.textBaseline = "top"
@@ -757,7 +758,9 @@ export function computeVerseLayoutMetrics(
       textRect,
     )
     const standaloneMargin = refStandalone.margin * scale
-    const refX = refStandalone.anchor.endsWith("right")
+    const refX = refStandalone.anchor === "bottom-center"
+      ? (canvasW - referenceWidth) / 2
+      : refStandalone.anchor.endsWith("right")
       ? canvasW - standaloneMargin - referenceWidth
       : standaloneMargin
     const refY = refStandalone.anchor.startsWith("bottom")

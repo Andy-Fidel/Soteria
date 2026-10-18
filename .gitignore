@@ -58,3 +58,9 @@ scripts/hymnals/.cache/
 # Keep the optional-index bundle directory, but not generated vectors.
 !embeddings/translation-indexes/
 !models/fallback-minilm/
+
+# Local video-tool session state
+.hyperframes/
+
+# Local service-plan preview page
+/add-sheet-check.html

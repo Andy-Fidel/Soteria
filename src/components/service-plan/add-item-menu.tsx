@@ -1,81 +1,49 @@
 import { useState } from "react"
 import { PlusIcon } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useServicePlan } from "@/hooks/use-service-plan"
+import { useSessionStore } from "@/stores/session-store"
+import type { PlanItemPayload } from "@/types"
 import { AddVerseDialog } from "./add-verse-dialog"
 import { AddSongDialog } from "./add-song-dialog"
+import { AddPlanSheet } from "./(modals)/add-plan-sheet"
 
 export function AddItemMenu() {
   const { addItem } = useServicePlan()
-  const [open, setOpen] = useState(false)
-  const [verseDialogOpen, setVerseDialogOpen] = useState(false)
-  const [songDialogOpen, setSongDialogOpen] = useState(false)
+  const hasSession = useSessionStore((s) => s.activeSession !== null)
+  const [mode, setMode] = useState<"closed" | "picker" | "verse" | "song">("closed")
+  const [adding, setAdding] = useState(false)
 
-  const addSection = async () => {
-    await addItem("section", { type: "section", label: "New Section" })
-    setOpen(false)
-  }
-  const addAnnouncement = async () => {
-    await addItem("announcement", {
-      type: "announcement",
-      title: "New Announcement",
-      body: "",
-    })
-    setOpen(false)
-  }
-  const addBlank = async () => {
-    await addItem("blank", { type: "blank", showLogo: true })
-    setOpen(false)
-  }
-  const addMomo = async () => {
-    await addItem("momo", { type: "momo" })
-    setOpen(false)
-  }
-  const addJesus = async () => {
-    await addItem("jesus", { type: "jesus" })
-    setOpen(false)
-  }
-  const addNotes = async () => {
-    await addItem("notes", { type: "notes", title: "", lastSelection: [] })
-    setOpen(false)
-  }
-  const addVerse = () => {
-    setOpen(false)
-    setVerseDialogOpen(true)
-  }
-  const addSong = () => {
-    setOpen(false)
-    setSongDialogOpen(true)
+  const add = async (payload: PlanItemPayload) => {
+    if (adding || !hasSession) return
+    setAdding(true)
+    try {
+      await addItem(payload.type, payload)
+      setMode("closed")
+    } catch (error) {
+      toast.error(`Could not add item: ${error}`)
+    } finally {
+      setAdding(false)
+    }
   }
 
   return (
     <>
-      <DropdownMenu open={open} onOpenChange={setOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" className="gap-1.5">
-            <PlusIcon className="size-3.5" />
-            Add
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={addSection}>Section header</DropdownMenuItem>
-          <DropdownMenuItem onClick={addAnnouncement}>Announcement</DropdownMenuItem>
-          <DropdownMenuItem onClick={addBlank}>Blank / logo</DropdownMenuItem>
-          <DropdownMenuItem onClick={addNotes}>Notes</DropdownMenuItem>
-          <DropdownMenuItem onClick={addMomo}>MoMo</DropdownMenuItem>
-          <DropdownMenuItem onClick={addJesus}>Jesus</DropdownMenuItem>
-          <DropdownMenuItem onClick={addVerse}>Verse…</DropdownMenuItem>
-          <DropdownMenuItem onClick={addSong}>Song…</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <AddVerseDialog open={verseDialogOpen} onOpenChange={setVerseDialogOpen} />
-      <AddSongDialog open={songDialogOpen} onOpenChange={setSongDialogOpen} />
+      <Button size="sm" variant="outline" className="gap-1.5" disabled={!hasSession} onClick={() => setMode("picker")}>
+        <PlusIcon className="size-3.5" />
+        Add
+      </Button>
+      <AddPlanSheet
+        open={mode === "picker"}
+        onOpenChange={(open) => { if (!open) setMode("closed") }}
+        adding={adding}
+        onAdd={(payload) => void add(payload)}
+        onVerse={() => setMode("verse")}
+        onSong={() => setMode("song")}
+      />
+      <AddVerseDialog open={mode === "verse"} onOpenChange={(open) => { if (!open) setMode("closed") }} />
+      <AddSongDialog open={mode === "song"} onOpenChange={(open) => { if (!open) setMode("closed") }} />
     </>
   )
 }
