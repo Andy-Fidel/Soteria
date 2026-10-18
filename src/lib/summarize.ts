@@ -40,6 +40,8 @@ export interface SermonDevotional {
 }
 
 export interface SermonSummary {
+  /** Absent on older saved summaries. */
+  session_content?: "sermon" | "mixed" | "worship" | "other"
   title: string
   big_idea: string
   key_verses: SermonKeyVerse[]
@@ -115,17 +117,50 @@ export function parseSummary(raw: string): SermonSummary {
   }
   const json = cleaned.slice(start, end + 1)
   const parsed = JSON.parse(json) as Record<string, unknown>
+  const sessionContent = normalizeSessionContent(parsed.session_content)
+  if (sessionContent === "worship" || sessionContent === "other") {
+    return withLegacyAccessors({
+      session_content: sessionContent,
+      title:
+        sessionContent === "worship" ? "Worship session" : "Service session",
+      big_idea: "No sermon teaching was identified in this recording.",
+      key_verses: [],
+      sermon_flow: normalizeSermonFlow(undefined, undefined),
+      devotional: normalizeDevotional(undefined),
+      takeaways: [],
+      quotes: [],
+    })
+  }
   const fallbackTitle = cleanString(parsed.topic) || "Sermon"
   const title = cleanString(parsed.title) || fallbackTitle
   return withLegacyAccessors({
+    ...(sessionContent ? { session_content: sessionContent } : {}),
     title,
-    big_idea: cleanString(parsed.big_idea) || cleanString(parsed.topic) || title,
+    big_idea:
+      cleanString(parsed.big_idea) || cleanString(parsed.topic) || title,
     key_verses: normalizeKeyVerses(parsed.key_verses),
     sermon_flow: normalizeSermonFlow(parsed.sermon_flow, parsed.main_points),
     devotional: normalizeDevotional(parsed.devotional),
     takeaways: normalizeStringArray(parsed.takeaways).slice(0, 5),
     quotes: normalizeQuotes(parsed.quotes).slice(0, 5),
   })
+}
+
+function normalizeSessionContent(
+  value: unknown
+): SermonSummary["session_content"] {
+  return value === "sermon" ||
+    value === "mixed" ||
+    value === "worship" ||
+    value === "other"
+    ? value
+    : undefined
+}
+
+export function hasSermonContent(summary: SermonSummary): boolean {
+  return (
+    summary.session_content !== "worship" && summary.session_content !== "other"
+  )
 }
 
 function stripCodeFence(s: string): string {
@@ -153,8 +188,14 @@ export function formatSummaryAsMarkdown(summary: SermonSummary): string {
   lines.push(`# ${summary.title}`, "")
 
   if (summary.big_idea) {
-    lines.push("## Big Idea", summary.big_idea, "")
+    lines.push(
+      hasSermonContent(summary) ? "## Big Idea" : "## Session Summary",
+      summary.big_idea,
+      ""
+    )
   }
+
+  if (!hasSermonContent(summary)) return lines.join("\n").trim()
 
   if (summary.key_verses.length > 0) {
     lines.push("## Key Verses")
@@ -308,8 +349,7 @@ function normalizeQuotes(value: unknown): SermonQuote[] {
 
 function normalizeSpeaker(value: unknown): string {
   const speaker = cleanString(value)
-  if (!speaker || /^(preacher|speaker)$/i.test(speaker))
-    return "Pastor"
+  if (!speaker || /^(preacher|speaker)$/i.test(speaker)) return "Pastor"
   return speaker
 }
 

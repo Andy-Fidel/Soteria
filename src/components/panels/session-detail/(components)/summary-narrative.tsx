@@ -1,11 +1,15 @@
 import type { SermonSummary } from "@/lib/summarize"
+import { hasSermonContent } from "@/lib/summarize"
 import { hasText, hasSermonFlow } from "../(lib)/summary"
 import { SummaryCard, SummaryField } from "./summary-card"
 export function SummaryNarrative({ summary }: { summary: SermonSummary }) {
   return (
     <div className="flex flex-col gap-3">
       {(hasText(summary.title) || hasText(summary.big_idea)) && (
-        <SummaryCard title="Big Idea" tone="primary">
+        <SummaryCard
+          title={hasSermonContent(summary) ? "Big Idea" : "Session Summary"}
+          tone="primary"
+        >
           {hasText(summary.title) && (
             <p className="text-sm font-semibold text-foreground">
               {summary.title}

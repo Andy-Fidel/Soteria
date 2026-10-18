@@ -92,7 +92,7 @@ export function SummaryFollowUp({
       ) : (
         <SummaryCard title="Quotes">
           <p className="text-[11px] text-muted-foreground">
-            No notable quotes pulled from this sermon.
+            No notable spoken quotes captured.
           </p>
         </SummaryCard>
       )}

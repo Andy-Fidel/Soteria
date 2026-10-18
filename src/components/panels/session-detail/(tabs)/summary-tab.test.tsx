@@ -15,6 +15,17 @@ const props = {
 }
 
 describe("session summary tab", () => {
+  it("shows a worship session without invented sermon sections or sermon-only labels", () => {
+    const summary = parseSummary(JSON.stringify({ session_content: "worship" }))
+    const html = renderToStaticMarkup(
+      <SummaryTab {...props} summary={summary} />
+    )
+    expect(html).toContain("Worship session")
+    expect(html).toContain("No sermon teaching")
+    expect(html).not.toContain("Sermon Flow")
+    expect(html).not.toContain("Big Idea")
+    expect(html).not.toContain("from this sermon")
+  })
   it("renders every rich summary section after extraction", () => {
     const summary = parseSummary(
       JSON.stringify({
