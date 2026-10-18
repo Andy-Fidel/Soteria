@@ -1,3 +1,4 @@
+import { resolveBlankBackground } from "@/lib/brand"
 import { useState, useEffect } from "react"
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, CheckIcon, PauseIcon, PlayIcon, XIcon } from "lucide-react"
 import { useBroadcastStore, useBibleStore, useSessionStore, useQueueStore, useSettingsStore, useSongStore } from "@/stores"
@@ -30,6 +31,7 @@ export function BroadcastMonitor() {
   const liveVerse = useBroadcastStore((s) => s.liveVerse)
   const fullscreenImage = useBroadcastStore((s) => s.fullscreenImage)
   const blankLogo = useBroadcastStore((s) => s.blankLogo)
+  const blankBackground = resolveBlankBackground(useSettingsStore((s) => s.brand))
   const isLive = useBroadcastStore((s) => s.isLive)
   const goLive = useBroadcastStore((s) => s.goLive)
   const clearScreen = useBroadcastStore((s) => s.clearScreen)
@@ -197,7 +199,7 @@ export function BroadcastMonitor() {
                   ? "border-primary/40 bg-primary/20 text-primary"
                   : "border-white/15 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]"
               }`}
-              title="Show church logo blank screen"
+              title="Show blank background"
             >
               Blank
             </button>
@@ -235,6 +237,8 @@ export function BroadcastMonitor() {
               verse={liveVerse}
               fullscreenImage={fullscreenImage}
               blankLogo={blankLogo}
+              blankLogoUrl={blankBackground.imageUrl}
+              blankVideoUrl={blankBackground.videoUrl}
               className="w-full"
             />
           )}

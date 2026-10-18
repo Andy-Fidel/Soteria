@@ -1,3 +1,4 @@
+import { startLoopingVideo, drawVideoCover } from "@/lib/looping-video"
 import { createRoot } from "react-dom/client"
 import { useRef, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
@@ -179,6 +180,7 @@ interface BroadcastPayload {
   theme: BroadcastTheme
   verse: VerseRenderData | null
   blankLogo?: boolean
+  blankVideoUrl?: string | null
   blankLogoUrl?: string
   fullscreenImage?: { url: string; label: string } | null
   notes?: NotesSlide | null
@@ -195,6 +197,8 @@ interface AnnouncementPayload {
 
 export function BroadcastCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const videoLoopRef = useRef<ReturnType<typeof startLoopingVideo> | null>(null)
+  const videoUrlRef = useRef<string | null>(null)
   const latestData = useRef<BroadcastPayload | null>(null)
   const announcementRef = useRef<AnnouncementPayload | null>(null)
   const announcementTimerRef = useRef<number | null>(null)
@@ -272,6 +276,10 @@ export function BroadcastCanvas() {
       if (blankLogo) {
         ctx.fillStyle = "#000"
         ctx.fillRect(0, 0, width, height)
+        if (drawVideoCover(ctx, videoLoopRef.current?.video ?? null, width, height)) {
+          if (announcement?.mode === "ticker") drawTickerAnnouncement(ctx, width, height, announcement.text, tickerOffsetRef.current)
+          return
+        }
         const img = imageCacheRef.current.get(logoUrl)
         if (img && img.complete && img.naturalWidth > 0) {
           const target = Math.min(width, height) * 0.99
@@ -322,8 +330,8 @@ export function BroadcastCanvas() {
 
     const data = latestData.current
     if (data) {
-      canvas.width = data.theme.resolution.width
-      canvas.height = data.theme.resolution.height
+      if (canvas.width !== data.theme.resolution.width) canvas.width = data.theme.resolution.width
+      if (canvas.height !== data.theme.resolution.height) canvas.height = data.theme.resolution.height
     }
     renderFrame(ctx, canvas.width, canvas.height)
     if (calibrationEditingRef.current) {
@@ -451,6 +459,20 @@ export function BroadcastCanvas() {
     setTimeout(() => void pushNdiFrame(), 300)
   }, [pushNdiFrame])
 
+  const syncVideo = useCallback(() => {
+    const data = latestData.current
+    const url = data?.blankLogo && !data.fullscreenImage && !data.notes && announcementRef.current?.mode !== "slide"
+      ? data.blankVideoUrl ?? null : null
+    if (url === videoUrlRef.current) return
+    videoLoopRef.current?.stop()
+    videoLoopRef.current = null
+    videoUrlRef.current = url
+    if (url) videoLoopRef.current = startLoopingVideo(url, () => {
+      draw()
+      if (ndiConfigRef.current.active && Date.now() - lastPushRef.current >= 1000 / ndiConfigRef.current.fps) void pushNdiFrame()
+    }, draw)
+  }, [draw, pushNdiFrame])
+
   useEffect(() => {
     // Set initial canvas size
     const canvas = canvasRef.current
@@ -468,6 +490,7 @@ export function BroadcastCanvas() {
     logDebug("Listener registration started", { label: currentWindow.label })
     const unlisten = currentWindow.listen<BroadcastPayload>(`broadcast:verse-update:${OUTPUT_ID}`, (event) => {
       latestData.current = event.payload
+      syncVideo()
       preloadBackgroundImage(event.payload.theme)
       if (event.payload.blankLogo) {
         preloadImage(event.payload.blankLogoUrl || BLANK_LOGO_URL, "Blank logo")
@@ -484,6 +507,7 @@ export function BroadcastCanvas() {
 
     const unlistenAnnouncement = currentWindow.listen<AnnouncementPayload | null>(`broadcast:announcement:${OUTPUT_ID}`, (event) => {
       announcementRef.current = event.payload
+      syncVideo()
       tickerOffsetRef.current = 0
       if (announcementTimerRef.current !== null) {
         clearTimeout(announcementTimerRef.current)
@@ -492,6 +516,7 @@ export function BroadcastCanvas() {
       if (event.payload && event.payload.duration) {
         announcementTimerRef.current = window.setTimeout(() => {
           announcementRef.current = null
+          syncVideo()
           announcementTimerRef.current = null
           draw()
           pushNdiBurst()
@@ -534,6 +559,9 @@ export function BroadcastCanvas() {
     })
 
     return () => {
+      videoLoopRef.current?.stop()
+      videoLoopRef.current = null
+      videoUrlRef.current = null
       unlisten.then((fn) => fn())
       unlistenAnnouncement.then((fn) => fn())
       unlistenNdiConfig.then((fn) => fn())
@@ -541,7 +569,7 @@ export function BroadcastCanvas() {
         clearTimeout(announcementTimerRef.current)
       }
     }
-  }, [draw, logDebug, preloadBackgroundImage, preloadImage, pushNdiFrame, pushNdiBurst])
+  }, [draw, logDebug, preloadBackgroundImage, preloadImage, pushNdiFrame, pushNdiBurst, syncVideo])
 
   // Slow keepalive: push one frame every 2s if idle (prevents NDI receivers from dropping the source)
   useEffect(() => {

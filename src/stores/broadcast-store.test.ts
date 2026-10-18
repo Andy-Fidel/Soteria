@@ -9,6 +9,7 @@ vi.mock("@tauri-apps/api/event", () => ({
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: invokeMock,
+  convertFileSrc: (path: string) => `asset://localhost/${encodeURIComponent(path)}`,
 }))
 
 describe("broadcast store sync", () => {
@@ -18,6 +19,21 @@ describe("broadcast store sync", () => {
     invokeMock.mockReset()
     invokeMock.mockResolvedValue(undefined)
     vi.resetModules()
+  })
+
+  it("sends the chosen video or still-image mode to both outputs", async () => {
+    const { useBroadcastStore } = await import("./broadcast-store")
+    const { useSettingsStore } = await import("./settings-store")
+    const brand = useSettingsStore.getState().brand
+    useSettingsStore.setState({ brand: { ...brand, blankBackground: "video", blankVideoPath: "/managed/worship.mp4" } })
+    useBroadcastStore.getState().setBlankLogo(true)
+    for (const output of ["main", "alt"]) expect(emitMock).toHaveBeenCalledWith(`broadcast:verse-update:${output}`, expect.objectContaining({
+      blankLogo: true, blankVideoUrl: "asset://localhost/%2Fmanaged%2Fworship.mp4",
+    }))
+    emitMock.mockClear()
+    useSettingsStore.setState({ brand: { ...brand, blankBackground: "image" } })
+    useBroadcastStore.getState().syncBroadcastOutput()
+    expect(emitMock).toHaveBeenCalledWith("broadcast:verse-update:main", expect.objectContaining({ blankVideoUrl: null }))
   })
 
   it("syncBroadcastOutput emits current theme and verse for each output", async () => {

@@ -399,6 +399,7 @@ pub fn run() {
             commands::service_plan::plan_clone_from_session,
             commands::service_plan::plan_save_session_as_template,
             commands::assets::save_brand_asset,
+            commands::video_assets::import_blank_video,
             commands::assets::delete_brand_asset,
             commands::images::import_library_image,
         ])
