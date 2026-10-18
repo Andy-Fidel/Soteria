@@ -46,7 +46,7 @@ export function AddPlanSheet({ open, onOpenChange, adding, onAdd, onVerse, onSon
           <DrawerDescription>Choose an item or a ready-made slide to add to your plan.</DrawerDescription>
         </DrawerHeader>
         <div className="px-4 pb-5" aria-busy={adding}>
-          <Tabs defaultValue="items" className="gap-4">
+          <Tabs defaultValue="slides" className="gap-4">
             <TabsList className="w-full">
               <TabsTrigger value="items" className="flex-1">Items</TabsTrigger>
               <TabsTrigger value="slides" className="flex-1">Slides</TabsTrigger>

@@ -9,7 +9,7 @@ export type BrandAssetKind = "logo" | "blank" | "momo" | "jesus"
 export const BRAND_DEFAULTS: Record<BrandAssetKind, string> = {
   logo: "/manna-logo.png",
   blank: "/EWC-White.png",
-  momo: "/MOMO111.png",
+  momo: "/service-slides/momo.png",
   jesus: "/JESUSs.png",
 }
 
