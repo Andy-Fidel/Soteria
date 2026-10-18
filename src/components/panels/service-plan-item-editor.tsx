@@ -1,3 +1,4 @@
+import { ImageTextSlideEditor } from "@/components/service-plan/(modals)/image-text-slide-editor"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +28,7 @@ export function ServicePlanItemEditor({ item, onClose }: Props) {
     }
   }, [item, parsed?.type, onClose])
   if (!item || !parsed || parsed.type === "announcement") return null
+  if (parsed.type === "blank" && parsed.textOverlay) return <ImageTextSlideEditor key={item.id} item={item} parsed={parsed} onClose={onClose} />
   return <ItemEditor key={item.id} item={item} parsed={parsed} onClose={onClose} />
 }
 

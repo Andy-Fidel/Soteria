@@ -43,6 +43,7 @@ function ItemLabel({ item }: { item: PlanItem }) {
     case "announcement": return <>{parsed.title}</>
     case "section": return <>{parsed.label}</>
     case "blank":
+      if (parsed.textOverlay) return <>{parsed.textOverlay.title || parsed.imageLabel || "Text slide"}</>
       if (parsed.imageUrl) return <>{parsed.imageLabel ? `Image — ${parsed.imageLabel}` : "Image"}</>
       return <>{parsed.showLogo ? "Blank (logo)" : "Blank"}</>
     case "momo": return <>MoMo</>
@@ -70,6 +71,8 @@ export function ServicePlanItem({
 
   const onClick = () => {
     if (item.itemType === "section") return
+    const parsed = parsePlanItem(item)
+    if (parsed?.type === "blank" && parsed.textOverlay) { onEdit(item); return }
     setActiveItem(item.id)
     activatePlanItem(item)
   }

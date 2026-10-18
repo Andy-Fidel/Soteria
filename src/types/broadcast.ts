@@ -1,3 +1,15 @@
+export interface SlideTextOverlay {
+  layout: "title" | "announcement"
+  title: string
+  body: string
+}
+
+export interface ImageSlide {
+  url: string
+  label: string
+  textOverlay?: SlideTextOverlay
+}
+
 export interface VerseSegment {
   verseNumber?: number
   text: string

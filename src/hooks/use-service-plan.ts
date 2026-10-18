@@ -55,7 +55,9 @@ export function useServicePlan() {
         orderIndex,
         autoAdvanceSeconds: null,
       })
-      useServicePlanStore.getState().upsertItem(item)
+      const current = useServicePlanStore.getState()
+      if (current.plan?.planId === activeSessionId && current.plan.planKind === "session") current.upsertItem(item)
+      return item
     },
     [activeSessionId],
   )

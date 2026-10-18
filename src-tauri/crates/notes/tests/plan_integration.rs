@@ -212,3 +212,22 @@ fn save_session_as_template_preserves_item_fields() {
     assert_eq!(list[0].notes.as_deref(), Some("notes"));
     assert_eq!(list[0].item_count, 1);
 }
+
+#[test]
+fn editable_image_words_survive_reload_and_template_copy() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("plans.db");
+    let mut db = SessionDb::open(&path).unwrap();
+    let template = db.create_template("Editable title", None).unwrap();
+    let original = r#"{"showLogo":false,"imageUrl":"/service-slides/starburst-black.png","textOverlay":{"layout":"title","title":"Sunday Service","body":"Pastor Example"}}"#;
+    let item = db.add_plan_item(template.id, PlanKind::Template, PlanItemType::Blank, original, 1.0, None).unwrap();
+    let updated = original.replace("Sunday Service", "Next Sunday");
+    db.update_plan_item(item.id, &updated, None).unwrap();
+    db.load_template_into_session(987, template.id).unwrap();
+    drop(db);
+    let reopened = SessionDb::open(&path).unwrap();
+    let plan = reopened.get_plan(987, PlanKind::Session).unwrap();
+    assert_eq!(plan.items[0].item_data, updated);
+    let unchanged = reopened.get_plan(template.id, PlanKind::Template).unwrap();
+    assert_eq!(unchanged.items[0].item_data, updated);
+}

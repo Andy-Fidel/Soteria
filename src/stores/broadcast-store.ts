@@ -2,7 +2,7 @@ import { useServicePlanStore } from "./service-plan-store"
 import { create } from "zustand"
 import { emit } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api/core"
-import type { BroadcastTheme, VerseRenderData, NotesSlide, TextHighlight } from "@/types"
+import type { ImageSlide, BroadcastTheme, VerseRenderData, NotesSlide, TextHighlight } from "@/types"
 import { BUILTIN_THEMES } from "@/lib/builtin-themes"
 import { useSessionStore } from "@/stores/session-store"
 import { useBibleStore } from "@/stores/bible-store"
@@ -22,8 +22,8 @@ interface BroadcastState {
   liveVerse: VerseRenderData | null
   blankLogo: boolean
   setBlankLogo: (active: boolean) => void
-  fullscreenImage: { url: string; label: string } | null
-  setFullscreenImage: (img: { url: string; label: string } | null) => void
+  fullscreenImage: ImageSlide | null
+  setFullscreenImage: (img: ImageSlide | null) => void
   liveNotes: NotesSlide | null
   setLiveNotes: (slide: NotesSlide | null) => void
   /** Monitor index where the operator chose to put the projector this session. */

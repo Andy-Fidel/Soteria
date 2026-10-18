@@ -1,7 +1,9 @@
+import { getSpeakerPortraitUrl, SPEAKER_LOGO_MARK } from "@/lib/speaker-portrait"
+import { drawImageSlide } from "@/lib/image-slide-renderer"
 import { startLoopingVideo, drawVideoCover } from "@/lib/looping-video"
 import { useRef, useEffect, useState, memo } from "react"
 import { renderVerse, type VerseLayoutMetrics } from "@/lib/verse-renderer"
-import type { BroadcastTheme, VerseRenderData } from "@/types"
+import type { ImageSlide, BroadcastTheme, VerseRenderData } from "@/types"
 import { cn } from "@/lib/utils"
 import { renderAndReport } from "@/lib/canvas-render-result"
 
@@ -37,7 +39,7 @@ function ensureImage(url: string, onReady?: () => void) {
 interface CanvasVerseProps {
   theme: BroadcastTheme
   verse: VerseRenderData | null
-  fullscreenImage?: { url: string; label: string } | null
+  fullscreenImage?: ImageSlide | null
   blankLogo?: boolean
   blankLogoLabel?: string
   blankVideoUrl?: string | null
@@ -95,18 +97,8 @@ export const CanvasVerse = memo(function CanvasVerse({
     const scale = displayW / theme.resolution.width
 
     const drawFullscreenImage = (cx: CanvasRenderingContext2D, w: number, h: number) => {
-      cx.fillStyle = "#000"
-      cx.fillRect(0, 0, w, h)
       if (!fullscreenImage) return
-      const img = sharedImageCache.get(fullscreenImage.url)
-      if (!img || !img.complete || img.naturalWidth === 0) return
-      const imgAspect = img.naturalWidth / img.naturalHeight
-      const canvasAspect = w / h
-      let dw = w
-      let dh = h
-      if (imgAspect > canvasAspect) dh = w / imgAspect
-      else dw = h * imgAspect
-      cx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh)
+      drawImageSlide(cx, sharedImageCache.get(fullscreenImage.url), fullscreenImage, w, h, sharedImageCache.get(getSpeakerPortraitUrl(fullscreenImage) ?? ""), sharedImageCache.get(SPEAKER_LOGO_MARK))
     }
 
     let videoLoop: ReturnType<typeof startLoopingVideo> | undefined
@@ -162,6 +154,11 @@ export const CanvasVerse = memo(function CanvasVerse({
     }
     if (fullscreenImage?.url) {
       ensureImage(fullscreenImage.url, rerender)
+      const portraitUrl = getSpeakerPortraitUrl(fullscreenImage)
+      if (portraitUrl) {
+        ensureImage(portraitUrl, rerender)
+        ensureImage(SPEAKER_LOGO_MARK, rerender)
+      }
     }
     if (blankLogo) {
       ensureImage(blankLogoUrl, rerender)

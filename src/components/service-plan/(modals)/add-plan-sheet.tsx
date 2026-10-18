@@ -1,3 +1,4 @@
+import { IMAGE_TEXT_PRESETS } from "../(lib)/image-text-slide"
 import { BookOpenIcon, MusicIcon, MegaphoneIcon, ListIcon, MinusIcon, SquareIcon, HeartHandshakeIcon, XIcon } from "lucide-react"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from "@/components/ui/drawer"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -28,6 +29,7 @@ export function AddPlanSheet({ open, onOpenChange, adding, onAdd, onVerse, onSon
     { label: "Blank / logo", description: "Show your church logo", icon: SquareIcon, action: () => onAdd({ type: "blank", showLogo: true }) },
   ]
   const slides: Array<{ label: string; image: string; payload: PlanItemPayload }> = [
+    ...IMAGE_TEXT_PRESETS.map(payload => ({ label: payload.imageLabel!, image: payload.imageUrl!, payload })),
     { label: "EWC Adenta — Welcome", image: WELCOME_SLIDE.imageUrl!, payload: WELCOME_SLIDE },
     { label: "MoMo", image: resolveBrandAsset("momo", brand.momoImagePath), payload: { type: "momo" } },
     { label: "Jesus", image: resolveBrandAsset("jesus", brand.jesusImagePath), payload: { type: "jesus" } },

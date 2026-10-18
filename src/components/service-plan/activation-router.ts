@@ -41,7 +41,7 @@ function routePlanItem(item: PlanItem): void {
 
     case "blank":
       if (parsed.imageUrl) {
-        broadcast.setFullscreenImage({ url: parsed.imageUrl, label: parsed.imageLabel ?? "" })
+        broadcast.setFullscreenImage({ url: parsed.imageUrl, label: parsed.imageLabel ?? "", ...(parsed.textOverlay ? { textOverlay: parsed.textOverlay } : {}) })
       } else if (parsed.showLogo) {
         broadcast.setLiveVerse(null)
         broadcast.setBlankLogo(true)

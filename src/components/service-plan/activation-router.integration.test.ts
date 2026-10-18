@@ -82,3 +82,42 @@ it("clears previous media when a corrupt plan item falls back to an empty slide"
   activatePlanItem({ ...empty, itemData: "{broken" })
   expect(useBroadcastStore.getState().fullscreenImage).toBeNull()
 })
+
+it("sends editable image slide words to both outputs and replaces them when edited", () => {
+  const payload = {
+    type: "blank",
+    showLogo: false,
+    imageUrl: "/service-slides/starburst-black.png",
+    imageLabel: "Service title",
+    textOverlay: {
+      layout: "title",
+      title: "SUNDAY SERVICE",
+      body: "PASTOR EXAMPLE",
+    },
+  }
+  activatePlanItem({ ...empty, itemData: JSON.stringify(payload) })
+  for (const output of ["main", "alt"])
+    expect(emitMock).toHaveBeenCalledWith(
+      `broadcast:verse-update:${output}`,
+      expect.objectContaining({
+        fullscreenImage: {
+          url: payload.imageUrl,
+          label: payload.imageLabel,
+          textOverlay: payload.textOverlay,
+        },
+      })
+    )
+  activatePlanItem({
+    ...empty,
+    itemData: JSON.stringify({
+      ...payload,
+      textOverlay: { ...payload.textOverlay, title: "NEW TITLE" },
+    }),
+  })
+  expect(useBroadcastStore.getState().fullscreenImage?.textOverlay?.title).toBe(
+    "NEW TITLE"
+  )
+  expect(useBroadcastStore.getState().fullscreenImage?.url).toBe(
+    payload.imageUrl
+  )
+})

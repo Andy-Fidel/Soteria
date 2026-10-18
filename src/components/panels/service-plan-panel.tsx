@@ -71,7 +71,7 @@ export function ServicePlanPanel() {
             <FolderIcon className="size-3.5" />
             Templates
           </Button>
-          <AddItemMenu />
+          <AddItemMenu onEdit={setEditing} />
         </div>
       </div>
 

@@ -1,3 +1,5 @@
+import { getSpeakerPortraitUrl, SPEAKER_LOGO_MARK } from "@/lib/speaker-portrait"
+import { drawImageSlide } from "@/lib/image-slide-renderer"
 import { startLoopingVideo, drawVideoCover } from "@/lib/looping-video"
 import { createRoot } from "react-dom/client"
 import { useRef, useEffect, useCallback } from "react"
@@ -7,7 +9,7 @@ import { listen } from "@tauri-apps/api/event"
 import { insetsToTransform, IDENTITY_INSETS, type CalibrationInsets } from "@/lib/projector-calibration"
 import { renderVerse } from "@/lib/verse-renderer"
 import { renderNotes } from "@/lib/notes-renderer"
-import type { BroadcastTheme, VerseRenderData, NotesSlide } from "@/types/broadcast"
+import type { ImageSlide, BroadcastTheme, VerseRenderData, NotesSlide } from "@/types/broadcast"
 import type { NdiConfigEventPayload, NdiFrameRequest } from "@/types"
 
 /** Convert Uint8Array/Uint8ClampedArray to base64 using Function.apply (avoids spread stack overflow) */
@@ -183,7 +185,7 @@ interface BroadcastPayload {
   blankLogo?: boolean
   blankVideoUrl?: string | null
   blankLogoUrl?: string
-  fullscreenImage?: { url: string; label: string } | null
+  fullscreenImage?: ImageSlide | null
   notes?: NotesSlide | null
 }
 
@@ -248,18 +250,7 @@ export function BroadcastCanvas() {
       }
 
       if (fullscreenImage) {
-        ctx.fillStyle = "#000"
-        ctx.fillRect(0, 0, width, height)
-        const img = imageCacheRef.current.get(fullscreenImage.url)
-        if (img && img.complete && img.naturalWidth > 0) {
-          const imgAspect = img.naturalWidth / img.naturalHeight
-          const canvasAspect = width / height
-          let w = width
-          let h = height
-          if (imgAspect > canvasAspect) h = width / imgAspect
-          else w = height * imgAspect
-          ctx.drawImage(img, (width - w) / 2, (height - h) / 2, w, h)
-        }
+        drawImageSlide(ctx, imageCacheRef.current.get(fullscreenImage.url), fullscreenImage, width, height, imageCacheRef.current.get(getSpeakerPortraitUrl(fullscreenImage) ?? ""), imageCacheRef.current.get(SPEAKER_LOGO_MARK))
         if (announcement && announcement.mode === "ticker") {
           drawTickerAnnouncement(ctx, width, height, announcement.text, tickerOffsetRef.current)
         }
@@ -497,6 +488,11 @@ export function BroadcastCanvas() {
         preloadImage(event.payload.blankLogoUrl || BLANK_LOGO_URL, "Blank logo")
       }
       if (event.payload.fullscreenImage?.url) preloadImage(event.payload.fullscreenImage.url, "Fullscreen image")
+      const portraitUrl = getSpeakerPortraitUrl(event.payload.fullscreenImage)
+      if (portraitUrl) {
+        preloadImage(portraitUrl, "Speaker portrait")
+        preloadImage(SPEAKER_LOGO_MARK, "EWC mark")
+      }
       logDebug("Received broadcast:verse-update", {
         hasVerse: Boolean(event.payload.verse),
         blankLogo: Boolean(event.payload.blankLogo),

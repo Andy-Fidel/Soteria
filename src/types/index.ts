@@ -17,7 +17,9 @@ export type { QueueItem } from "./queue"
 export type { Song, SongStanza, SongSource, LineMode, GeniusHit, LrclibHit, OnlineHit, HymnalSource } from "./song"
 export { GHS_SEED_VERSION, HYMNAL_SOURCES, HYMNAL_NAMES, HYMNAL_BADGES, isHymnalSource } from "./song"
 export type { DetectionResult, DetectionStatus } from "./detection"
-export type { BroadcastTheme, VerseRenderData, VerseSegment, RenderOptions, NotesSlide, TextHighlight, WordHitBox } from "./broadcast"
+import type { SlideTextOverlay } from "./broadcast"
+
+export type { SlideTextOverlay, ImageSlide, BroadcastTheme, VerseRenderData, VerseSegment, RenderOptions, NotesSlide, TextHighlight, WordHitBox } from "./broadcast"
 export type {
   NdiAlphaMode,
   NdiConfigEventPayload,
@@ -86,6 +88,7 @@ export interface PlanItemBlank {
   showLogo: boolean
   imageUrl?: string
   imageLabel?: string
+  textOverlay?: SlideTextOverlay
 }
 
 export interface PlanItemMomo {
@@ -153,11 +156,17 @@ export function parsePlanItem(item: PlanItem): PlanItemPayload | null {
       return { type: "section", label: parsed.label }
     }
     if (type === "blank") {
+      const overlay = parsed.textOverlay as Record<string, unknown> | null | undefined
+      const textOverlay: SlideTextOverlay | undefined = overlay
+        && (overlay.layout === "title" || overlay.layout === "announcement")
+        && typeof overlay.title === "string" && typeof overlay.body === "string"
+        ? { layout: overlay.layout, title: overlay.title, body: overlay.body } : undefined
       return {
         type: "blank",
         showLogo: Boolean(parsed.showLogo),
         imageUrl: typeof parsed.imageUrl === "string" ? parsed.imageUrl : undefined,
         imageLabel: typeof parsed.imageLabel === "string" ? parsed.imageLabel : undefined,
+        ...(textOverlay ? { textOverlay } : {}),
       }
     }
     if (type === "momo") {

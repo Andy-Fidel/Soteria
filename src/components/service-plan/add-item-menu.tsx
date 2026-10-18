@@ -4,12 +4,12 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useServicePlan } from "@/hooks/use-service-plan"
 import { useSessionStore } from "@/stores/session-store"
-import type { PlanItemPayload } from "@/types"
+import type { PlanItem, PlanItemPayload } from "@/types"
 import { AddVerseDialog } from "./add-verse-dialog"
 import { AddSongDialog } from "./add-song-dialog"
 import { AddPlanSheet } from "./(modals)/add-plan-sheet"
 
-export function AddItemMenu() {
+export function AddItemMenu({ onEdit }: { onEdit: (item: PlanItem) => void }) {
   const { addItem } = useServicePlan()
   const hasSession = useSessionStore((s) => s.activeSession !== null)
   const [mode, setMode] = useState<"closed" | "picker" | "verse" | "song">("closed")
@@ -19,8 +19,9 @@ export function AddItemMenu() {
     if (adding || !hasSession) return
     setAdding(true)
     try {
-      await addItem(payload.type, payload)
+      const item = await addItem(payload.type, payload)
       setMode("closed")
+      if (item && useSessionStore.getState().activeSession?.id === item.planId && payload.type === "blank" && payload.textOverlay) onEdit(item)
     } catch (error) {
       toast.error(`Could not add item: ${error}`)
     } finally {
