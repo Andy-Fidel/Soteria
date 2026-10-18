@@ -9,6 +9,7 @@ export interface PlannedScripture {
 export interface SermonSession {
   id: number
   title: string
+  titleSource?: "default" | "manual" | "announced"
   speaker: string | null
   date: string
   seriesName: string | null
@@ -25,6 +26,7 @@ export interface SermonSession {
 
 export interface CreateSessionRequest {
   title: string
+  titleIsAutomatic?: boolean
   speaker?: string
   date: string
   seriesName?: string

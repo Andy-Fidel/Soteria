@@ -267,6 +267,7 @@ mod tests {
         let db = SessionDb::open(&dir.path().join("t.db")).unwrap();
         let session = db
             .create_session(&CreateSessionRequest {
+                title_is_automatic: false,
                 title: "T".into(),
                 speaker: None,
                 date: "2026-05-28".into(),
@@ -414,6 +415,7 @@ mod tests {
         let db = SessionDb::open(&p.join("t.db")).unwrap();
         let session = db
             .create_session(&CreateSessionRequest {
+                title_is_automatic: false,
                 title: "Delete retry".into(),
                 speaker: None,
                 date: "2026-10-17".into(),

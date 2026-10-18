@@ -1,82 +1,13 @@
+import { CreateSessionForm } from "./sessions-panel/(components)/create-session-form"
 import { useState, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { Trash2Icon } from "lucide-react"
 import { useSession } from "@/hooks/use-session"
 import { useSessionStore } from "@/stores"
 import type { PendingSessionTab } from "@/stores/session-store"
-import type { SermonSession, CreateSessionRequest } from "@/types/session"
+import type { SermonSession } from "@/types/session"
 import { SessionDetail } from "./session-detail"
 
-function CreateSessionForm({ onCreated }: { onCreated: () => void }) {
-  const { createSession, startSession } = useSession()
-  const [title, setTitle] = useState(() => {
-    const now = new Date()
-    const date = now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })
-    const time = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
-    return `${date} — ${time}`
-  })
-  const [speaker, setSpeaker] = useState("")
-  const [seriesName, setSeriesName] = useState("")
-  const [isCreating, setIsCreating] = useState(false)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!title.trim()) return
-    setIsCreating(true)
-    try {
-      const request: CreateSessionRequest = {
-        title: title.trim(),
-        speaker: speaker.trim() || undefined,
-        date: new Date().toISOString().split("T")[0],
-        seriesName: seriesName.trim() || undefined,
-      }
-      const session = await createSession(request)
-      const started = await startSession(session.id)
-      useSessionStore.getState().setActiveSession(started)
-      const next = new Date()
-      const nextDate = next.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })
-      const nextTime = next.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
-      setTitle(`${nextDate} — ${nextTime}`)
-      setSpeaker("")
-      setSeriesName("")
-      onCreated()
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-3 border-b border-border p-3">
-      <p className="text-xs font-medium text-muted-foreground">New Session</p>
-      <input
-        className="w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        placeholder="Session title"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        required
-      />
-      <input
-        className="w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        placeholder="Speaker"
-        value={speaker}
-        onChange={(e) => setSpeaker(e.target.value)}
-      />
-      <input
-        className="w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        placeholder="Series name"
-        value={seriesName}
-        onChange={(e) => setSeriesName(e.target.value)}
-      />
-      <button
-        type="submit"
-        disabled={!title.trim() || isCreating}
-        className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-      >
-        {isCreating ? "Creating…" : "Create & Start Session"}
-      </button>
-    </form>
-  )
-}
 
 function SessionRow({
   session,
@@ -173,7 +104,7 @@ function SessionRow({
 }
 
 export function SessionsPanel() {
-  const { listSessions } = useSession()
+  const { listSessions, renameSession } = useSession()
   const activeSession = useSessionStore((s) => s.activeSession)
   const pendingView = useSessionStore((s) => s.sessionsView)
   const clearPendingView = useSessionStore((s) => s.clearSessionInMode)
@@ -192,7 +123,7 @@ export function SessionsPanel() {
 
   useEffect(() => {
     loadSessions()
-  }, [loadSessions])
+  }, [loadSessions, activeSession?.title])
 
   if (viewingSession) {
     return (
@@ -227,7 +158,7 @@ export function SessionsPanel() {
               }}
               onTitleChange={async (newTitle) => {
                 try {
-                  await invoke("update_session_title", { id: session.id, title: newTitle })
+                  await renameSession(session.id, newTitle)
                   loadSessions()
                 } catch (error) {
                   console.warn("[sessions] Failed to update title", error)

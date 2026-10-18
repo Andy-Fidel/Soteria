@@ -343,6 +343,7 @@ pub fn run() {
             commands::session::end_session,
             commands::session::delete_session,
             commands::session::update_session_title,
+            commands::sermon_title::detect_session_title,
             commands::session::update_session_summary,
             commands::session::update_session_series,
             commands::session::update_session_tags,

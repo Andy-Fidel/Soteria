@@ -227,6 +227,13 @@ impl SessionDb {
             )?;
         }
 
+        let has_title_source: bool = self.conn.prepare("PRAGMA table_info(sermon_sessions)")?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<rusqlite::Result<Vec<_>>>()?.iter().any(|name| name == "title_source");
+        if !has_title_source {
+            // Existing names are protected; their origin cannot be inferred safely.
+            self.conn.execute("ALTER TABLE sermon_sessions ADD COLUMN title_source TEXT NOT NULL DEFAULT 'manual'", [])?;
+        }
         Ok(())
     }
 
@@ -238,8 +245,8 @@ impl SessionDb {
         let scriptures_json = serde_json::to_string(&req.planned_scriptures)?;
 
         self.conn.execute(
-            "INSERT INTO sermon_sessions (title, speaker, date, series_name, tags, planned_scriptures)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO sermon_sessions (title, speaker, date, series_name, tags, planned_scriptures, title_source)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 req.title,
                 req.speaker,
@@ -247,6 +254,7 @@ impl SessionDb {
                 req.series_name,
                 tags_json,
                 scriptures_json,
+                if req.title_is_automatic { "default" } else { "manual" },
             ],
         )?;
 
@@ -327,16 +335,39 @@ impl SessionDb {
         self.get_session(id)
     }
 
-    /// Update the AI-generated summary for a session.
+    /// Save an operator name and protect it from automatic naming.
     pub fn update_session_title(&self, id: i64, title: &str) -> Result<()> {
         let changed = self.conn.execute(
-            "UPDATE sermon_sessions SET title = ?1, updated_at = datetime('now') WHERE id = ?2",
+            "UPDATE sermon_sessions SET title = ?1, title_source = 'manual', updated_at = datetime('now') WHERE id = ?2",
             params![title, id],
         )?;
         if changed == 0 {
             return Err(SessionError::NotFound(id.to_string()));
         }
         Ok(())
+    }
+
+    /// Apply a verified announcement only if the original automatic name is still live.
+    pub fn apply_announced_title(&self, id: i64, expected_title: &str, title: &str, expected_context: &str) -> Result<bool> {
+        if self.recent_title_transcript(id)? != expected_context { return Ok(false); }
+        Ok(self.conn.execute(
+            "UPDATE sermon_sessions SET title = ?1, title_source = 'announced', updated_at = datetime('now')
+             WHERE id = ?2 AND status = 'live' AND title_source = 'default' AND title = ?3",
+            params![title, id, expected_title],
+        )? == 1)
+    }
+
+    /// Read only a bounded tail for a possible live title announcement.
+    pub fn recent_title_transcript(&self, id: i64) -> Result<String> {
+        let mut stmt = self.conn.prepare(
+            "SELECT substr(text, -2000) FROM session_transcript WHERE session_id = ?1 AND is_final = 1 ORDER BY id DESC LIMIT 6"
+        )?;
+        let mut parts = stmt.query_map([id], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        parts.reverse();
+        let joined = parts.join(" ");
+        let start = joined.char_indices().rev().nth(1999).map_or(0, |(i, _)| i);
+        Ok(joined[start..].to_string())
     }
 
     /// Update series_name. Empty string clears (stores NULL).
@@ -988,6 +1019,7 @@ fn row_to_session(row: &Row<'_>) -> std::result::Result<SermonSession, serde_jso
     Ok(SermonSession {
         id: row.get_unwrap(0),
         title: row.get_unwrap(1),
+        title_source: row.get_unwrap("title_source"),
         speaker: row.get_unwrap(2),
         date: row.get_unwrap(3),
         series_name: row.get_unwrap(4),
@@ -1062,6 +1094,7 @@ mod tests {
         let db = SessionDb::open(&dir.path().join("test.db")).unwrap();
         let session = db
             .create_session(&CreateSessionRequest {
+                title_is_automatic: false,
                 title: "Test".into(),
                 speaker: None,
                 date: "2026-05-28".into(),

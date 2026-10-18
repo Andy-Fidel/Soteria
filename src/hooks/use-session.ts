@@ -1,3 +1,4 @@
+import { useSessionStore } from "@/stores/session-store"
 import { invoke } from "@tauri-apps/api/core"
 import type {
   SermonSession,
@@ -15,6 +16,14 @@ const sessionActions = {
   startSession: (id: number) => invoke<SermonSession>("start_session", { id }),
   endSession: (id: number) => invoke<SermonSession>("end_session", { id }),
   deleteSession: (id: number) => invoke<void>("delete_session", { id }),
+  renameSession: async (id: number, title: string) => {
+    await invoke("update_session_title", { id, title })
+    useSessionStore.setState((state) => ({
+      activeSession: state.activeSession?.id === id ? { ...state.activeSession, title, titleSource: "manual" } : state.activeSession,
+      sessions: state.sessions.map((s) => s.id === id ? { ...s, title, titleSource: "manual" } : s),
+      sessionsView: state.sessionsView?.id === id ? { ...state.sessionsView, title } : state.sessionsView,
+    }))
+  },
   updateSummary: (id: number, summary: string) =>
     invoke<void>("update_session_summary", { id, summary }),
   addDetection: (request: {

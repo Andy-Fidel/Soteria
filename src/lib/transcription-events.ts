@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core"
 import { useTranscriptStore } from "@/stores/transcript-store"
 import { useSessionStore } from "@/stores/session-store"
 
+import { detectLiveSermonTitle } from "./live-sermon-title"
+
 export type SttConnectionEvent = "stt_connected" | "stt_reconnecting" | "stt_disconnected" | "stt_error"
 export interface TranscriptPayload {
   text: string
@@ -49,4 +51,5 @@ export async function handleTranscriptFinal(payload: TranscriptPayload) {
       speakerLabel: null,
     },
   })
+  void detectLiveSermonTitle(payload.text)
 }
