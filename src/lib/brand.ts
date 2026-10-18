@@ -10,7 +10,7 @@ export const BRAND_DEFAULTS: Record<BrandAssetKind, string> = {
   logo: "/manna-logo.png",
   blank: "/EWC-White.png",
   momo: "/service-slides/momo.png",
-  jesus: "/JESUSs.png",
+  jesus: "/service-slides/jesus-motion.png",
 }
 
 /** Resolve a brand asset to a usable URL: the override (as an `asset:` URL) if

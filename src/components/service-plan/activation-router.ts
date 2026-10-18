@@ -1,4 +1,5 @@
 import { markPlanItemPresented } from "./(lib)/presentation"
+import { prayerImageSlide } from "./(lib)/prayer-slide"
 // src/components/service-plan/activation-router.ts
 import { useBroadcastStore, useBibleStore, useQueueStore, useSettingsStore } from "@/stores"
 import { resolveBrandAsset } from "@/lib/brand"
@@ -40,7 +41,9 @@ function routePlanItem(item: PlanItem): void {
       return
 
     case "blank":
-      if (parsed.imageUrl) {
+      if (parsed.prayer) {
+        broadcast.setFullscreenImage(prayerImageSlide(item.id, parsed.prayer))
+      } else if (parsed.imageUrl) {
         broadcast.setFullscreenImage({ url: parsed.imageUrl, label: parsed.imageLabel ?? "", ...(parsed.textOverlay ? { textOverlay: parsed.textOverlay } : {}) })
       } else if (parsed.showLogo) {
         broadcast.setLiveVerse(null)

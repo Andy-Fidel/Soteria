@@ -1,13 +1,19 @@
 export interface SlideTextOverlay {
-  layout: "title" | "announcement"
+  layout: "title" | "announcement" | "prayer"
   title: string
   body: string
+}
+
+export interface PrayerSlideContent {
+  background: "hands" | "cross-light"
+  points: string[]
 }
 
 export interface ImageSlide {
   url: string
   label: string
   textOverlay?: SlideTextOverlay
+  prayer?: { planItemId: number; content: PrayerSlideContent; index: number }
 }
 
 export interface VerseSegment {

@@ -121,3 +121,17 @@ it("sends editable image slide words to both outputs and replaces them when edit
     payload.imageUrl
   )
 })
+
+it("presents prayer text and its background to both outputs", () => {
+  const prayer = { background: "cross-light", points: ["Pray for our families.", "Pray for our community."] }
+  activatePlanItem({ ...empty, itemData: JSON.stringify({ type: "blank", showLogo: false, prayer }) })
+  for (const output of ["main", "alt"]) {
+    expect(emitMock).toHaveBeenCalledWith(`broadcast:verse-update:${output}`, expect.objectContaining({
+      fullscreenImage: expect.objectContaining({
+        url: "/service-slides/prayer-cross-light.png",
+        textOverlay: { layout: "prayer", title: "PRAYER", body: prayer.points[0] },
+        prayer: { planItemId: empty.id, content: prayer, index: 0 },
+      }),
+    }))
+  }
+})

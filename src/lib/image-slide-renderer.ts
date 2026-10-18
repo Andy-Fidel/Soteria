@@ -57,6 +57,34 @@ export function drawImageSlide(
     lineHeight: number
     align?: CanvasTextAlign
   }> = []
+  if (overlay?.layout === "prayer") {
+    const maxWidth = imageWidth * 0.56
+    let fontSize = imageWidth * 0.098
+    let wrapped: string[] = []
+    for (let attempt = 0; attempt < 20; attempt++) {
+      ctx.font = `600 ${fontSize}px "Inter Variable", Arial, sans-serif`
+      ctx.letterSpacing = `${-fontSize * 0.035}px`
+      wrapped = wrap(ctx, overlay.body.toUpperCase(), maxWidth)
+      if (wrapped.length * fontSize * 1.02 <= imageHeight * 0.7) break
+      fontSize *= 0.94
+    }
+    const x = left + imageWidth * 0.078
+    const startY = top + (imageHeight - wrapped.length * fontSize * 1.02) / 2
+    ctx.fillStyle = "#ffffff"
+    ctx.textAlign = "left"
+    ctx.textBaseline = "top"
+    wrapped.forEach((text, index) => {
+      const y = startY + index * fontSize * 1.02
+      ctx.fillText(text, x, y)
+      lines.push({ text, x, y, fontSize, lineHeight: fontSize * 1.02 })
+    })
+    ctx.fillStyle = "rgba(255,255,255,0.5)"
+    ctx.font = `600 ${imageWidth * 0.015}px "Inter Variable", Arial, sans-serif`
+    ctx.letterSpacing = "0px"
+    ctx.fillText(overlay.title, x, top + imageHeight * 0.09)
+    ctx.restore()
+    return lines
+  }
   if (overlay) {
     const maxWidth = imageWidth * 0.84
     const safeBottom = top + imageHeight * 0.54

@@ -12,7 +12,8 @@ import { ServicePlanItemEditor } from "./service-plan-item-editor"
 import { TemplateManager } from "@/components/service-plan/template-manager"
 import { Button } from "@/components/ui/button"
 import type { PlanItem } from "@/types"
-import { useSessionStore, useTranscriptStore } from "@/stores"
+import { useSessionStore, useTranscriptStore, useSettingsStore } from "@/stores"
+import { getPlanItemThumbnail } from "@/components/service-plan/(lib)/plan-item-thumbnail"
 import { getWorkspaceMode, getWorkspaceModeCopy } from "@/lib/workspace-mode"
 
 export function ServicePlanPanel() {
@@ -57,7 +58,7 @@ export function ServicePlanPanel() {
 
   return (
     <div className="flex h-full flex-col" tabIndex={0} aria-label="Service plan" onKeyDown={event => handlePlanKeyDown(event, reorderItem)}>
-      <div className="flex items-center justify-between border-b px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
         <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Service Plan
         </span>
@@ -76,10 +77,10 @@ export function ServicePlanPanel() {
       </div>
 
       <DragDropProvider onDragEnd={handleDragEnd}>
-        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+        <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-2 overflow-y-auto p-2">
           {plan.items.length === 0 && (
-            <div className="px-3 py-4 text-center text-xs text-muted-foreground">
-              {modeCopy.servicePlanEmpty} Click <span className="font-medium">Add</span> to insert items.
+            <div className="col-span-2 px-3 py-4 text-center text-xs text-muted-foreground">
+              {modeCopy.servicePlanEmpty} Click <span className="font-medium">Add slide</span> to choose a slide.
             </div>
           )}
           {plan.items.map((item, idx) => (
@@ -123,8 +124,10 @@ function SortableRow({
   onEdit,
 }: SortableRowProps) {
   const { ref, isDragging } = useSortable({ id: item.id, index })
+  const brand = useSettingsStore((s) => s.brand)
+  const visual = getPlanItemThumbnail(item, brand) !== null
   return (
-    <div ref={ref} className={isDragging ? "opacity-50" : ""}>
+    <div ref={ref} className={`${visual ? "" : "col-span-2"} ${isDragging ? "opacity-50" : ""}`}>
       <ServicePlanItem
         item={item}
         isActive={isActive}

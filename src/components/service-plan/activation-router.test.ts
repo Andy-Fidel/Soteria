@@ -1,9 +1,11 @@
+import { CLOSING_SLIDE } from "./(lib)/closing-slide"
 // src/components/service-plan/activation-router.test.ts
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { activatePlanItem } from "./activation-router"
 import type { PlanItem } from "@/types"
-import { WELCOME_SLIDE } from "./(lib)/welcome-slide"
+import { WELCOME_SLIDE, WELCOME_MOTION_SLIDE } from "./(lib)/welcome-slide"
+import { JESUS_SLIDES } from "./(lib)/jesus-slides"
 
 const setLiveVerse = vi.fn()
 const setBlankLogo = vi.fn()
@@ -71,6 +73,23 @@ describe("activation router", () => {
     expect(setLiveVerse).toHaveBeenCalledWith(null)
   })
 
+  it("presents the motion welcome slide as its own image", () => {
+    activatePlanItem(mkItem("blank", WELCOME_MOTION_SLIDE))
+    expect(setFullscreenImage).toHaveBeenCalledWith({
+      url: "/service-slides/welcome-motion.png",
+      label: "Welcome — Motion",
+    })
+  })
+
+  it.each(JESUS_SLIDES)("presents $imageLabel as its own image", (slide) => {
+    activatePlanItem(mkItem("blank", slide))
+    expect(setFullscreenImage).toHaveBeenCalledWith({
+      url: slide.imageUrl,
+      label: slide.imageLabel,
+    })
+    expect(setLiveVerse).not.toHaveBeenCalled()
+  })
+
   it("verse item routes to setLiveVerse", () => {
     const item = mkItem("verse", {
       verseRef: "John 3:16",
@@ -101,5 +120,15 @@ describe("activation router", () => {
     }
     activatePlanItem(item)
     expect(setLiveVerse).toHaveBeenCalledWith(null)
+  })
+})
+
+
+it("presents the approved closing slide", () => {
+  setFullscreenImage.mockReset()
+  activatePlanItem(mkItem("blank", CLOSING_SLIDE))
+  expect(setFullscreenImage).toHaveBeenCalledWith({
+    url: "/service-slides/closing-pastor-motion.png",
+    label: "Thank You — Closing",
   })
 })

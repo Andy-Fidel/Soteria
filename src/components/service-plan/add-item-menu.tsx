@@ -1,18 +1,16 @@
 import { useState } from "react"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon, ListTreeIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useServicePlan } from "@/hooks/use-service-plan"
 import { useSessionStore } from "@/stores/session-store"
 import type { PlanItem, PlanItemPayload } from "@/types"
-import { AddVerseDialog } from "./add-verse-dialog"
-import { AddSongDialog } from "./add-song-dialog"
 import { AddPlanSheet } from "./(modals)/add-plan-sheet"
 
 export function AddItemMenu({ onEdit }: { onEdit: (item: PlanItem) => void }) {
   const { addItem } = useServicePlan()
   const hasSession = useSessionStore((s) => s.activeSession !== null)
-  const [mode, setMode] = useState<"closed" | "picker" | "verse" | "song">("closed")
+  const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
 
   const add = async (payload: PlanItemPayload) => {
@@ -20,8 +18,14 @@ export function AddItemMenu({ onEdit }: { onEdit: (item: PlanItem) => void }) {
     setAdding(true)
     try {
       const item = await addItem(payload.type, payload)
-      setMode("closed")
-      if (item && useSessionStore.getState().activeSession?.id === item.planId && payload.type === "blank" && payload.textOverlay) onEdit(item)
+      setOpen(false)
+      if (
+        item &&
+        useSessionStore.getState().activeSession?.id === item.planId &&
+        payload.type === "blank" &&
+        (payload.textOverlay || payload.prayer)
+      )
+        onEdit(item)
     } catch (error) {
       toast.error(`Could not add item: ${error}`)
     } finally {
@@ -31,20 +35,32 @@ export function AddItemMenu({ onEdit }: { onEdit: (item: PlanItem) => void }) {
 
   return (
     <>
-      <Button size="sm" variant="outline" className="gap-1.5" disabled={!hasSession} onClick={() => setMode("picker")}>
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        title="Add section header"
+        aria-label="Add section header"
+        disabled={!hasSession || adding}
+        onClick={() => void add({ type: "section", label: "New Section" })}
+      >
+        <ListTreeIcon className="size-3.5" />
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="gap-1.5"
+        disabled={!hasSession || adding}
+        onClick={() => setOpen(true)}
+      >
         <PlusIcon className="size-3.5" />
-        Add
+        Add slide
       </Button>
       <AddPlanSheet
-        open={mode === "picker"}
-        onOpenChange={(open) => { if (!open) setMode("closed") }}
+        open={open}
+        onOpenChange={setOpen}
         adding={adding}
         onAdd={(payload) => void add(payload)}
-        onVerse={() => setMode("verse")}
-        onSong={() => setMode("song")}
       />
-      <AddVerseDialog open={mode === "verse"} onOpenChange={(open) => { if (!open) setMode("closed") }} />
-      <AddSongDialog open={mode === "song"} onOpenChange={(open) => { if (!open) setMode("closed") }} />
     </>
   )
 }

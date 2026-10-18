@@ -87,6 +87,31 @@ it("uses bold capitals and tight spacing without changing saved words", () => {
   expect(textOverlay.title).toBe("Sunday service")
 })
 
+it("keeps long prayer text beside the background artwork at full and panel sizes", () => {
+  const body =
+    "Father, strengthen our families and help us care for each other. "
+      .repeat(4)
+      .trim()
+  const prayer: ImageSlide = {
+    url: "/prayer.png",
+    label: "Prayer",
+    textOverlay: { layout: "prayer", title: "PRAYER", body },
+  }
+  const full = drawImageSlide(context().ctx, undefined, prayer, 1920, 1080)
+  const small = drawImageSlide(context().ctx, undefined, prayer, 480, 270)
+  expect(full.map((line) => line.text).join(" ")).toBe(body.toUpperCase())
+  expect(
+    full.every(
+      (line) => line.y >= 1080 * 0.15 && line.y + line.lineHeight <= 1080 * 0.85
+    )
+  ).toBe(true)
+  expect(full.every((line) => line.x < 1920 * 0.1 && line.fontSize >= 56)).toBe(
+    true
+  )
+  expect(small.map((line) => line.text)).toEqual(full.map((line) => line.text))
+  expect(small[0].fontSize).toBeCloseTo(full[0].fontSize / 4)
+})
+
 it("anchors one speaker word per line at the bottom left at a smaller fixed size", () => {
   const lines = drawImageSlide(
     context().ctx,
@@ -194,6 +219,46 @@ it("uses the approved full background, hides its speaker name, and keeps the tit
     portrait
   )
   expect(draw).not.toHaveBeenCalled()
+})
+
+it("matches prayer typography to service titles while keeping prayer text white", () => {
+  const title = drawImageSlide(
+    context().ctx,
+    undefined,
+    { ...slide, textOverlay: { layout: "title", title: "Pray", body: "" } },
+    1920,
+    1080
+  )
+  const { ctx } = context()
+  const styles: Array<{
+    text: string
+    font: string
+    color: string | CanvasGradient | CanvasPattern
+    spacing: string
+  }> = []
+  ctx.fillText = (text) => {
+    styles.push({
+      text,
+      font: ctx.font,
+      color: ctx.fillStyle,
+      spacing: ctx.letterSpacing,
+    })
+  }
+  const overlay = { layout: "prayer" as const, title: "PRAYER", body: "Pray" }
+  const prayer = drawImageSlide(
+    ctx,
+    undefined,
+    { ...slide, textOverlay: overlay },
+    1920,
+    1080
+  )
+  expect(prayer[0].fontSize).toBe(title[0].fontSize)
+  expect(prayer[0].lineHeight).toBe(title[0].lineHeight)
+  const body = styles.find((style) => style.text === "PRAY")!
+  expect(body.font).toMatch(/^600 /)
+  expect(body.color).toBe("#ffffff")
+  expect(parseFloat(body.spacing)).toBeCloseTo(-prayer[0].fontSize * 0.035)
+  expect(overlay.body).toBe("Pray")
 })
 
 it("centers only the EWC symbol at the bottom of the portrait artwork", () => {
