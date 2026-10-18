@@ -257,8 +257,8 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
       liveVerse,
       isLive: liveVerse !== null,
       blankLogo: false,
-      fullscreenImage: liveVerse ? null : get().fullscreenImage,
-      liveNotes: liveVerse ? null : get().liveNotes,
+      fullscreenImage: null,
+      liveNotes: null,
     })
     if (liveVerse) {
       get().addToHistory(liveVerse)

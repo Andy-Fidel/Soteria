@@ -27,6 +27,12 @@ const session: SermonSession = {
   updatedAt: "",
 }
 
+const rejected = { status: "rejected" as const }
+const applied = (session: SermonSession) => ({
+  status: "applied" as const,
+  session,
+})
+
 beforeEach(() => {
   vi.resetAllMocks()
   useSessionStore.setState({
@@ -61,11 +67,13 @@ it.each([
 
 it("joins final segments, saves the title and updates the live and saved session views", async () => {
   const detector = createLiveTitleDetector()
-  vi.mocked(invoke).mockResolvedValue({
-    ...session,
-    title: "Faith in the Waiting",
-    titleSource: "announced",
-  })
+  vi.mocked(invoke).mockResolvedValue(
+    applied({
+      ...session,
+      title: "Faith in the Waiting",
+      titleSource: "announced",
+    })
+  )
   await detector("My message today is")
   await detector("titled Faith in the Waiting.")
   expect(useSessionStore.getState().activeSession?.title).toBe(
@@ -95,7 +103,7 @@ it("does not replace a manual edit, ended session or different session with a la
     { ...session, id: 28 },
   ]) {
     useSessionStore.setState({ activeSession: session })
-    let finish!: (s: SermonSession) => void
+    let finish!: (s: ReturnType<typeof applied>) => void
     vi.mocked(invoke).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -106,7 +114,7 @@ it("does not replace a manual edit, ended session or different session with a la
     const pending = detector("My message today is titled Grace.")
     await vi.waitFor(() => expect(finish).toBeTypeOf("function"))
     useSessionStore.setState({ activeSession: changed })
-    finish({ ...session, title: "Grace", titleSource: "announced" })
+    finish(applied({ ...session, title: "Grace", titleSource: "announced" }))
     await pending
     expect(useSessionStore.getState().activeSession).toEqual(changed)
   }
@@ -114,7 +122,7 @@ it("does not replace a manual edit, ended session or different session with a la
 
 it("allows only one request at a time and bounds failed or rejected checks", async () => {
   const detector = createLiveTitleDetector()
-  vi.mocked(invoke).mockResolvedValue(null)
+  vi.mocked(invoke).mockResolvedValue(rejected)
   for (let i = 0; i < 100; i++)
     await detector(`My message today is titled Topic ${i}.`)
   expect(vi.mocked(invoke).mock.calls.length).toBeLessThanOrEqual(3)
@@ -122,7 +130,7 @@ it("allows only one request at a time and bounds failed or rejected checks", asy
 
 it("waits for the rest of an announcement and does not use a stale partial title", async () => {
   const detector = createLiveTitleDetector()
-  vi.mocked(invoke).mockResolvedValue(null)
+  vi.mocked(invoke).mockResolvedValue(rejected)
   const first = detector("My message today is titled Faith")
   expect(invoke).not.toHaveBeenCalled()
   const second = detector("in the Waiting.")
@@ -162,23 +170,25 @@ it("continues transcript capture while the title request is pending", async () =
 
 it("queues adjoining words during a pending check without parallel requests", async () => {
   const detector = createLiveTitleDetector()
-  let finish!: (s: null) => void
+  let finish!: (s: { status: "stale" }) => void
   vi.mocked(invoke).mockImplementationOnce(
     () =>
       new Promise((resolve) => {
         finish = resolve as typeof finish
       })
   )
-  vi.mocked(invoke).mockResolvedValueOnce({
-    ...session,
-    title: "Faith in the Waiting",
-    titleSource: "announced",
-  })
+  vi.mocked(invoke).mockResolvedValueOnce(
+    applied({
+      ...session,
+      title: "Faith in the Waiting",
+      titleSource: "announced",
+    })
+  )
   const first = detector("My message today is titled Faith")
   await vi.waitFor(() => expect(finish).toBeTypeOf("function"))
   const next = detector("in the Waiting.")
   expect(invoke).toHaveBeenCalledTimes(1)
-  finish(null)
+  finish({ status: "stale" })
   await Promise.all([first, next])
   expect(invoke).toHaveBeenCalledTimes(2)
   expect(useSessionStore.getState().activeSession?.title).toBe(
@@ -211,7 +221,90 @@ it("keeps the current name after a network failure and can check a later announc
   vi.mocked(invoke).mockRejectedValueOnce(new Error("offline"))
   await detector("My message today is titled Grace.")
   expect(useSessionStore.getState().activeSession?.title).toBe("Sunday service")
-  vi.mocked(invoke).mockResolvedValueOnce({ ...session, title: "Grace", titleSource: "announced" })
+  vi.mocked(invoke).mockResolvedValueOnce(
+    applied({ ...session, title: "Grace", titleSource: "announced" })
+  )
   await detector("The title of my sermon is Grace.")
   expect(useSessionStore.getState().activeSession?.title).toBe("Grace")
+})
+
+it("checks a rejected announcement only once across overlapping final segments, leaving room for the actual title", async () => {
+  const detector = createLiveTitleDetector()
+  vi.mocked(invoke).mockResolvedValue(rejected)
+  await detector(
+    "He said, my message today is titled Walking by Faith. That was a sermon I heard last week."
+  )
+  await detector("It was a helpful message about trust.")
+  await detector("Now let us begin our own message.")
+  expect(invoke).toHaveBeenCalledTimes(1)
+  vi.mocked(invoke).mockResolvedValue(
+    applied({ ...session, title: "Grace for Today", titleSource: "announced" })
+  )
+  await detector("My message today is titled Grace for Today.")
+  expect(useSessionStore.getState().activeSession?.title).toBe(
+    "Grace for Today"
+  )
+})
+
+it("does not recheck the same rejected announcement after capitalization and spacing changes", async () => {
+  const detector = createLiveTitleDetector()
+  vi.mocked(invoke).mockResolvedValue(rejected)
+  await detector("My message today is titled Walking by Faith.")
+  await detector("MY MESSAGE today is titled Walking   by Faith.")
+  expect(invoke).toHaveBeenCalledTimes(1)
+})
+
+it("does not retry a rejected candidate just because unrelated words arrived during its request", async () => {
+  const detector = createLiveTitleDetector()
+  let finish!: (value: typeof rejected) => void
+  vi.mocked(invoke).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve as typeof finish
+      })
+  )
+  const pending = detector(
+    "He said my message today is titled Walking by Faith. That was last week."
+  )
+  await vi.waitFor(() => expect(finish).toBeTypeOf("function"))
+  const next = detector("Let us turn to today's reading.")
+  finish(rejected)
+  await Promise.all([pending, next])
+  expect(invoke).toHaveBeenCalledTimes(1)
+})
+
+it("rechecks a valid announcement when the server reports changed source, even if its title words are unchanged", async () => {
+  const detector = createLiveTitleDetector()
+  let finish!: (value: { status: "stale" }) => void
+  vi.mocked(invoke).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve as typeof finish
+      })
+  )
+  vi.mocked(invoke).mockResolvedValueOnce(
+    applied({ ...session, title: "Grace for Today", titleSource: "announced" })
+  )
+  const first = detector("My message today is titled Grace for Today.")
+  await vi.waitFor(() => expect(finish).toBeTypeOf("function"))
+  const next = detector("Open your Bible to John chapter three.")
+  finish({ status: "stale" })
+  await Promise.all([first, next])
+  expect(useSessionStore.getState().activeSession?.title).toBe(
+    "Grace for Today"
+  )
+  expect(invoke).toHaveBeenCalledTimes(2)
+})
+
+it("waits for title words after an announcement prefix instead of spending an attempt on it", async () => {
+  const detector = createLiveTitleDetector()
+  vi.mocked(invoke).mockResolvedValueOnce(
+    applied({ ...session, title: "Grace for Today", titleSource: "announced" })
+  )
+  await detector("My message today is titled")
+  expect(invoke).not.toHaveBeenCalled()
+  await detector("Grace for Today.")
+  expect(useSessionStore.getState().activeSession?.title).toBe(
+    "Grace for Today"
+  )
 })

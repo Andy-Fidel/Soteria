@@ -16,11 +16,35 @@ export function hasTitleAnnouncement(text: string): boolean {
   return ANNOUNCEMENTS.some((pattern) => pattern.test(text))
 }
 
+type TitleDetection =
+  | { status: "rejected" | "stale" }
+  | { status: "applied"; session: SermonSession }
+
+function announcementKey(context: string): string | null {
+  let latest: RegExpExecArray | null = null
+  for (const pattern of ANNOUNCEMENTS) {
+    for (const match of context.matchAll(new RegExp(pattern.source, "gi"))) {
+      if (!latest || match.index > latest.index) latest = match
+    }
+  }
+  if (!latest) return null
+  const sentence = context.slice(latest.index).split(/[.!?](?=\s|$|["”])/)[0]
+  if (!/[\p{L}\p{N}]/u.test(sentence.slice(latest[0].length))) return null
+  return sentence
+    .normalize("NFKC")
+    .replace(/[’‘]/g, "'")
+    .replace(/[“”]/g, '"')
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 export function createLiveTitleDetector() {
   let state = {
     id: -1,
     parts: [] as string[],
     attempts: 0,
+    checked: new Set<string>(),
     busy: false,
     revision: 0,
   }
@@ -37,6 +61,7 @@ export function createLiveTitleDetector() {
         id: session.id,
         parts: [],
         attempts: 0,
+        checked: new Set<string>(),
         busy: false,
         revision: 0,
       }
@@ -47,6 +72,8 @@ export function createLiveTitleDetector() {
     const key = useSettingsStore.getState().deepseekApiKey
     if (currentState.attempts >= 3 || !key || !hasTitleAnnouncement(context))
       return
+    const candidate = announcementKey(context)
+    if (!candidate || currentState.checked.has(candidate)) return
     // Final speech segments can still split a sentence. Let adjoining words settle.
     await new Promise((resolve) => setTimeout(resolve, 600))
     if (state !== currentState || revision !== currentState.revision) return
@@ -61,14 +88,27 @@ export function createLiveTitleDetector() {
         active.titleSource !== "default"
       )
         return
+      const candidate = announcementKey(
+        currentState.parts.join(" ").slice(-2000)
+      )
+      if (!candidate || currentState.checked.has(candidate)) return
       const sentRevision = currentState.revision
+      currentState.checked.add(candidate)
       currentState.attempts++
       currentState.busy = true
+      let retry = false
       try {
-        const updated = await invoke<SermonSession | null>(
-          "detect_session_title",
-          { id: session.id, apiKey: key }
-        )
+        const result = await invoke<TitleDetection>("detect_session_title", {
+          id: session.id,
+          apiKey: key,
+        })
+        if (result.status === "stale") {
+          currentState.checked.delete(candidate)
+          retry = true
+          return
+        }
+        if (result.status !== "applied") return
+        const updated = result.session
         const store = useSessionStore.getState()
         const current = store.activeSession
         if (
@@ -101,7 +141,7 @@ export function createLiveTitleDetector() {
         )
       } finally {
         currentState.busy = false
-        if (currentState.revision !== sentRevision) await run()
+        if (retry || currentState.revision !== sentRevision) await run()
       }
     }
     await run()
