@@ -20,6 +20,17 @@ fn get_flavor() -> &'static str {
     FLAVOR
 }
 
+#[tauri::command]
+fn print_summary(window: tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("Summary printing is only available in the main window.".to_owned());
+    }
+    #[cfg(desktop)]
+    return window.print().map_err(|error| error.to_string());
+    #[cfg(not(desktop))]
+    Err("Summary printing requires the desktop app.".to_owned())
+}
+
 /// Resolve a bundled resource path. Checks `resource_dir/<rel>` first
 /// (production install); falls back to `$CARGO_MANIFEST_DIR/../<rel>` (dev mode).
 fn resolve_resource(app: &tauri::App, rel: &str) -> std::path::PathBuf {
@@ -276,6 +287,7 @@ pub fn run() {
             quit_app,
             open_devtools,
             get_flavor,
+            print_summary,
             commands::bible::list_translations,
             commands::bible::list_books,
             commands::bible::get_chapter,

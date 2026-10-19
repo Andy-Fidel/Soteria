@@ -4,10 +4,6 @@ Last reviewed: 2026-10-19.
 
 This is the current work list. Completed features, deliberately deferred ideas, and release checks are separate. Old estimates and model benchmarks have been removed; they are not current commitments. This review was not a new whole-project audit.
 
-## In progress
-
-- **Summary export and printing:** separate work is underway in the session-review UI and native print command. Verify its own completion and checks before treating it as shipped. It is outside the opacity/header cleanup change.
-
 ## Open, low priority
 
 - **Remote-control UI:** bring the mobile remote into the current Manna visual style.
@@ -21,6 +17,8 @@ This is the current work list. Completed features, deliberately deferred ideas, 
 - **Split-scripture first-part behavior:** optional return to the first part was discussed and deferred. Recheck the exact queue behavior and desired interaction before changing it; it is not a confirmed outstanding defect.
 
 ## Completed from recent feedback
+
+- **Summary export and printing:** complete. The summary Export menu supports clipboard, Markdown, and Print / PDF. Exports include the full summary and displayed speaker attribution without changing the saved summary or transcript. macOS uses the native print command; save cancellation and export errors are handled.
 
 - **Saved session slide gallery:** session review has a separate Slides tab and a summary link. Saved image/title/announcement/prayer versions remain after plan-item removal and app reopen. Existing image slides are recovered from saved plans; prayer points download separately as 1920 × 1080 PNGs. Deleting a session removes its archive. Slides deleted before this feature cannot be recovered. The title editor and transcript redesign remain separate.
 
@@ -36,7 +34,7 @@ This is the current work list. Completed features, deliberately deferred ideas, 
 
 - **Latest cleanup verification (2026-10-19):** 382 frontend tests, lint, TypeScript checks and the production build passed. Browser checks covered all six built-in themes, legacy transparent reference colors, the reference editor and unchanged verse-text opacity controls. These checks did not restart the running presentation app and did not constitute a physical-projector test.
 - **Historical smoke checklists:** older Songs and Overlay Themes plans still contain pending/manual checklist entries. Reconcile those entries against current operator testing before the next release; an unmarked historical checkbox alone is not evidence of a current bug.
-- **Native validation:** recording/session lifecycle and JSON plan persistence were tested during the earlier audit and slide work. Rerun native checks for subsequent native changes, including the separate print work; the opacity/header changes are frontend-only.
+- **Native validation:** recording/session lifecycle and JSON plan persistence were tested during the earlier audit and slide work. The summary-print command is included in native compilation checks. Rerun native checks for later native changes; the opacity/header changes are frontend-only.
 
 ## Earlier shipped foundations
 

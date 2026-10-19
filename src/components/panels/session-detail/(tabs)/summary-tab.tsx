@@ -9,6 +9,7 @@ import {
 import type { SermonSummary } from "@/lib/summarize"
 import { SummaryNarrative } from "../(components)/summary-narrative"
 import { SummaryFollowUp } from "../(components)/summary-follow-up"
+import { SummaryExportMenu } from "../(components)/summary-export-menu"
 interface SummaryTabProps {
   summary: SermonSummary | null
   summarizing: boolean
@@ -114,6 +115,7 @@ export function SummaryTab({
                 <RefreshCwIcon className="size-3" />
                 Regenerate
               </Button>
+              <SummaryExportMenu summary={summary} speaker={session?.speaker} />
             </div>
           </div>
 

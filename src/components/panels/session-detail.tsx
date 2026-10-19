@@ -2,7 +2,6 @@ import { toast } from "sonner"
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import {
-  formatSummaryAsMarkdown,
   summarizeTranscript,
   summaryFromJson,
   summaryToJson,
@@ -24,6 +23,7 @@ import { SessionExportMenu } from "./session-detail/(components)/session-export-
 import { useTranscriptEditor } from "./session-detail/(hooks)/use-transcript-editor"
 import type { DetailTab } from "./session-detail/(lib)/types"
 import { SessionHeader } from "./session-detail/(components)/session-header"
+import { exportSummary } from "./session-detail/(lib)/summary-export"
 
 interface SessionDetailProps {
   sessionId: number
@@ -146,12 +146,17 @@ function SessionDetailContent({
     }
   }
 
-  const handleCopySummary = () => {
+  const handleCopySummary = async () => {
     if (summary) {
-      const text = formatSummaryAsMarkdown(summary)
-      navigator.clipboard.writeText(text)
-      setSummaryCopied(true)
-      setTimeout(() => setSummaryCopied(false), 2000)
+      try {
+        await exportSummary("clipboard", summary, session?.speaker)
+        setSummaryCopied(true)
+        setTimeout(() => setSummaryCopied(false), 2000)
+      } catch (error) {
+        toast.error(
+          `Could not copy summary: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
     }
   }
 

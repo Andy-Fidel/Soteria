@@ -142,7 +142,7 @@ describe("session summary tab", () => {
     expect(headings.indexOf("Carry these with you")).toBeLessThan(
       headings.indexOf("Sermon outline")
     )
-    const triggers = $("button[aria-expanded]")
+    const triggers = $("h3 > button[aria-expanded]")
     expect(triggers).toHaveLength(2)
     expect(triggers.eq(0).attr("aria-expanded")).toBe("true")
     expect(triggers.eq(1).attr("aria-expanded")).toBe("false")
