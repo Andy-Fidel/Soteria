@@ -97,6 +97,13 @@ impl SessionDb {
             );
             CREATE INDEX IF NOT EXISTS idx_notes_session ON session_notes(session_id);
 
+            CREATE TABLE IF NOT EXISTS session_sharing_drafts (
+                session_id INTEGER PRIMARY KEY REFERENCES sermon_sessions(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                recap TEXT NOT NULL,
+                sms TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS session_distributions (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 session_id  INTEGER NOT NULL REFERENCES sermon_sessions(id) ON DELETE CASCADE,

@@ -21,6 +21,8 @@ import { StatsTab } from "./session-detail/(tabs)/stats-tab"
 import { SessionMetadata } from "./session-detail/(components)/session-metadata"
 import { SessionExportMenu } from "./session-detail/(components)/session-export-menu"
 import { useTranscriptEditor } from "./session-detail/(hooks)/use-transcript-editor"
+import { useSharingDrafts } from "./session-detail/(hooks)/use-sharing-drafts"
+import { SharingDraftsPanel } from "./session-detail/(components)/sharing-drafts-panel"
 import type { DetailTab } from "./session-detail/(lib)/types"
 import { SessionHeader } from "./session-detail/(components)/session-header"
 import { exportSummary } from "./session-detail/(lib)/summary-export"
@@ -57,6 +59,7 @@ function SessionDetailContent({
   const [summaryCopied, setSummaryCopied] = useState(false)
   const [showAllDetections, setShowAllDetections] = useState(false)
   const editor = useTranscriptEditor(transcript, setTranscript)
+  const sharing = useSharingDrafts(sessionId)
   useEffect(() => {
     let cancelled = false
     Promise.all([
@@ -197,6 +200,15 @@ function SessionDetailContent({
         {!loading && tab === "summary" && (
           <>
             <SummaryTab
+              sharingPanel={
+                <SharingDraftsPanel
+                  sharing={sharing}
+                  summary={summary}
+                  title={session?.title || sessionTitle}
+                  speaker={session?.speaker}
+                  summarizing={summarizing}
+                />
+              }
               summary={summary}
               summarizing={summarizing}
               summaryError={summaryError}
