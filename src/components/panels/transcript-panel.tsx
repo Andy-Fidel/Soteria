@@ -62,7 +62,7 @@ export function TranscriptPanel() {
   useTauriEvent("stt_connected", () => handleSttConnection("stt_connected"))
   useTauriEvent("stt_reconnecting", () => handleSttConnection("stt_reconnecting"))
   useTauriEvent("stt_disconnected", () => handleSttConnection("stt_disconnected"))
-  useTauriEvent("stt_error", () => handleSttConnection("stt_error"))
+  useTauriEvent<string>("stt_error", (message) => handleSttConnection("stt_error", message))
   useTauriEvent<TranscriptPayload>("transcript_partial", handleTranscriptPartial)
   useTauriEvent<TranscriptPayload>("transcript_final", (payload) => {
     void handleTranscriptFinal(payload).catch((error) => {

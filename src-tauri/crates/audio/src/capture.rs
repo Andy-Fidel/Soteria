@@ -2,7 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, Stream, StreamConfig};
-use crossbeam_channel::Sender;
+use crossbeam_channel::{Receiver, Sender};
 
 use crate::error::AudioError;
 use crate::types::{AudioConfig, AudioFrame};
@@ -11,6 +11,7 @@ use crate::types::{AudioConfig, AudioFrame};
 /// Dropping this struct (or calling `stop`) will end the capture.
 pub struct AudioCapture {
     stream: Stream,
+    errors: Receiver<cpal::StreamError>,
 }
 
 impl std::fmt::Debug for AudioCapture {
@@ -20,6 +21,11 @@ impl std::fmt::Debug for AudioCapture {
 }
 
 impl AudioCapture {
+    /// Read a device failure from the real-time callback without blocking it.
+    pub fn take_error(&self) -> Option<String> {
+        self.errors.try_recv().ok().map(|error| error.to_string())
+    }
+
     /// Stop the audio capture, consuming the struct.
     pub fn stop(self) {
         drop(self.stream);
@@ -31,12 +37,15 @@ impl AudioCapture {
 ///
 /// Audio is converted to mono 16-bit PCM at 16 kHz, with the specified gain
 /// applied.
-#[expect(clippy::too_many_lines, reason = "audio setup is inherently sequential with many format branches")]
-#[expect(clippy::needless_pass_by_value, reason = "config fields are read and sender is cloned into closures")]
-pub fn start(
-    config: AudioConfig,
-    sender: Sender<AudioFrame>,
-) -> Result<AudioCapture, AudioError> {
+#[expect(
+    clippy::too_many_lines,
+    reason = "audio setup is inherently sequential with many format branches"
+)]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "config fields are read and sender is cloned into closures"
+)]
+pub fn start(config: AudioConfig, sender: Sender<AudioFrame>) -> Result<AudioCapture, AudioError> {
     let host = cpal::default_host();
 
     // Select the device
@@ -45,9 +54,9 @@ pub fn start(
     let device = match &config.device_id {
         Some(id) if !id.is_empty() => {
             let mut found = None;
-            let input_devices = host
-                .input_devices()
-                .map_err(|e| AudioError::StreamError(format!("Failed to enumerate devices: {e}")))?;
+            let input_devices = host.input_devices().map_err(|e| {
+                AudioError::StreamError(format!("Failed to enumerate devices: {e}"))
+            })?;
             for d in input_devices {
                 if let Ok(name) = d.name() {
                     log::info!("[AUDIO]   Available device: '{name}'");
@@ -71,7 +80,10 @@ pub fn start(
             let d = host
                 .default_input_device()
                 .ok_or(AudioError::NoInputDevices)?;
-            log::info!("[AUDIO] Using default device: '{}'", &d.name().unwrap_or_default());
+            log::info!(
+                "[AUDIO] Using default device: '{}'",
+                &d.name().unwrap_or_default()
+            );
             d
         }
     };
@@ -89,9 +101,8 @@ pub fn start(
 
     let stream_config: StreamConfig = supported_config.into();
 
-    let err_fn = |err: cpal::StreamError| {
-        log::error!("Audio stream error: {err}");
-    };
+    let (error_tx, errors) = crossbeam_channel::bounded(1);
+    let err_fn = stream_error_handler(error_tx);
 
     let stream = match sample_format {
         SampleFormat::I16 => {
@@ -118,7 +129,10 @@ pub fn start(
                 &stream_config,
                 move |data: &[f32], _: &cpal::InputCallbackInfo| {
                     // Convert f32 -> i16
-                    #[expect(clippy::cast_possible_truncation, reason = "clamped f32 to i16 range is intentional for audio conversion")]
+                    #[expect(
+                        clippy::cast_possible_truncation,
+                        reason = "clamped f32 to i16 range is intentional for audio conversion"
+                    )]
                     let i16_data: Vec<i16> = data
                         .iter()
                         .map(|&s| {
@@ -145,7 +159,10 @@ pub fn start(
                 &stream_config,
                 move |data: &[u16], _: &cpal::InputCallbackInfo| {
                     // Convert u16 -> i16 (u16 midpoint is 32768)
-                    #[expect(clippy::cast_possible_truncation, reason = "u16-to-i16 offset conversion is intentional for audio")]
+                    #[expect(
+                        clippy::cast_possible_truncation,
+                        reason = "u16-to-i16 offset conversion is intentional for audio"
+                    )]
                     let i16_data: Vec<i16> = data
                         .iter()
                         .map(|&s| (i32::from(s) - 32768) as i16)
@@ -175,11 +192,23 @@ pub fn start(
         .play()
         .map_err(|e| AudioError::StreamError(format!("Failed to start stream: {e}")))?;
 
-    Ok(AudioCapture { stream })
+    Ok(AudioCapture { stream, errors })
+}
+
+fn stream_error_handler(
+    sender: Sender<cpal::StreamError>,
+) -> impl FnMut(cpal::StreamError) + Send + 'static {
+    move |error| {
+        log::error!("Audio stream error: {error}");
+        let _ = sender.try_send(error);
+    }
 }
 
 /// Downmix to mono, apply gain, resample to target rate, and send as `AudioFrame`.
-#[expect(clippy::cast_possible_truncation, reason = "audio sample conversions are intentionally truncating")]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "audio sample conversions are intentionally truncating"
+)]
 #[expect(clippy::cast_possible_wrap, reason = "channel count fits in i32")]
 fn process_and_send(
     samples: &[i16],
@@ -233,8 +262,14 @@ fn process_and_send(
 }
 
 /// Simple linear-interpolation resampler.
-#[expect(clippy::cast_possible_truncation, reason = "resampling math intentionally truncates to i16/usize")]
-#[expect(clippy::cast_precision_loss, reason = "sample indices and rates fit comfortably in f64")]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "resampling math intentionally truncates to i16/usize"
+)]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "sample indices and rates fit comfortably in f64"
+)]
 #[expect(clippy::cast_sign_loss, reason = "output_len is always non-negative")]
 fn resample(input: &[i16], from_rate: u32, to_rate: u32) -> Vec<i16> {
     if input.is_empty() {
@@ -262,4 +297,43 @@ fn resample(input: &[i16], from_rate: u32, to_rate: u32) -> Vec<i16> {
     }
 
     output
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+
+    #[test]
+    fn stream_errors_reach_the_capture_owner_without_blocking_audio_callbacks() {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        let mut report = stream_error_handler(tx);
+        report(cpal::StreamError::DeviceNotAvailable);
+        report(cpal::StreamError::DeviceNotAvailable);
+        assert!(matches!(
+            rx.try_recv(),
+            Ok(cpal::StreamError::DeviceNotAvailable)
+        ));
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn captured_speech_and_silence_reach_the_pipeline_as_mono_16khz_frames() {
+        let (tx, rx) = crossbeam_channel::bounded(8);
+        let stereo_speech: Vec<i16> = (0..960)
+            .flat_map(|i| {
+                let sample = if i % 32 < 16 { 4000 } else { -4000 };
+                [sample, sample]
+            })
+            .collect();
+        process_and_send(&stereo_speech, 2, 48000, 16000, 1.5, &tx);
+        let voiced = rx.recv().unwrap();
+        assert_eq!(voiced.samples.len(), 320);
+        assert!(crate::meter::compute_level(&voiced.samples).rms > 0.1);
+        process_and_send(&vec![0; 1920], 2, 48000, 16000, 1.5, &tx);
+        let silence = rx.recv().unwrap();
+        assert_eq!(silence.samples.len(), 320);
+        assert_eq!(crate::meter::compute_level(&silence.samples).rms, 0.0);
+        drop(rx);
+        process_and_send(&stereo_speech, 2, 48000, 16000, 1.5, &tx);
+    }
 }

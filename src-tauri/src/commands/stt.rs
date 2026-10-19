@@ -282,6 +282,7 @@ pub async fn start_transcription(
         let capture_thread = capture::spawn(capture::CaptureConfig {
             app: app.clone(),
             active: stt_active.clone(),
+            audio_active: audio_active.clone(),
             recording_paused,
             device_id,
             gain: gain_val,

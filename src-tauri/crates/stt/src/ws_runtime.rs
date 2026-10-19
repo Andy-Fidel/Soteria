@@ -84,6 +84,7 @@ pub async fn run_stream<P: WsProvider>(
 
     let tag = provider.log_tag();
     let mut attempts: u32 = 0;
+    let audio_closed = Arc::new(AtomicBool::new(false));
 
     loop {
         if cancelled.load(Ordering::SeqCst) {
@@ -96,6 +97,7 @@ pub async fn run_stream<P: WsProvider>(
             audio_rx.clone(),
             event_tx.clone(),
             cancelled.clone(),
+            audio_closed.clone(),
         )
         .await
         {
@@ -104,10 +106,7 @@ pub async fn run_stream<P: WsProvider>(
                     log::info!("{tag}: connection closed normally (cancelled)");
                     break;
                 }
-                if matches!(
-                    audio_rx.try_recv(),
-                    Err(crossbeam_channel::TryRecvError::Disconnected)
-                ) {
+                if audio_closed.load(Ordering::SeqCst) {
                     log::info!("{tag}: audio source closed, stopping reconnect loop");
                     break;
                 }
@@ -118,6 +117,9 @@ pub async fn run_stream<P: WsProvider>(
                 continue;
             }
             Err(e) => {
+                if cancelled.load(Ordering::SeqCst) || audio_closed.load(Ordering::SeqCst) {
+                    break;
+                }
                 attempts += 1;
                 log::warn!(
                     "{tag}: connection error (attempt {attempts}/{MAX_RECONNECT_ATTEMPTS}): {e}"
@@ -223,6 +225,7 @@ async fn try_connect<P: WsProvider>(
     audio_rx: Receiver<Vec<i16>>,
     event_tx: mpsc::Sender<TranscriptEvent>,
     cancelled: Arc<AtomicBool>,
+    audio_closed: Arc<AtomicBool>,
 ) -> Result<(), SttError> {
     let tag = provider.log_tag();
     let url = provider.build_url()?;
@@ -251,6 +254,7 @@ async fn try_connect<P: WsProvider>(
 
     let (mut write, mut read) = ws_stream.split();
 
+    let connection_ended = Arc::new(AtomicBool::new(false));
     let send_cancelled = cancelled.clone();
     let recv_cancelled = cancelled.clone();
 
@@ -275,6 +279,7 @@ async fn try_connect<P: WsProvider>(
         let ws_tx = ws_tx.clone();
         let cancelled = send_cancelled.clone();
         let send_keepalive = keepalive.is_some();
+        let connection_ended = connection_ended.clone();
         tokio::task::spawn_blocking(move || {
             let mut batch_buf: Vec<u8> = Vec::with_capacity(BATCH_SAMPLES * 2);
             let batch_byte_threshold = BATCH_SAMPLES * 2;
@@ -282,6 +287,9 @@ async fn try_connect<P: WsProvider>(
             let keepalive_interval = Duration::from_secs(5);
 
             loop {
+                if connection_ended.load(Ordering::SeqCst) {
+                    break;
+                }
                 if cancelled.load(Ordering::SeqCst) {
                     let _ = ws_tx.blocking_send(WsCommand::Close);
                     break;
@@ -316,6 +324,7 @@ async fn try_connect<P: WsProvider>(
                         }
                     }
                     Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
+                        audio_closed.store(true, Ordering::SeqCst);
                         if !batch_buf.is_empty() {
                             let data = std::mem::take(&mut batch_buf);
                             let _ = ws_tx.blocking_send(WsCommand::Audio(data));
@@ -329,7 +338,7 @@ async fn try_connect<P: WsProvider>(
     };
 
     // Async writer: tokio channel → WebSocket.
-    let ws_writer = tokio::spawn(async move {
+    let mut ws_writer = tokio::spawn(async move {
         let mut sent_audio = false;
         while let Some(cmd) = ws_rx.recv().await {
             match cmd {
@@ -392,16 +401,35 @@ async fn try_connect<P: WsProvider>(
                 Err(e) => {
                     log::error!("{tag} receiver: WebSocket error: {e}");
                     recv_err.store(true, Ordering::SeqCst);
-                    let _ = receiver_event_tx
-                        .send(TranscriptEvent::Error(format!("WebSocket error: {e}")))
-                        .await;
+                    // A transport loss is recoverable; run_stream owns retry/fatal events.
                     break;
                 }
             }
         }
     };
 
-    let _ = tokio::join!(audio_reader, ws_writer, receiver);
+    tokio::pin!(receiver);
+    let writer_finished = tokio::select! {
+        () = &mut receiver => {
+            // Stop this connection's reader before reconnecting. Otherwise it
+            // waits forever for microphone audio and can steal the next run's frames.
+            connection_ended.store(true, Ordering::SeqCst);
+            ws_writer.abort();
+            false
+        }
+        _ = &mut ws_writer => {
+            connection_ended.store(true, Ordering::SeqCst);
+            // On stop/source closure allow final replies, but never wait forever
+            // for a server that does not acknowledge the close frame.
+            let _ = tokio::time::timeout(Duration::from_secs(1), &mut receiver).await;
+            true
+        }
+    };
+    connection_ended.store(true, Ordering::SeqCst);
+    if !writer_finished {
+        let _ = ws_writer.await;
+    }
+    let _ = audio_reader.await;
 
     if send_error_flag.load(Ordering::SeqCst) || recv_error_flag.load(Ordering::SeqCst) {
         return Err(SttError::ConnectionFailed(

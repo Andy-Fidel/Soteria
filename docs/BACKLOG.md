@@ -8,7 +8,6 @@ This is the current work list. Completed features, deliberately deferred ideas, 
 
 - **Remote-control UI:** bring the mobile remote into the current Manna visual style.
 - **Additional translation search indexes:** consider ESV, NASB, NKJV, AMP and other supported translations after KJV/NIV/NLT. Measure detection accuracy, startup cost and memory before expanding.
-- **Automated microphone/reconnect coverage:** implement the deferred end-to-end test for speaking, silence, disconnect/reconnect and resumed speech. Decide provider-credit use and offline Whisper coverage before enabling it in CI.
 - **Release follow-ups:** evaluate signed installers, Linux builds, delta updates and Windows full-model packaging when preparing wider distribution. These are optional release improvements, not confirmed live-session bugs.
 
 ## Deliberately deferred
@@ -17,6 +16,8 @@ This is the current work list. Completed features, deliberately deferred ideas, 
 - **Split-scripture first-part behavior:** optional return to the first part was discussed and deferred. Recheck the exact queue behavior and desired interaction before changing it; it is not a confirmed outstanding defect.
 
 ## Completed from recent feedback
+
+- **Automated microphone/reconnect coverage:** offline tests now cover PCM speech/silence, capture-device error reporting, both provider response formats over local WebSockets, connection loss/reconnect, audio-source restart, resumed direct-reference detection and same-session transcript persistence. Reconnect stalls and frozen-meter handling found by these tests were fixed. Run `bun run test:microphone-recovery`; see [coverage and hardware check](testing/microphone-recovery.md). Physical unplug/replug and real recognition remain manual checks; no paid provider tests were run.
 
 - **Summary export and printing:** complete. The summary Export menu supports clipboard, Markdown, and Print / PDF. Exports include the full summary and displayed speaker attribution without changing the saved summary or transcript. macOS uses the native print command; save cancellation and export errors are handled.
 
@@ -29,6 +30,8 @@ This is the current work list. Completed features, deliberately deferred ideas, 
 - **Reference appearance and header cleanup:** references render at full opacity, including colors with embedded transparency, while preserving their color channels and verse-text opacity. The reference editor reflects full opacity. The service-plan header keeps only Add slide. These changes are included in the current cleanup backup.
 
 ## Verification and release checks
+
+- **Physical microphone recovery:** run the local-Whisper hardware checklist in [microphone recovery checks](testing/microphone-recovery.md) before release. Automated tests simulate device errors and connection loss; they do not physically unplug a device.
 
 - **Session slide gallery (2026-10-19):** 403 frontend tests and 21 notes/storage tests passed, plus lint, TypeScript/production build and native app compilation checks. Browser checks covered the Summary link, Slides tab, previews, error/retry and empty states, cancelled downloads, PNG encoding/resolution and the save-command payload. The browser used a mocked native save boundary; storage tests used temporary databases.
 

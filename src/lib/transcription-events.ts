@@ -1,4 +1,6 @@
+import { toast } from "sonner"
 import { invoke } from "@tauri-apps/api/core"
+import { useAudioStore } from "@/stores/audio-store"
 import { useTranscriptStore } from "@/stores/transcript-store"
 import { useSessionStore } from "@/stores/session-store"
 
@@ -22,17 +24,24 @@ export interface TranscriptPayload {
   confidence: number
 }
 
-export function handleSttConnection(event: SttConnectionEvent) {
+export function handleSttConnection(
+  event: SttConnectionEvent,
+  message?: string
+) {
   const store = useTranscriptStore.getState()
   if (event === "stt_connected") {
     store.setConnectionStatus("connected")
     store.setTranscribing(true)
+    useAudioStore.getState().setCapturing(true)
   } else if (event === "stt_reconnecting") {
     store.setConnectionStatus("reconnecting")
   } else {
     store.setConnectionStatus(event === "stt_error" ? "error" : "disconnected")
     store.setTranscribing(false)
     store.setPartial("")
+    useAudioStore.getState().setCapturing(false)
+    useAudioStore.getState().setLevel({ rms: 0, peak: 0 })
+    if (event === "stt_error" && message) toast.error(message)
   }
 }
 

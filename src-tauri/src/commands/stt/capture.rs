@@ -27,6 +27,12 @@ pub(super) async fn wait_until_ready(
     result
 }
 
+fn capture_failed(error: &str, stt_active: &AtomicBool, audio_active: &AtomicBool) -> String {
+    stt_active.store(false, Ordering::SeqCst);
+    audio_active.store(false, Ordering::SeqCst);
+    format!("Microphone input stopped. Reconnect the microphone or choose an input in Settings → Audio, then click Start to resume. {error}")
+}
+
 #[cfg(test)]
 mod startup_tests {
     use super::*;
@@ -41,6 +47,17 @@ mod startup_tests {
         assert_eq!(result, Err("Microphone unavailable".to_owned()));
         assert!(!stt.load(Ordering::SeqCst));
         assert!(!audio.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn runtime_device_loss_stops_the_run_and_offers_a_restart() {
+        let stt = AtomicBool::new(true);
+        let audio = AtomicBool::new(true);
+        let message = capture_failed("device unplugged", &stt, &audio);
+        assert!(!stt.load(Ordering::SeqCst));
+        assert!(!audio.load(Ordering::SeqCst));
+        assert!(message.contains("Start"));
+        assert!(message.contains("device unplugged"));
     }
 
     #[tokio::test]
@@ -65,6 +82,7 @@ mod startup_tests {
 pub(super) struct CaptureConfig {
     pub app: AppHandle,
     pub active: Arc<AtomicBool>,
+    pub audio_active: Arc<AtomicBool>,
     pub recording_paused: Arc<AtomicBool>,
     pub device_id: Option<String>,
     pub gain: f32,
@@ -78,6 +96,7 @@ pub(super) fn spawn(config: CaptureConfig) -> std::io::Result<std::thread::JoinH
     let CaptureConfig {
         app: fan_app,
         active: fan_active,
+        audio_active,
         recording_paused,
         device_id,
         gain: gain_val,
@@ -169,6 +188,15 @@ pub(super) fn spawn(config: CaptureConfig) -> std::io::Result<std::thread::JoinH
                     break;
                 }
 
+                if let Some(error) = capture.take_error() {
+                    let message = capture_failed(&error, &fan_active, &audio_active);
+                    if let Some(ready) = ready_tx.take() {
+                        let _ = ready.send(Err(message.clone()));
+                    }
+                    let _ = fan_app.emit("stt_error", message);
+                    break;
+                }
+
                 // Handle pause/resume transitions for recording (transcription
                 // continues regardless). Paused → finalize current segment;
                 // resumed → open a fresh segment. The paused interval is simply
@@ -227,7 +255,14 @@ pub(super) fn spawn(config: CaptureConfig) -> std::io::Result<std::thread::JoinH
                         let _ = audio_send_tx.try_send(frame.samples);
                     }
                     Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
-                    Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
+                    Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
+                        let message = capture_failed("Audio input closed.", &fan_active, &audio_active);
+                        if let Some(ready) = ready_tx.take() {
+                            let _ = ready.send(Err(message.clone()));
+                        }
+                        let _ = fan_app.emit("stt_error", message);
+                        break;
+                    },
                 }
             }
 
@@ -246,6 +281,7 @@ pub(super) fn spawn(config: CaptureConfig) -> std::io::Result<std::thread::JoinH
 
             // Dropping `capture` stops the cpal stream.
             capture.stop();
+            audio_active.store(false, Ordering::SeqCst);
             log::info!("Audio capture stopped on fanout thread");
         })
 }
