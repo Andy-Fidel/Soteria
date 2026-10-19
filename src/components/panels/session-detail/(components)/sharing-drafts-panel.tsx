@@ -12,6 +12,8 @@ import type { SermonSummary } from "@/lib/summarize"
 import { hasSermonContent } from "@/lib/summarize"
 import { smsMetrics } from "../(lib)/sharing-drafts"
 import type { useSharingDrafts } from "../(hooks)/use-sharing-drafts"
+import { PublicationActions } from "./publication-actions"
+import { RecapEditor } from "./recap-editor"
 
 export function SharingDraftsPanel({
   sharing,
@@ -134,22 +136,16 @@ export function SharingDraftsPanel({
                 placeholder="Sermon title"
               />
             </label>
-            <label className="block space-y-1.5 text-xs font-medium">
-              Recap
-              <textarea
-                value={draft.recap}
-                disabled={busy}
-                maxLength={10000}
-                onChange={(event) =>
-                  sharing.update("recap", event.target.value)
-                }
-                placeholder="A short recap of the message, key Scripture, and a practical response…"
-                className="min-h-64 w-full resize-y rounded-md border border-input bg-background p-3 text-sm leading-relaxed disabled:opacity-60"
-              />
-            </label>
+            <RecapEditor value={draft.recap} disabled={busy} onChange={(value) => sharing.update("recap", value)} />
             <p className="text-[11px] text-muted-foreground">
-              {words} words · Suggested length: 250–400
+              {words} words · Suggested length: 240–360
             </p>
+            <PublicationActions
+              publication={sharing.publication}
+              disabled={busy || !draft.title.trim() || !draft.recap.trim()}
+              publishing={operation === "publishing"}
+              onPublish={() => void sharing.publish(title, speaker)}
+            />
           </section>
           <section
             aria-label="SMS draft"

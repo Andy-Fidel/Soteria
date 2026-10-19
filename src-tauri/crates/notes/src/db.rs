@@ -104,6 +104,13 @@ impl SessionDb {
                 sms TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS session_publications (
+                session_id INTEGER PRIMARY KEY REFERENCES sermon_sessions(id) ON DELETE CASCADE,
+                publication_id TEXT NOT NULL UNIQUE,
+                url TEXT,
+                published_at TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS session_distributions (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 session_id  INTEGER NOT NULL REFERENCES sermon_sessions(id) ON DELETE CASCADE,

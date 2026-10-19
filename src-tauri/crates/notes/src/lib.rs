@@ -15,3 +15,5 @@ pub mod session_slides;
 pub use session_slides::SessionSlide;
 pub mod sharing_drafts;
 pub use sharing_drafts::SharingDraft;
+pub mod publications;
+pub use publications::SessionPublication;

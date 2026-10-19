@@ -28,8 +28,11 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   })
 }
 
-/** Render at projector resolution with the same text/portrait renderer. */
-export async function renderSlidePng(slide: ImageSlide): Promise<Uint8Array> {
+/** Keep downloads full resolution; use a smaller JPEG for website artwork. */
+async function renderSlide(
+  slide: ImageSlide,
+  format: "image/png" | "image/jpeg"
+): Promise<Uint8Array> {
   const portraitUrl = getSpeakerPortraitUrl(slide)
   const [image, portrait, logo] = await Promise.all([
     loadImage(slide.url),
@@ -40,8 +43,8 @@ export async function renderSlidePng(slide: ImageSlide): Promise<Uint8Array> {
     document.fonts.load('400 48px "Inter Variable"'),
   ])
   const canvas = document.createElement("canvas")
-  canvas.width = 1920
-  canvas.height = 1080
+  canvas.width = format === "image/jpeg" ? 1280 : 1920
+  canvas.height = format === "image/jpeg" ? 720 : 1080
   const ctx = canvas.getContext("2d")
   if (!ctx) throw new Error("Could not prepare the slide image.")
   drawImageSlide(ctx, image, slide, canvas.width, canvas.height, portrait, logo)
@@ -51,10 +54,18 @@ export async function renderSlidePng(slide: ImageSlide): Promise<Uint8Array> {
         value
           ? resolve(value)
           : reject(new Error("Could not export the slide image.")),
-      "image/png"
+      format,
+      format === "image/jpeg" ? 0.74 : undefined
     )
   })
   return new Uint8Array(await blob.arrayBuffer())
+}
+
+export function renderSlidePng(slide: ImageSlide) {
+  return renderSlide(slide, "image/png")
+}
+export function renderSlideJpeg(slide: ImageSlide) {
+  return renderSlide(slide, "image/jpeg")
 }
 
 export async function downloadSessionSlide(

@@ -14,6 +14,7 @@ pub mod songs;
 pub mod stt;
 pub mod summarize;
 pub mod sharing;
+pub mod publishing;
 pub mod themes;
 
 pub mod sermon_title;
