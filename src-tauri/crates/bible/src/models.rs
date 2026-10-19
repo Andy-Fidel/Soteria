@@ -59,3 +59,12 @@ pub struct SearchVerse {
     pub verse: i32,
     pub text: String,
 }
+
+/// Numeric verse identity used to align translation indexes without loading text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VerseLocation {
+    pub id: i64,
+    pub book_number: i32,
+    pub chapter: i32,
+    pub verse: i32,
+}

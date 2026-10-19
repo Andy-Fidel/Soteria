@@ -97,3 +97,37 @@ src-tauri/target/release/examples/quotation_benchmark
 ```
 
 Append `.exe` to the executable on Windows. Use the platform's process-memory tool to measure each fresh process. On this Mac, `/usr/bin/time -l` recorded maximum resident memory and peak footprint. Raw measurements for this session are `/tmp/manna-quotation-before-{1,2,3}.{json,time}` and `/tmp/manna-quotation-after-{1,2,3}.{json,time}`; the comparison summary is `/tmp/manna-quotation-comparison.json`. Temporary raw files can be removed by the OS.
+
+## Avoid full-text reloading for translation setup (fourth step)
+
+Measured 2026-10-19 against `ca607da`, which includes the earlier performance and quotation-memory changes. Translation setup previously called `load_all_verses_for_quotation(Some("en"))` again, loading every English verse's full text and book name even though it only used numeric IDs and coordinates. The new `BibleDb::load_verse_locations` returns `VerseLocation` records containing only ID, book number, chapter, and verse. The quotation matcher still loads its needed text once. Translation setup retains the same English-language scope, ID validation, canonical-coordinate alignment, index integrity checks, versification-gap handling, and KJV fallback.
+
+The new `startup_benchmark` example has two modes. `metadata` isolates the replacement database load. Default mode follows the real startup sequence for the quotation index, MiniLM inference probe, KJV index, verified NIV/NLT indexes, and semantic warm-up. The quotation index remains alive through detection. The benchmark checks that all 93,285 vectors load and then detects the existing 50 evaluation phrases. It uses a temporary database copy and does not use microphones or paid APIs. Database copying is outside the startup timer.
+
+Three fresh release processes ran before the production change and three after, on the same M4 Pro / 12-core / 24 GB Mac. Baseline and updated binaries used the same benchmark except that the isolated metadata branch calls the corresponding old or new lookup. No model or threading settings changed. `/usr/bin/time -l` measured process peak resident memory. OS file caches were not cleared, so these are not disk-cold measurements.
+
+| Measure | Before (three runs) | After (three runs) |
+| --- | --- | --- |
+| Metadata load time | 197 / 220 / 205 ms | 102 / 99 / 101 ms |
+| Metadata-only process peak resident memory | 61.9 / 62.0 / 61.9 MiB | 18.4 / 18.5 / 18.5 MiB |
+| Full translation setup (including model/tokenizer verification and index loading) | 648 / 657 / 700 ms | 601 / 697 / 592 ms |
+| Detection components ready | 2,073 / 2,000 / 2,130 ms | 1,979 / 2,061 / 1,937 ms |
+| Full startup-test process peak resident memory | 506.6 / 506.0 / 489.1 MiB | 492.8 / 493.9 / 492.8 MiB |
+
+The isolated replacement query takes about half the time and its process peak memory falls about 70%. Overall detection-startup improvement is modest: about 2.07 to 1.98 seconds at the median. Full-process memory ranges overlap, so do not claim the isolated 70% reduction for the whole app. The full benchmark excludes frontend loading, audio setup, and other app services. Windows has not yet been measured.
+
+All 217,696 English metadata rows retain the same count and order-independent fingerprint of their `(id, book_number, chapter, verse)` values. All 150 detection result lists across three comparisons match the baseline, including verse IDs, ordering, and confidence. KJV, NIV, and NLT remain loaded together with all 93,285 vectors. No embeddings were regenerated. The ONNX embedder source hash matches before and after: padding remains fixed at 128.
+
+Four new SQLite tests cover all English translations without collapsing shared coordinates, language filtering, unavailable languages, invalid databases, and 64-bit verse IDs. Their fixture deliberately has no text or book-name columns, ensuring this query does not require them. Two fallback tests confirm that a missing database or a metadata-query error preserves base-index search. The existing application detection tests also check optional-index fallback, resolved coordinates, and display-language separation.
+
+To reproduce from the repository root:
+
+```
+cargo build --offline --release --manifest-path src-tauri/Cargo.toml -p rhema-detection --features onnx,vector-search --example startup_benchmark
+src-tauri/target/release/examples/startup_benchmark metadata
+src-tauri/target/release/examples/startup_benchmark
+```
+
+Append `.exe` to the executable on Windows. This example requires the installed MiniLM model, tokenizer, Bible database, and verified translation indexes for full mode. Local raw measurements are `/tmp/manna-startup-{before,after}-{metadata,full}-{1,2,3}.{json,time}`; they can be removed by the OS.
+
+Final verification for this step passed: four Bible database tests, 160 detection tests, and 65 native application tests (three existing model-dependent tests ignored across the suites); 446 frontend tests; lint; typed frontend build; native compile check; performance lint; and the release startup benchmark build. Four application tests initially failed only because the sandbox blocked their loopback test-server sockets, then passed when rerun with local socket access. No provider calls were made by those mock-server tests. Existing general Rust style and frontend bundle-size warnings remain.

@@ -43,3 +43,7 @@ tempfile = "3"
 [[example]]
 name = "semantic_benchmark"
 required-features = ["onnx", "vector-search"]
+
+[[example]]
+name = "startup_benchmark"
+required-features = ["onnx", "vector-search"]
