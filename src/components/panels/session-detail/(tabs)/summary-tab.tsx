@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button"
-import type { ReactNode } from "react"
 import {
   SparklesIcon,
   LoaderIcon,
@@ -12,7 +11,6 @@ import { SummaryNarrative } from "../(components)/summary-narrative"
 import { SummaryFollowUp } from "../(components)/summary-follow-up"
 import { SummaryExportMenu } from "../(components)/summary-export-menu"
 interface SummaryTabProps {
-  sharingPanel?: ReactNode
   summary: SermonSummary | null
   summarizing: boolean
   summaryError: string | null
@@ -23,7 +21,6 @@ interface SummaryTabProps {
   handleCopySummary: () => void
 }
 export function SummaryTab({
-  sharingPanel,
   summary,
   summarizing,
   summaryError,
@@ -34,12 +31,8 @@ export function SummaryTab({
   handleCopySummary,
 }: SummaryTabProps) {
   return (
-    <div
-      className={`@container mx-auto w-full min-w-0 ${sharingPanel ? "max-w-6xl" : "max-w-3xl"}`}
-    >
-      <div
-        className={`grid min-w-0 ${sharingPanel ? "@min-[1000px]:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]" : ""}`}
-      >
+    <div className="@container mx-auto w-full max-w-3xl min-w-0">
+      <div className="grid min-w-0">
         <div className="flex min-w-0 flex-col gap-9 px-5 py-7 [overflow-wrap:anywhere] sm:px-8 sm:py-9">
           {!summary && !summarizing && !summaryError && (
             <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-8 text-center">
@@ -141,11 +134,6 @@ export function SummaryTab({
             </>
           )}
         </div>
-        {sharingPanel && (
-          <div className="min-w-0 px-5 pb-7 @min-[1000px]:border-l @min-[1000px]:border-border @min-[1000px]:px-5 @min-[1000px]:pt-9">
-            {sharingPanel}
-          </div>
-        )}
       </div>
     </div>
   )

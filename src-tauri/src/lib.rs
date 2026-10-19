@@ -258,6 +258,7 @@ pub fn run() {
         .manage(Mutex::new(rhema_detection::ReadingMode::new()))
         .manage(Mutex::new(commands::remote::OscRuntime::new()))
         .manage(Mutex::new(commands::remote::HttpRuntime::new()))
+        .manage(commands::sms::SmsRuntime::default())
         .manage(Mutex::new({
             let app_data = dirs::data_dir()
                 .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -320,11 +321,22 @@ pub fn run() {
             commands::stt::verify_deepseek_key,
             commands::summarize::summarize_sermon,
             commands::sharing::generate_sharing_draft,
+            commands::sharing::alternatives::generate_sms_alternatives,
             commands::sharing::get_sharing_draft,
             commands::sharing::save_sharing_draft,
             commands::publishing::get_session_publication,
             commands::publishing::publish_session_recap,
             commands::publishing::generate_linked_sms,
+            commands::sms::get_comms360_settings,
+            commands::sms::save_comms360_settings,
+            commands::sms::get_test_sms_batch,
+            commands::sms::preview_test_sms,
+            commands::sms::send_test_sms,
+            commands::sms::refresh_test_sms,
+            commands::sms::list::get_contact_list_sms,
+            commands::sms::list::preview_contact_list_sms,
+            commands::sms::list::send_contact_list_sms,
+            commands::sms::list::refresh_contact_list_sms,
             commands::summarize::generate_live_notes,
             commands::images::search_pexels,
             commands::images::search_unsplash,

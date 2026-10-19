@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { AudioLinesIcon, MicOffIcon } from "lucide-react"
+import { MicOffIcon } from "lucide-react"
 import { invoke } from "@tauri-apps/api/core"
 import {
   useTranscriptStore,
@@ -14,6 +14,7 @@ import { presentQueuedVerseLive } from "@/lib/queue-verse"
 import { switchTranslation } from "@/lib/switch-translation"
 import { handleSttConnection, handleTranscriptFinal, handleTranscriptPartial, type TranscriptPayload } from "@/lib/transcription-events"
 import type { DetectionResult } from "@/types"
+import { TranscriptContent } from "./transcript-panel/(components)/transcript-content"
 
 const PROVIDER_LABEL: Record<string, string> = {
   deepgram: "Deepgram · nova-3",
@@ -22,14 +23,11 @@ const PROVIDER_LABEL: Record<string, string> = {
 }
 
 export function TranscriptPanel() {
-  const segments = useTranscriptStore((s) => s.segments)
-  const currentPartial = useTranscriptStore((s) => s.currentPartial)
   const isTranscribing = useTranscriptStore((s) => s.isTranscribing)
   const sttProvider = useSettingsStore((s) => s.sttProvider)
   const recordAudio = useSettingsStore((s) => s.recordAudio)
   const [pauseState, setRecordingPaused] = useState(false)
   const recordingPaused = isTranscribing && pauseState
-  const scrollRef = useRef<HTMLDivElement>(null)
   // Auto-broadcast cooldown — prevents rapid flickering between verses.
   const lastAutoBroadcastAtRef = useRef(0)
 
@@ -153,13 +151,6 @@ export function TranscriptPanel() {
       .catch(() => {})
   }, [])
 
-  // Auto-scroll to bottom
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [segments, currentPartial])
-
   return (
     <div
       data-slot="transcript-panel"
@@ -198,55 +189,7 @@ export function TranscriptPanel() {
           </span>
         </div>
       )}
-      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-2 p-3">
-          {/* Faded top gradient */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-linear-to-b from-card to-transparent" />
-
-          {segments.length === 0 && !currentPartial && !isTranscribing && (
-            <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
-              <div className="flex size-10 items-center justify-center rounded-full bg-muted/50">
-                <AudioLinesIcon className="size-5 text-muted-foreground/60" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-muted-foreground">No transcript yet</p>
-                <p className="text-[0.625rem] leading-relaxed text-muted-foreground/60">
-                  Click &ldquo;Start transcribing&rdquo; in the toolbar to begin capturing the sermon.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Final segments — recent ones brighter, older ones fade */}
-          {segments.map((seg, idx) => {
-            const distFromEnd = segments.length - 1 - idx
-            const opacity =
-              distFromEnd === 0
-                ? "text-foreground/80"
-                : distFromEnd === 1
-                  ? "text-foreground/60"
-                  : distFromEnd <= 3
-                    ? "text-foreground/40"
-                    : "text-foreground/25"
-            return (
-              <p
-                key={seg.id}
-                className={`text-sm leading-relaxed transition-colors duration-300 ${opacity}`}
-              >
-                {seg.text}
-              </p>
-            )
-          })}
-
-          {/* Partial (in-progress) text — larger and brighter than final segments */}
-          {currentPartial && (
-            <p className="border-l-2 border-primary pl-2 text-base leading-relaxed text-foreground">
-              {currentPartial}
-              <span className="ml-1 inline-block size-1.5 animate-pulse rounded-full bg-primary align-middle" />
-            </p>
-          )}
-        </div>
-      </div>
+      <TranscriptContent isTranscribing={isTranscribing} />
     </div>
   )
 }

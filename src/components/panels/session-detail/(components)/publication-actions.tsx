@@ -32,7 +32,7 @@ export function PublicationActions({
             : "Publish recap"}
       </Button>
       <p className="text-[11px] leading-relaxed text-muted-foreground">
-        Publishes this recap and its title artwork to sermon.ewcadenta.com.
+        Publishes this recap and its title artwork to sermon.ewcadentan.com.
       </p>
       {url && (
         <div className="space-y-2 rounded-md bg-primary/5 p-3">

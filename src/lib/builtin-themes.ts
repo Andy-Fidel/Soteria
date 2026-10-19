@@ -1,6 +1,16 @@
 import type { BroadcastTheme } from "@/types/broadcast"
 
-const baseTheme: Omit<BroadcastTheme, "id" | "name" | "background" | "verseText" | "reference" | "layout" | "transition" | "textBox"> = {
+const baseTheme: Omit<
+  BroadcastTheme,
+  | "id"
+  | "name"
+  | "background"
+  | "verseText"
+  | "reference"
+  | "layout"
+  | "transition"
+  | "textBox"
+> = {
   builtin: true,
   pinned: false,
   createdAt: 0,
@@ -100,13 +110,7 @@ const BOLD_PROCLAMATION: BroadcastTheme = {
     textAreaHeight: 96,
     referenceGap: 56,
   },
-  logo: {
-    url: "/EWC-White.png",
-    position: "top-left",
-    size: 120,
-    opacity: 1,
-    margin: 48,
-  },
+  logo: null,
   transition: {
     type: "fade",
     duration: 400,

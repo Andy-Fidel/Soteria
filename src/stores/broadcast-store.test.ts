@@ -9,7 +9,8 @@ vi.mock("@tauri-apps/api/event", () => ({
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: invokeMock,
-  convertFileSrc: (path: string) => `asset://localhost/${encodeURIComponent(path)}`,
+  convertFileSrc: (path: string) =>
+    `asset://localhost/${encodeURIComponent(path)}`,
 }))
 
 describe("broadcast store sync", () => {
@@ -23,29 +24,54 @@ describe("broadcast store sync", () => {
 
   it("hides both outputs without losing the content needed by remote Show", async () => {
     const { useBroadcastStore } = await import("./broadcast-store")
-    const verse = { reference: "John 3:16 (KJV)", segments: [{ text: "For God so loved the world", verseNumber: 16 }] }
+    const verse = {
+      reference: "John 3:16 (KJV)",
+      segments: [{ text: "For God so loved the world", verseNumber: 16 }],
+    }
     useBroadcastStore.setState({ liveVerse: verse, isLive: true })
     useBroadcastStore.getState().setLive(false)
-    for (const output of ["main", "alt"]) expect(emitMock).toHaveBeenCalledWith(`broadcast:verse-update:${output}`, expect.objectContaining({ hidden: true }))
+    for (const output of ["main", "alt"])
+      expect(emitMock).toHaveBeenCalledWith(
+        `broadcast:verse-update:${output}`,
+        expect.objectContaining({ hidden: true })
+      )
     expect(useBroadcastStore.getState().liveVerse).toEqual(verse)
     emitMock.mockClear()
     useBroadcastStore.getState().setLive(true)
-    for (const output of ["main", "alt"]) expect(emitMock).toHaveBeenCalledWith(`broadcast:verse-update:${output}`, expect.objectContaining({ hidden: false, verse }))
+    for (const output of ["main", "alt"])
+      expect(emitMock).toHaveBeenCalledWith(
+        `broadcast:verse-update:${output}`,
+        expect.objectContaining({ hidden: false, verse })
+      )
   })
 
   it("sends the chosen video or still-image mode to both outputs", async () => {
     const { useBroadcastStore } = await import("./broadcast-store")
     const { useSettingsStore } = await import("./settings-store")
     const brand = useSettingsStore.getState().brand
-    useSettingsStore.setState({ brand: { ...brand, blankBackground: "video", blankVideoPath: "/managed/worship.mp4" } })
+    useSettingsStore.setState({
+      brand: {
+        ...brand,
+        blankBackground: "video",
+        blankVideoPath: "/managed/worship.mp4",
+      },
+    })
     useBroadcastStore.getState().setBlankLogo(true)
-    for (const output of ["main", "alt"]) expect(emitMock).toHaveBeenCalledWith(`broadcast:verse-update:${output}`, expect.objectContaining({
-      blankLogo: true, blankVideoUrl: "asset://localhost/%2Fmanaged%2Fworship.mp4",
-    }))
+    for (const output of ["main", "alt"])
+      expect(emitMock).toHaveBeenCalledWith(
+        `broadcast:verse-update:${output}`,
+        expect.objectContaining({
+          blankLogo: true,
+          blankVideoUrl: "asset://localhost/%2Fmanaged%2Fworship.mp4",
+        })
+      )
     emitMock.mockClear()
     useSettingsStore.setState({ brand: { ...brand, blankBackground: "image" } })
     useBroadcastStore.getState().syncBroadcastOutput()
-    expect(emitMock).toHaveBeenCalledWith("broadcast:verse-update:main", expect.objectContaining({ blankVideoUrl: null }))
+    expect(emitMock).toHaveBeenCalledWith(
+      "broadcast:verse-update:main",
+      expect.objectContaining({ blankVideoUrl: null })
+    )
   })
 
   it("syncBroadcastOutput emits current theme and verse for each output", async () => {
@@ -99,14 +125,24 @@ describe("broadcast store sync", () => {
       reference: "John 3:16 (KJV)",
       segments: [{ text: "For God so loved", verseNumber: 16 }],
       highlights: [
-        { segmentIndex: 0, start: 4, end: 7, color: "#FACC15", sourceText: "God" },
+        {
+          segmentIndex: 0,
+          start: 4,
+          end: 7,
+          color: "#FACC15",
+          sourceText: "God",
+        },
       ],
     }
 
     useBroadcastStore.getState().setLiveVerse(highlighted)
 
-    expect(useBroadcastStore.getState().liveVerse?.highlights).toEqual(highlighted.highlights)
-    expect(useBroadcastStore.getState().history.at(-1)?.verse.highlights).toEqual(highlighted.highlights)
+    expect(useBroadcastStore.getState().liveVerse?.highlights).toEqual(
+      highlighted.highlights
+    )
+    expect(
+      useBroadcastStore.getState().history.at(-1)?.verse.highlights
+    ).toEqual(highlighted.highlights)
   })
 
   it("updates an already-live highlight without adding another history entry", async () => {
@@ -123,7 +159,13 @@ describe("broadcast store sync", () => {
     emitMock.mockClear()
 
     useBroadcastStore.getState().updateLiveVerseHighlights([
-      { segmentIndex: 0, start: 4, end: 7, color: "#FACC15", sourceText: "God" },
+      {
+        segmentIndex: 0,
+        start: 4,
+        end: 7,
+        color: "#FACC15",
+        sourceText: "God",
+      },
     ])
 
     const state = useBroadcastStore.getState()
@@ -132,7 +174,9 @@ describe("broadcast store sync", () => {
     expect(state.history[0].verse.highlights).toHaveLength(1)
     expect(emitMock).toHaveBeenCalledWith(
       "broadcast:verse-update:main",
-      expect.objectContaining({ verse: expect.objectContaining({ highlights: expect.any(Array) }) }),
+      expect.objectContaining({
+        verse: expect.objectContaining({ highlights: expect.any(Array) }),
+      })
     )
   })
 
@@ -141,7 +185,7 @@ describe("broadcast store sync", () => {
     const builtin = useBroadcastStore.getState().themes[0]
 
     useBroadcastStore.getState().startEditing(builtin.id)
-    useBroadcastStore.getState().saveDraft()
+    await useBroadcastStore.getState().saveDraft()
 
     const custom = useBroadcastStore.getState().draftTheme
     expect(custom).toEqual(
@@ -167,9 +211,8 @@ describe("broadcast store sync", () => {
     useBroadcastStore.getState().duplicateTheme(builtin.id)
 
     const state = useBroadcastStore.getState()
-    const copy = state.themes.find(
-      (theme) => theme.name === `${builtin.name} Copy`
-    )
+    const copy = state.draftTheme
+    expect(state.themes).toHaveLength(6)
     expect(copy).toEqual(expect.objectContaining({ builtin: false }))
     expect(state.editingThemeId).toBe(copy?.id)
     expect(state.draftTheme?.id).toBe(copy?.id)

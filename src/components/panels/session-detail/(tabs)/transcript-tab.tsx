@@ -18,6 +18,7 @@ import {
 interface TranscriptTabProps {
   session: SermonSession | null
   sessionId: number
+  artworkTitle?: string
   audioNonce: number
   transcript: SessionTranscriptSegment[]
   editor: ReturnType<typeof useTranscriptEditor>
@@ -26,6 +27,7 @@ export function TranscriptTab({
   session,
   sessionId,
   audioNonce,
+  artworkTitle,
   transcript,
   editor,
 }: TranscriptTabProps) {
@@ -68,11 +70,11 @@ export function TranscriptTab({
           <TranscriptArtwork
             key={sessionId}
             sessionId={sessionId}
-            title={session?.title || "Session recording"}
+            title={artworkTitle || session?.title || "Session recording"}
             speaker={session?.speaker ?? null}
           />
           <h2 className="mt-4 text-base font-semibold tracking-tight">
-            {session?.title || "Session recording"}
+            {artworkTitle || session?.title || "Session recording"}
           </h2>
           {session?.speaker && (
             <p className="mt-1 text-xs text-muted-foreground">

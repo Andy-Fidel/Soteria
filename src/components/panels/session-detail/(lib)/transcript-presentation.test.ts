@@ -1,6 +1,7 @@
 import { expect, it } from "vitest"
 import {
   transcriptArtwork,
+  sessionSlidesWithTitle,
   sessionStartedAtMs,
   activeTranscriptId,
 } from "./transcript-presentation"
@@ -72,4 +73,37 @@ it("formats recording positions without wrapping at one hour or showing invalid 
   expect(formatAudioTime(68)).toBe("01:08")
   expect(formatAudioTime(3661)).toBe("1:01:01")
   expect(formatAudioTime(Number.NaN)).toBe("00:00")
+})
+
+it("automatically provides a downloadable title slide and follows the current session name", () => {
+  const first = sessionSlidesWithTitle([], 12, "Faith", "Pastor Jane")
+  expect(first).toHaveLength(1)
+  expect(first[0].image.textOverlay).toEqual({
+    layout: "title",
+    title: "Faith",
+    body: "Pastor Jane",
+  })
+  expect(sessionSlidesWithTitle([], 12, "New title", null)[0].title).toBe(
+    "New title"
+  )
+  expect(sessionSlidesWithTitle([], 13, "Other session", null)[0].key).not.toBe(
+    first[0].key
+  )
+})
+it("keeps existing title slides and other saved artwork without adding a duplicate", () => {
+  const title = sessionSlidesWithTitle([], 12, "Custom title", null)[0]
+  const slides = [title]
+  expect(sessionSlidesWithTitle(slides, 12, "Renamed session", null)).toBe(
+    slides
+  )
+  const announcement: GallerySlide = {
+    key: "welcome",
+    title: "Welcome",
+    image: { url: "/welcome.png", label: "Welcome" },
+    savedAt: "",
+  }
+  const result = sessionSlidesWithTitle([announcement], 12, "Faith", null)
+  expect(result).toHaveLength(2)
+  expect(result[1]).toBe(announcement)
+  expect(result[0].image).toEqual(transcriptArtwork([], "Faith", null))
 })

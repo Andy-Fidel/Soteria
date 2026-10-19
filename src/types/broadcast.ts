@@ -40,6 +40,7 @@ export interface WordHitBox {
 }
 
 export interface VerseRenderData {
+  hideReference?: boolean
   reference: string
   segments: VerseSegment[]
   highlights?: TextHighlight[]
@@ -57,7 +58,7 @@ export interface RenderOptions {
   opacity?: number
   offsetX?: number
   offsetY?: number
-  scale?: number               // Scale factor for rendering at display size (e.g., 0.42 for 400px panel)
+  scale?: number // Scale factor for rendering at display size (e.g., 0.42 for 400px panel)
   imageCache?: Map<string, HTMLImageElement>
   collectWordHits?: boolean
 }
@@ -143,7 +144,13 @@ export interface BroadcastTheme {
     fontWeight: number
     color: string
     standalone?: {
-      anchor: "top-left" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right"
+      anchor:
+        | "top-left"
+        | "top-center"
+        | "top-right"
+        | "bottom-left"
+        | "bottom-center"
+        | "bottom-right"
       margin: number
     } | null
     horizontalAlign?: TextHorizontalAlign

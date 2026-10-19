@@ -10,6 +10,7 @@ import {
   type GallerySlide,
   type SavedSessionSlide,
 } from "../(lib)/session-slides"
+import { sessionSlidesWithTitle } from "../(lib)/transcript-presentation"
 import { downloadSessionSlide } from "../(lib)/slide-download"
 import {
   Dialog,
@@ -24,7 +25,15 @@ type GalleryState =
   | { status: "error"; message: string }
   | { status: "ready"; slides: GallerySlide[] }
 
-export function SlidesTab({ sessionId }: { sessionId: number }) {
+export function SlidesTab({
+  sessionId,
+  title,
+  speaker,
+}: {
+  sessionId: number
+  title: string
+  speaker: string | null
+}) {
   const [state, setState] = useState<GalleryState>({ status: "loading" })
   const [retry, setRetry] = useState(0)
   const [selected, setSelected] = useState<GallerySlide | null>(null)
@@ -43,6 +52,11 @@ export function SlidesTab({ sessionId }: { sessionId: number }) {
       cancelled = true
     }
   }, [sessionId, retry])
+
+  const slides =
+    state.status === "ready"
+      ? sessionSlidesWithTitle(state.slides, sessionId, title, speaker)
+      : []
 
   const download = async (slide: GallerySlide) => {
     if (downloading) return
@@ -67,8 +81,8 @@ export function SlidesTab({ sessionId }: { sessionId: number }) {
       <div>
         <h2 className="text-sm font-semibold">Saved slides</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Saved slide versions stay with this session when you change or remove
-          a service-plan item. Download images at 1920 × 1080.
+          A title slide is created automatically from the session name when no
+          saved title slide exists. Download images at 1920 × 1080.
         </p>
       </div>
       {state.status === "loading" && (
@@ -91,15 +105,9 @@ export function SlidesTab({ sessionId }: { sessionId: number }) {
           </Button>
         </div>
       )}
-      {state.status === "ready" && state.slides.length === 0 && (
-        <p className="py-8 text-center text-xs text-muted-foreground">
-          No saved slides yet. Save a title, announcement, prayer, or image
-          slide in this session’s service plan.
-        </p>
-      )}
       {state.status === "ready" && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {state.slides.map((slide) => (
+          {slides.map((slide) => (
             <article
               key={slide.key}
               className="min-w-0 overflow-hidden rounded-lg border"

@@ -22,9 +22,10 @@ import { SessionMetadata } from "./session-detail/(components)/session-metadata"
 import { SessionExportMenu } from "./session-detail/(components)/session-export-menu"
 import { useTranscriptEditor } from "./session-detail/(hooks)/use-transcript-editor"
 import { useSharingDrafts } from "./session-detail/(hooks)/use-sharing-drafts"
-import { SharingDraftsPanel } from "./session-detail/(components)/sharing-drafts-panel"
+import { SharingTab } from "./session-detail/(tabs)/sharing-tab"
 import type { DetailTab } from "./session-detail/(lib)/types"
 import { SessionHeader } from "./session-detail/(components)/session-header"
+import { sessionSlideTitle } from "./session-detail/(lib)/session-slide-title"
 import { exportSummary } from "./session-detail/(lib)/summary-export"
 
 interface SessionDetailProps {
@@ -163,6 +164,13 @@ function SessionDetailContent({
     }
   }
 
+  const artworkTitle = sessionSlideTitle(
+    session,
+    sessionTitle,
+    sharing.draft.title,
+    summary?.title || summary?.topic
+  )
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <SessionHeader
@@ -200,15 +208,6 @@ function SessionDetailContent({
         {!loading && tab === "summary" && (
           <>
             <SummaryTab
-              sharingPanel={
-                <SharingDraftsPanel
-                  sharing={sharing}
-                  summary={summary}
-                  title={session?.title || sessionTitle}
-                  speaker={session?.speaker}
-                  summarizing={summarizing}
-                />
-              }
               summary={summary}
               summarizing={summarizing}
               summaryError={summaryError}
@@ -226,11 +225,23 @@ function SessionDetailContent({
             </button>
           </>
         )}
+        {!loading && (tab === "public-recap" || tab === "sms") && (
+          <SharingTab
+            key={tab}
+            kind={tab}
+            sharing={sharing}
+            summary={summary}
+            title={artworkTitle}
+            speaker={session?.speaker}
+            summarizing={summarizing}
+          />
+        )}
         {!loading && tab === "transcript" && (
           <TranscriptTab
             session={session}
             sessionId={sessionId}
             audioNonce={audioNonce}
+            artworkTitle={artworkTitle}
             transcript={transcript}
             editor={editor}
           />
@@ -243,7 +254,12 @@ function SessionDetailContent({
           />
         )}
         {!loading && tab === "slides" && (
-          <SlidesTab key={sessionId} sessionId={sessionId} />
+          <SlidesTab
+            key={sessionId}
+            sessionId={sessionId}
+            title={artworkTitle}
+            speaker={session?.speaker ?? null}
+          />
         )}
         {!loading && tab === "stats" && (
           <StatsTab detections={detections} transcript={transcript} />

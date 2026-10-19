@@ -16,6 +16,22 @@ export function transcriptArtwork(
   )
 }
 
+/** A title slide is always available, including sessions with no saved slides. */
+export function sessionSlidesWithTitle(
+  slides: GallerySlide[],
+  sessionId: number,
+  title: string,
+  speaker: string | null
+): GallerySlide[] {
+  if (slides.some((slide) => slide.image.textOverlay?.layout === "title"))
+    return slides
+  const image = transcriptArtwork([], title, speaker)
+  return [
+    { key: `session-title-${sessionId}`, title, image, savedAt: "" },
+    ...slides,
+  ]
+}
+
 export function sessionStartedAtMs(value: string | null | undefined) {
   if (!value) return Number.NaN
   const iso = value.replace(" ", "T")

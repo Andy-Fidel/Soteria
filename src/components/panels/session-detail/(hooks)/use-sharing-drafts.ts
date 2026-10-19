@@ -2,7 +2,12 @@ import { useEffect, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { useSettingsStore } from "@/stores"
 import type { SermonSummary } from "@/lib/summarize"
-import { attachSermonLink, type SessionPublication } from "../(lib)/publication"
+import {
+  attachSermonLink,
+  canonicalSermonLinks,
+  formatSermonSms,
+  type SessionPublication,
+} from "../(lib)/publication"
 import {
   expandSessionSlides,
   type SavedSessionSlide,
@@ -16,8 +21,14 @@ import {
   smsMetrics,
 } from "../(lib)/sharing-drafts"
 
+import {
+  parseSmsAlternatives,
+  type SmsAlternative,
+} from "../(lib)/sms-alternatives"
+
 export function useSharingDrafts(sessionId: number) {
   const [draft, setDraft] = useState<SharingDraft>(EMPTY_SHARING_DRAFT)
+  const [smsAlternatives, setSmsAlternatives] = useState<SmsAlternative[]>([])
   const [saved, setSaved] = useState<SharingDraft>(EMPTY_SHARING_DRAFT)
   const [publication, setPublication] = useState<SessionPublication | null>(
     null
@@ -37,9 +48,16 @@ export function useSharingDrafts(sessionId: number) {
     ])
       .then(([value, published]) => {
         if (cancelled) return
-        setDraft(value ?? EMPTY_SHARING_DRAFT)
-        setSaved(value ?? EMPTY_SHARING_DRAFT)
-        setPublication(published)
+        const draft = value
+          ? { ...value, sms: formatSermonSms(value.sms) }
+          : EMPTY_SHARING_DRAFT
+        setDraft(draft)
+        setSaved(draft)
+        setPublication(
+          published?.url
+            ? { ...published, url: canonicalSermonLinks(published.url) }
+            : published
+        )
         setOperation("idle")
       })
       .catch((reason) => {
@@ -55,7 +73,8 @@ export function useSharingDrafts(sessionId: number) {
   const generate = async (
     summary: SermonSummary,
     title: string,
-    speaker?: string | null
+    speaker?: string | null,
+    scope: "recap" | "sms" | "both" = "both"
   ) => {
     if (operation !== "idle") return
     const apiKey = useSettingsStore.getState().deepseekApiKey
@@ -71,13 +90,76 @@ export function useSharingDrafts(sessionId: number) {
         summary: JSON.stringify(summary),
         title,
         speaker: speaker ?? null,
+        previousDraft: {
+          title: draft.title,
+          recap: scope === "sms" ? "" : draft.recap,
+          sms: scope === "recap" ? "" : draft.sms,
+        },
       })
       const next = parseSharingDraft(JSON.stringify(value))
-      if (publication?.url)
-        next.sms = attachSermonLink(next.sms, publication.url)
-      setDraft(next)
+      if (publication?.url && scope !== "recap") {
+        const generated = await invoke<string>("generate_linked_sms", {
+          apiKey,
+          recap: scope === "sms" ? draft.recap || next.recap : next.recap,
+          url: publication.url,
+          previousSms: draft.sms,
+        })
+        next.sms = attachSermonLink(generated, publication.url)
+        if (smsMetrics(next.sms).segments > 1)
+          throw new Error("The SMS needs manual shortening.")
+      }
+      const sameText = (a: string, b: string) =>
+        a.trim().replace(/\s+/g, " ") === b.trim().replace(/\s+/g, " ")
+      const unchanged =
+        scope === "sms"
+          ? sameText(next.sms, draft.sms)
+          : scope === "recap"
+            ? sameText(next.recap, draft.recap)
+            : sameText(next.sms, draft.sms) && sameText(next.recap, draft.recap)
+      if (unchanged)
+        throw new Error(
+          "The AI returned the same wording. Your draft is unchanged. Try regenerating again."
+        )
+      setDraft((current) =>
+        scope === "sms"
+          ? { ...current, sms: next.sms }
+          : scope === "recap"
+            ? { ...current, title: next.title, recap: next.recap }
+            : next
+      )
     } catch (reason) {
       setError(`Could not generate drafts: ${String(reason)}`)
+    } finally {
+      setOperation("idle")
+    }
+  }
+  const generateSmsAlternatives = async (
+    summary: SermonSummary,
+    title: string
+  ) => {
+    if (operation !== "idle") return
+    const apiKey = useSettingsStore.getState().deepseekApiKey
+    if (!apiKey) {
+      setError("Add your DeepSeek API key in Settings → API Keys.")
+      return
+    }
+    setOperation("generating")
+    setError(null)
+    try {
+      const options = await invoke<unknown>("generate_sms_alternatives", {
+        apiKey,
+        summary: JSON.stringify(summary),
+        recap: draft.recap,
+        title,
+        url: publication?.url ?? null,
+        previousMessages: [
+          draft.sms,
+          ...smsAlternatives.map((option) => option.message),
+        ].filter(Boolean),
+      })
+      setSmsAlternatives(parseSmsAlternatives(options))
+    } catch (reason) {
+      setError(`Could not generate SMS alternatives: ${String(reason)}`)
     } finally {
       setOperation("idle")
     }
@@ -87,8 +169,10 @@ export function useSharingDrafts(sessionId: number) {
     setOperation("saving")
     setError(null)
     try {
-      await invoke("save_sharing_draft", { sessionId, draft })
-      setSaved(draft)
+      const next = { ...draft, sms: formatSermonSms(draft.sms) }
+      await invoke("save_sharing_draft", { sessionId, draft: next })
+      setDraft(next)
+      setSaved(next)
     } catch (reason) {
       setError(`Could not save drafts: ${String(reason)}`)
     } finally {
@@ -135,9 +219,10 @@ export function useSharingDrafts(sessionId: number) {
           recap: draft.recap,
           url,
         })
-        if (!generated.endsWith(url) || smsMetrics(generated).segments > 1)
+        const formatted = attachSermonLink(generated, url)
+        if (!generated.endsWith(url) || smsMetrics(formatted).segments > 1)
           throw new Error("SMS exceeds one part")
-        sms = generated
+        sms = formatted
       } catch {
         setError(
           "Recap published. The link was added to your SMS; review its length before using it."
@@ -158,6 +243,9 @@ export function useSharingDrafts(sessionId: number) {
     }
   }
   return {
+    sessionId,
+    smsAlternatives,
+    generateSmsAlternatives,
     draft,
     operation,
     error,
