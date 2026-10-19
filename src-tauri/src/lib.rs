@@ -391,6 +391,7 @@ pub fn run() {
             commands::service_plan::plan_update_template_notes,
             commands::service_plan::plan_delete_template,
             commands::service_plan::plan_get,
+            commands::service_plan::get_session_slides,
             commands::service_plan::plan_add_item,
             commands::service_plan::plan_update_item,
             commands::service_plan::plan_reorder_item,

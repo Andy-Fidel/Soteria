@@ -22,6 +22,8 @@ This is the current work list. Completed features, deliberately deferred ideas, 
 
 ## Completed from recent feedback
 
+- **Saved session slide gallery:** session review has a separate Slides tab and a summary link. Saved image/title/announcement/prayer versions remain after plan-item removal and app reopen. Existing image slides are recovered from saved plans; prayer points download separately as 1920 × 1080 PNGs. Deleting a session removes its archive. Slides deleted before this feature cannot be recovered. The title editor and transcript redesign remain separate.
+
 - **Projection and operator workflow:** queue presentation selects the correct Bible book, chapter and verse; translation changes update the Bible, Queue and Detections panels; queue items display translation labels; On Screen supports continuous word highlighting, color confirmation and one-click clearing. Blank-slide clearing and the earlier live-presentation audit fixes are complete.
 - **Listening and detection:** shared inference-lock fixes, detection warm-up, microphone recovery and multi-translation paraphrase search with NIV/NLT alongside KJV are implemented. Optional translation indexes must match the active embedding model; missing/incompatible indexes retain KJV search. See [translation index guidance](../embeddings/translation-indexes/README.md).
 - **Songs and session review:** song display capitalization preserves original lyrics. Summaries distinguish worship from sermon content and retain the original transcript. Summary response-size/JSON failures were addressed. The improved summary reading layout is committed as `d28780c`.
@@ -29,6 +31,8 @@ This is the current work list. Completed features, deliberately deferred ideas, 
 - **Reference appearance and header cleanup:** references render at full opacity, including colors with embedded transparency, while preserving their color channels and verse-text opacity. The reference editor reflects full opacity. The service-plan header keeps only Add slide. These changes are included in the current cleanup backup.
 
 ## Verification and release checks
+
+- **Session slide gallery (2026-10-19):** 403 frontend tests and 21 notes/storage tests passed, plus lint, TypeScript/production build and native app compilation checks. Browser checks covered the Summary link, Slides tab, previews, error/retry and empty states, cancelled downloads, PNG encoding/resolution and the save-command payload. The browser used a mocked native save boundary; storage tests used temporary databases.
 
 - **Latest cleanup verification (2026-10-19):** 382 frontend tests, lint, TypeScript checks and the production build passed. Browser checks covered all six built-in themes, legacy transparent reference colors, the reference editor and unchanged verse-text opacity controls. These checks did not restart the running presentation app and did not constitute a physical-projector test.
 - **Historical smoke checklists:** older Songs and Overlay Themes plans still contain pending/manual checklist entries. Reconcile those entries against current operator testing before the next release; an unmarked historical checkbox alone is not evidence of a current bug.

@@ -17,6 +17,7 @@ import type {
 import { SummaryTab } from "./session-detail/(tabs)/summary-tab"
 import { TranscriptTab } from "./session-detail/(tabs)/transcript-tab"
 import { DetectionsTab } from "./session-detail/(tabs)/detections-tab"
+import { SlidesTab } from "./session-detail/(tabs)/slides-tab"
 import { StatsTab } from "./session-detail/(tabs)/stats-tab"
 import { SessionMetadata } from "./session-detail/(components)/session-metadata"
 import { SessionExportMenu } from "./session-detail/(components)/session-export-menu"
@@ -189,16 +190,24 @@ function SessionDetailContent({
           </div>
         )}
         {!loading && tab === "summary" && (
-          <SummaryTab
-            summary={summary}
-            summarizing={summarizing}
-            summaryError={summaryError}
-            summaryCopied={summaryCopied}
-            transcript={transcript}
-            session={session}
-            handleSummarize={handleSummarize}
-            handleCopySummary={handleCopySummary}
-          />
+          <>
+            <SummaryTab
+              summary={summary}
+              summarizing={summarizing}
+              summaryError={summaryError}
+              summaryCopied={summaryCopied}
+              transcript={transcript}
+              session={session}
+              handleSummarize={handleSummarize}
+              handleCopySummary={handleCopySummary}
+            />
+            <button
+              className="mx-4 mb-5 text-xs font-medium text-primary underline underline-offset-4"
+              onClick={() => setTab("slides")}
+            >
+              View saved session slides
+            </button>
+          </>
         )}
         {!loading && tab === "transcript" && (
           <TranscriptTab
@@ -215,6 +224,9 @@ function SessionDetailContent({
             showAllDetections={showAllDetections}
             onToggle={() => setShowAllDetections((v) => !v)}
           />
+        )}
+        {!loading && tab === "slides" && (
+          <SlidesTab key={sessionId} sessionId={sessionId} />
         )}
         {!loading && tab === "stats" && (
           <StatsTab detections={detections} transcript={transcript} />

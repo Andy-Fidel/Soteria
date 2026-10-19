@@ -234,6 +234,7 @@ impl SessionDb {
             // Existing names are protected; their origin cannot be inferred safely.
             self.conn.execute("ALTER TABLE sermon_sessions ADD COLUMN title_source TEXT NOT NULL DEFAULT 'manual'", [])?;
         }
+        self.migrate_session_slides()?;
         Ok(())
     }
 

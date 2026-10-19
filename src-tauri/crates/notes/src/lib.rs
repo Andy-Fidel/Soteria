@@ -10,3 +10,6 @@ pub use plan_models::{Plan, PlanItem, PlanItemType, PlanKind, TemplateMeta};
 pub use db::SessionDb;
 pub use error::{Result, SessionError};
 pub use models::*;
+
+pub mod session_slides;
+pub use session_slides::SessionSlide;
