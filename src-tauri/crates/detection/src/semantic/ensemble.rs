@@ -59,17 +59,22 @@ impl EnsembleSearcher {
         index: &dyn VectorIndex,
         k: usize,
     ) -> Result<Vec<EnsembleResult>, DetectionError> {
+        let original_results = self.run_strategy(text, embedder, index, k, "original")?;
+        self.search_with_original(text, embedder, index, k, &original_results)
+    }
+
+    /// Combine existing original matches with synonym and concept searches.
+    pub(crate) fn search_with_original(
+        &mut self,
+        text: &str,
+        embedder: &dyn TextEmbedder,
+        index: &dyn VectorIndex,
+        k: usize,
+        original_results: &[(i64, f64)],
+    ) -> Result<Vec<EnsembleResult>, DetectionError> {
         let mut combined: HashMap<i64, EnsembleResult> = HashMap::new();
 
-        // Strategy 1: Original (direct embedding)
-        let original_results = self.run_strategy(
-            text,
-            embedder,
-            index,
-            k,
-            "original",
-        )?;
-        for (verse_id, similarity) in &original_results {
+        for (verse_id, similarity) in original_results {
             if *similarity >= ORIGINAL_CUTOFF {
                 let entry = combined.entry(*verse_id).or_insert_with(|| EnsembleResult {
                     verse_id: *verse_id,
@@ -87,13 +92,7 @@ impl EnsembleSearcher {
         let variants = self.synonym_expander.expand(text);
         // Skip the first variant (it's the original text, already searched)
         for variant in variants.iter().skip(1).take(2) {
-            let synonym_results = self.run_strategy(
-                variant,
-                embedder,
-                index,
-                k,
-                "synonym",
-            )?;
+            let synonym_results = self.run_strategy(variant, embedder, index, k, "synonym")?;
             for (verse_id, similarity) in &synonym_results {
                 if *similarity >= SYNONYM_CUTOFF {
                     let entry = combined.entry(*verse_id).or_insert_with(|| EnsembleResult {
@@ -116,13 +115,8 @@ impl EnsembleSearcher {
         let concepts = extract_concepts(text);
         if !concepts.is_empty() {
             let concept_query = concepts.join(" ");
-            let concept_results = self.run_strategy(
-                &concept_query,
-                embedder,
-                index,
-                k,
-                "concept",
-            )?;
+            let concept_results =
+                self.run_strategy(&concept_query, embedder, index, k, "concept")?;
             for (verse_id, similarity) in &concept_results {
                 if *similarity >= CONCEPT_CUTOFF {
                     let entry = combined.entry(*verse_id).or_insert_with(|| EnsembleResult {

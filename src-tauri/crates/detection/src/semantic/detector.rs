@@ -5,7 +5,7 @@ use super::cache::EmbeddingCache;
 use super::chunker::Chunker;
 use super::embedder::{StubEmbedder, TextEmbedder};
 use super::ensemble::EnsembleSearcher;
-use super::index::{StubIndex, VectorIndex};
+use super::index::{SearchResult, StubIndex, VectorIndex};
 use super::synonyms::SynonymExpander;
 use crate::types::{Detection, DetectionSource, VerseRef};
 
@@ -113,23 +113,11 @@ impl SemanticDetector {
 
         let mut detections = Vec::new();
 
-        // Single direct embedding first — fast (~1 embed call), good for exact quotes.
-        let Ok(embedding) = self
-            .embedder
-            .embed(text)
-            .inspect_err(|e| log::warn!("Semantic embedding failed: {e}"))
-        else {
+        let Ok(single_results) = self.original_results(text).inspect_err(|e| {
+            log::warn!("Semantic search failed: {e}");
+        }) else {
             return vec![];
         };
-        let Ok(single_results) = self
-            .index
-            .search(&embedding, 5)
-            .inspect_err(|e| log::warn!("Semantic index search failed: {e}"))
-        else {
-            return vec![];
-        };
-        self.cache
-            .insert(text.to_string(), (embedding, single_results.clone()));
 
         let top_single_similarity = single_results.first().map(|r| r.similarity).unwrap_or(0.0);
 
@@ -143,10 +131,16 @@ impl SemanticDetector {
             && top_single_similarity < ENSEMBLE_FUZZY_HIGH;
 
         if needs_ensemble {
-            match self
-                .ensemble
-                .search(text, self.embedder.as_ref(), self.index.as_ref(), 5)
-            {
+            match self.ensemble.search_with_original(
+                text,
+                self.embedder.as_ref(),
+                self.index.as_ref(),
+                5,
+                &single_results
+                    .iter()
+                    .map(|r| (r.verse_id, r.similarity))
+                    .collect::<Vec<_>>(),
+            ) {
                 Ok(results) => {
                     for result in results {
                         if result.best_similarity >= self.confidence_threshold {
@@ -211,6 +205,18 @@ impl SemanticDetector {
         }
     }
 
+    // Cache only raw matches so threshold and ensemble settings still apply on each call.
+    fn original_results(&mut self, text: &str) -> Result<Vec<SearchResult>, crate::DetectionError> {
+        if let Some((_, results)) = self.cache.get(text) {
+            return Ok(results.clone());
+        }
+        let embedding = self.embedder.embed(text)?;
+        let results = self.index.search(&embedding, 5)?;
+        self.cache
+            .insert(text.to_string(), (embedding, results.clone()));
+        Ok(results)
+    }
+
     // ---- private helpers ----
 
     #[expect(
@@ -266,6 +272,124 @@ mod tests {
         fn len(&self) -> usize {
             self.results.len()
         }
+    }
+
+    use std::sync::{Arc, Mutex};
+
+    type EmbedCalls = Arc<Mutex<Vec<String>>>;
+    type SearchCalls = Arc<Mutex<usize>>;
+
+    struct CountedEmbedder(EmbedCalls);
+
+    impl TextEmbedder for CountedEmbedder {
+        fn embed(&self, text: &str) -> Result<Vec<f32>, DetectionError> {
+            self.0.lock().unwrap().push(text.to_string());
+            Ok(vec![1.0])
+        }
+
+        fn dimension(&self) -> usize {
+            1
+        }
+    }
+
+    struct CountedIndex {
+        calls: SearchCalls,
+        similarity: f64,
+        fail_first: bool,
+    }
+
+    impl VectorIndex for CountedIndex {
+        fn search(&self, _query: &[f32], _k: usize) -> Result<Vec<SearchResult>, DetectionError> {
+            let mut calls = self.calls.lock().unwrap();
+            *calls += 1;
+            if self.fail_first && *calls == 1 {
+                return Err(DetectionError::Internal("temporary search failure".into()));
+            }
+            Ok(vec![SearchResult {
+                verse_id: 42,
+                similarity: self.similarity,
+            }])
+        }
+
+        fn len(&self) -> usize {
+            1
+        }
+    }
+
+    fn counted_detector(
+        similarity: f64,
+        fail_first: bool,
+    ) -> (SemanticDetector, EmbedCalls, SearchCalls) {
+        let embeds = Arc::new(Mutex::new(Vec::new()));
+        let searches = Arc::new(Mutex::new(0));
+        let detector = SemanticDetector::new(
+            Box::new(CountedEmbedder(embeds.clone())),
+            Box::new(CountedIndex {
+                calls: searches.clone(),
+                similarity,
+                fail_first,
+            }),
+        );
+        (detector, embeds, searches)
+    }
+
+    #[test]
+    fn repeated_detection_reuses_search_but_applies_current_threshold() {
+        let (mut detector, embeds, searches) = counted_detector(0.85, false);
+        assert_eq!(detector.detect("a clear quote")[0].verse_id, Some(42));
+        detector.set_confidence_threshold(0.9);
+        assert!(detector.detect("a clear quote").is_empty());
+        detector.set_confidence_threshold(0.8);
+        assert!((detector.detect("a clear quote")[0].confidence - 0.85).abs() < 1e-12);
+        assert_eq!(embeds.lock().unwrap().len(), 1);
+        assert_eq!(*searches.lock().unwrap(), 1);
+    }
+
+    #[test]
+    fn fuzzy_detection_searches_original_only_once_and_reuses_variants() {
+        let text = "faith and love bring hope";
+        let (mut detector, embeds, searches) = counted_detector(0.64, false);
+        assert_eq!(detector.detect(text)[0].verse_id, Some(42));
+        let first_calls = embeds.lock().unwrap().clone();
+        assert!(
+            first_calls.len() > 1,
+            "synonym and concept searches must still run"
+        );
+        assert_eq!(first_calls.iter().filter(|query| *query == text).count(), 1);
+        detector.set_use_synonyms(false);
+        assert!((detector.detect(text)[0].confidence - 0.64).abs() < 1e-12);
+        detector.set_use_synonyms(true);
+        assert!((detector.detect(text)[0].confidence - 0.64).abs() < 1e-12);
+        assert_eq!(embeds.lock().unwrap().len(), first_calls.len());
+        assert_eq!(*searches.lock().unwrap(), first_calls.len());
+    }
+
+    #[test]
+    fn repeated_negative_speech_reuses_search() {
+        let (mut detector, embeds, searches) = counted_detector(0.2, false);
+        assert!(detector.detect("please take your seats").is_empty());
+        assert!(detector.detect("please take your seats").is_empty());
+        assert_eq!(embeds.lock().unwrap().len(), 1);
+        assert_eq!(*searches.lock().unwrap(), 1);
+    }
+
+    #[test]
+    fn evicted_speech_is_searched_again() {
+        let (mut detector, embeds, searches) = counted_detector(0.85, false);
+        detector.cache = EmbeddingCache::new(2);
+        for text in ["first quote", "second quote", "third quote", "first quote"] {
+            assert_eq!(detector.detect(text)[0].verse_id, Some(42));
+        }
+        assert_eq!(embeds.lock().unwrap().len(), 4);
+        assert_eq!(*searches.lock().unwrap(), 4);
+    }
+
+    #[test]
+    fn failed_search_is_retried_instead_of_cached() {
+        let (mut detector, _, searches) = counted_detector(0.85, true);
+        assert!(detector.detect("a clear quote").is_empty());
+        assert_eq!(detector.detect("a clear quote")[0].verse_id, Some(42));
+        assert_eq!(*searches.lock().unwrap(), 2);
     }
 
     #[test]

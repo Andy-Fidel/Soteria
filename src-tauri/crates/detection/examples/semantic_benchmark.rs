@@ -91,13 +91,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             parity.push(serde_json::json!({"translation":translation,"id":id,"similarity":score}));
         }
     }
+    let load_ms = start.elapsed().as_secs_f64() * 1000.0;
+    // Time uncached lookup separately from inference and the detector's text cache.
+    let mut lookup_results = Vec::new();
+    if args.iter().any(|arg| arg == "--lookup") {
+        let queries: Vec<_> = cases
+            .iter()
+            .map(|case| embedder.embed(&case.text))
+            .collect::<Result<_, _>>()?;
+        for round in 0..3 {
+            for (case, query) in cases.iter().zip(&queries) {
+                let now = Instant::now();
+                let hits = index.search(query, 5)?;
+                let ms = now.elapsed().as_secs_f64() * 1000.0;
+                lookup_results.push(serde_json::json!({
+                    "round": round, "text": case.text, "ms": ms,
+                    "hits": hits.iter().map(|hit| serde_json::json!({"id": hit.verse_id, "score": hit.similarity})).collect::<Vec<_>>()
+                }));
+            }
+        }
+    }
     let mut detector = SemanticDetector::new(Box::new(embedder), index);
     if is_multi {
         detector.set_confidence_threshold(
             rhema_detection::semantic::multi_translation::CONFIDENCE_THRESHOLD,
         );
     }
-    let load_ms = start.elapsed().as_secs_f64() * 1000.0;
     let cold = Instant::now();
     detector.detect("God loved the world and gave his only Son");
     let cold_ms = cold.elapsed().as_secs_f64() * 1000.0;
@@ -116,7 +135,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!(
         "{}",
-        serde_json::json!({"mode":args.get(1).map_or("baseline",String::as_str),"parity":parity,"vectors":vectors,"load_ms":load_ms,"cold_query_ms":cold_ms,"results":results})
+        serde_json::json!({"mode":args.get(1).map_or("baseline",String::as_str),"parity":parity,"vectors":vectors,"load_ms":load_ms,"cold_query_ms":cold_ms,"results":results,"lookup_results":lookup_results})
     );
     Ok(())
 }

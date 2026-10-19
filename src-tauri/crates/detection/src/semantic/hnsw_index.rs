@@ -1,8 +1,7 @@
 //! Brute-force cosine-similarity vector index.
 //!
-//! At ~31 K verses x 1024 dims the brute-force scan takes only a few
-//! milliseconds on modern hardware, so there is no need for approximate
-//! nearest-neighbour structures yet.
+//! Every verse is scored. Independent dot-product accumulators allow portable
+//! CPU vectorization, and partial selection avoids sorting discarded matches.
 //!
 //! This module is only compiled when the `vector-search` feature is enabled.
 
@@ -139,7 +138,7 @@ impl VectorIndex for HnswVectorIndex {
         }
 
         let n = self.verse_ids.len();
-        if n == 0 {
+        if n == 0 || k == 0 {
             return Ok(vec![]);
         }
 
@@ -152,14 +151,37 @@ impl VectorIndex for HnswVectorIndex {
             let end = start + self.dimension;
             let stored = &self.embeddings[start..end];
 
-            let dot: f32 = query.iter().zip(stored.iter()).map(|(a, b)| a * b).sum();
+            // Independent lanes remove the serial sum dependency. LLVM can vectorize
+            // this on both ARM and x86 without platform-specific code.
+            let mut lanes = [0.0_f32; 8];
+            let mut query_chunks = query.chunks_exact(8);
+            let mut stored_chunks = stored.chunks_exact(8);
+            for (a, b) in query_chunks.by_ref().zip(stored_chunks.by_ref()) {
+                for lane in 0..8 {
+                    lanes[lane] += a[lane] * b[lane];
+                }
+            }
+            let mut dot: f32 = lanes.into_iter().sum();
+            for (a, b) in query_chunks
+                .remainder()
+                .iter()
+                .zip(stored_chunks.remainder())
+            {
+                dot += a * b;
+            }
 
             scores.push((i, f64::from(dot)));
         }
 
-        // Partial sort: we only need the top-k, but for 31K entries a full
-        // sort is perfectly fine (~0.1 ms).
-        scores.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        // Keep only the best k before sorting. Stored order breaks exact ties
+        // consistently, including ties at the selection boundary.
+        let order =
+            |a: &(usize, f64), b: &(usize, f64)| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0));
+        if k < scores.len() {
+            scores.select_nth_unstable_by(k, order);
+            scores.truncate(k);
+        }
+        scores.sort_unstable_by(order);
 
         let results: Vec<SearchResult> = scores
             .into_iter()
@@ -186,6 +208,59 @@ mod tests {
         let mut v = vec![0.0f32; dim];
         v[hot] = 1.0;
         v
+    }
+
+    #[test]
+    fn tied_scores_keep_stored_order_at_top_k_boundary() {
+        let embeddings = (0..64)
+            .map(|i| vec![f32::from(u8::try_from(i % 3).unwrap()) / 4.0, 0.0])
+            .collect();
+        let index = HnswVectorIndex::from_vecs(embeddings, (0..64).collect(), 2).unwrap();
+        let ids: Vec<_> = index
+            .search(&[1.0, 0.0], 5)
+            .unwrap()
+            .iter()
+            .map(|hit| hit.verse_id)
+            .collect();
+        assert_eq!(ids, vec![2, 5, 8, 11, 14]);
+    }
+
+    #[test]
+    fn top_k_matches_exhaustive_reference_across_dimensions_and_limits() {
+        for dim in [1, 7, 8, 9, 384, 1024] {
+            let query: Vec<f32> = (0..dim)
+                .map(|i| (f32::from(u8::try_from(i % 13).unwrap()) - 6.0) / 32.0)
+                .collect();
+            let vectors: Vec<Vec<f32>> = (0..67)
+                .map(|row| {
+                    (0..dim)
+                        .map(|col| {
+                            (f32::from(u8::try_from((row * 17 + col * 11) % 97).unwrap()) - 48.0)
+                                / 128.0
+                        })
+                        .collect()
+                })
+                .collect();
+            // Independent scalar reference. Secondary key makes equal-score order explicit.
+            let mut expected: Vec<_> = vectors
+                .iter()
+                .enumerate()
+                .map(|(i, vector)| {
+                    let score: f32 = query.iter().zip(vector).map(|(a, b)| a * b).sum();
+                    (i64::try_from(i).unwrap(), f64::from(score))
+                })
+                .collect();
+            expected.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
+            let index = HnswVectorIndex::from_vecs(vectors, (0..67).collect(), dim).unwrap();
+            for k in [0, 1, 5, 66, 67, 100, usize::MAX] {
+                let actual = index.search(&query, k).unwrap();
+                assert_eq!(actual.len(), k.min(67));
+                for (hit, &(id, score)) in actual.iter().zip(expected.iter()) {
+                    assert_eq!(hit.verse_id, id, "dim={dim}, k={k}");
+                    assert!((hit.similarity - score).abs() < 1e-6, "dim={dim}, k={k}");
+                }
+            }
+        }
     }
 
     #[test]
