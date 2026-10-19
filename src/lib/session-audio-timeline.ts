@@ -6,6 +6,13 @@ export interface SessionAudioSpan {
   durationMs: number
 }
 
+export function formatAudioTime(seconds: number) {
+  const total = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0
+  const minutes = Math.floor(total / 60)
+  const suffix = `${String(minutes % 60).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`
+  return minutes >= 60 ? `${Math.floor(minutes / 60)}:${suffix}` : suffix
+}
+
 /** Pauses have no audio. Seek to the next recorded span when time falls in a gap. */
 export function sessionAudioSeekSeconds(
   timestampMs: number,

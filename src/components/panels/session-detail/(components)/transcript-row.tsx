@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
-import { PlayIcon, Trash2Icon } from "lucide-react"
+import { Trash2Icon } from "lucide-react"
+import { formatAudioTime } from "@/lib/session-audio-timeline"
 import type { SessionTranscriptSegment } from "@/types/session"
 import { emitAudioSeek } from "@/hooks/use-audio-seek"
 function highlightMatches(text: string, query: string): React.ReactNode {
@@ -22,6 +23,9 @@ function highlightMatches(text: string, query: string): React.ReactNode {
 }
 
 interface TranscriptRowProps {
+  seconds?: number | null
+  canSeek?: boolean
+  active?: boolean
   segment: SessionTranscriptSegment
   query: string
   editMode: boolean
@@ -35,6 +39,9 @@ interface TranscriptRowProps {
 }
 
 export function TranscriptRow({
+  seconds,
+  canSeek = false,
+  active = false,
   segment,
   query,
   editMode,
@@ -81,25 +88,33 @@ export function TranscriptRow({
   }
 
   return (
-    <div className="group flex items-start gap-1">
+    <div
+      aria-current={active ? "true" : undefined}
+      className={`group flex items-start gap-3 rounded-lg px-3 py-3 [contain-intrinsic-size:auto_90px] [content-visibility:auto] ${active ? "bg-primary/8" : ""}`}
+    >
       <button
         type="button"
         onClick={() => emitAudioSeek(segment.timestampMs)}
-        className="mt-0.5 shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-primary/10 hover:text-primary"
-        title="Play from here"
+        disabled={!canSeek || seconds == null}
+        className="mt-1 min-w-11 shrink-0 rounded py-0.5 text-left text-[11px] font-medium text-primary tabular-nums hover:underline disabled:text-muted-foreground disabled:no-underline"
+        aria-label={
+          canSeek && seconds != null
+            ? `Play from ${formatAudioTime(seconds)}`
+            : "Recording unavailable"
+        }
       >
-        <PlayIcon className="size-3" />
+        {seconds == null ? "—" : formatAudioTime(seconds)}
       </button>
       <p
         onClick={editMode ? onStartEdit : undefined}
-        className={`flex-1 text-sm leading-relaxed text-foreground/80 ${editMode ? "-mx-1 cursor-text rounded px-1 hover:bg-muted/40" : ""}`}
+        className={`min-w-0 flex-1 text-sm leading-[1.85] break-words text-foreground/90 ${editMode ? "-mx-1 cursor-text rounded px-1 hover:bg-muted/40" : ""}`}
       >
         {highlightMatches(segment.text, query)}
       </p>
       {editMode && (
         <button
           onClick={onDelete}
-          className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           title="Delete segment"
         >
           <Trash2Icon className="size-3" />
