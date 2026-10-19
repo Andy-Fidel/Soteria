@@ -32,9 +32,6 @@ struct IndexedVerse {
     book_name: String,
     chapter: i32,
     verse: i32,
-    /// Lowercase word set (used by tests).
-    #[expect(dead_code, reason = "retained for test assertions and future scoring")]
-    words: HashSet<String>,
     word_count: usize,
 }
 
@@ -76,8 +73,10 @@ impl QuotationMatcher {
             }
 
             let idx = indexed.len();
-            for word in &words {
-                word_index.entry(word.clone()).or_default().push(idx);
+            // Matching uses the posting lists and word count, so each verse's
+            // temporary word set can be consumed instead of retained.
+            for word in words {
+                word_index.entry(word).or_default().push(idx);
             }
 
             indexed.push(IndexedVerse {
@@ -86,7 +85,6 @@ impl QuotationMatcher {
                 book_name: v.book_name,
                 chapter: v.chapter,
                 verse: v.verse,
-                words,
                 word_count,
             });
         }
@@ -254,6 +252,45 @@ mod tests {
                 text: "But they that wait upon the Lord shall renew their strength they shall mount up with wings as eagles they shall run and not be weary and they shall walk and not faint".to_string(),
             },
         ]
+    }
+
+    #[test]
+    fn repeated_words_count_once_in_quotation_scores() {
+        let matcher = QuotationMatcher::build(vec![QuotationVerse {
+            id: 1, book_number: 1, book_name: "Genesis".into(), chapter: 1, verse: 1,
+            text: "faith faith hope love mercy peace grace".into(),
+        }]);
+        let hits = matcher.match_transcript("faith hope love mercy morning evening");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].verse_id, Some(1));
+        assert!((hits[0].confidence - 0.816_666_666_666_666_7).abs() < 1e-12);
+    }
+
+    #[test]
+    fn shared_words_and_skipped_verses_preserve_posting_lists() {
+        let matcher = QuotationMatcher::build(vec![
+            QuotationVerse {
+                id: 99, book_number: 1, book_name: "Genesis".into(), chapter: 1, verse: 1,
+                text: "faith hope".into(),
+            },
+            QuotationVerse {
+                id: 1, book_number: 1, book_name: "Genesis".into(), chapter: 1, verse: 2,
+                text: "faith hope love mercy peace grace".into(),
+            },
+            QuotationVerse {
+                id: 2, book_number: 1, book_name: "Genesis".into(), chapter: 1, verse: 3,
+                text: "faith courage wisdom kindness strength patience".into(),
+            },
+        ]);
+        for (text, expected) in [
+            ("faith hope love mercy peace grace", 1),
+            ("faith courage wisdom kindness strength patience", 2),
+        ] {
+            let hits = matcher.match_transcript(text);
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].verse_id, Some(expected));
+            assert!((hits[0].confidence - 0.95).abs() < 1e-12);
+        }
     }
 
     #[test]

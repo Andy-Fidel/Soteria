@@ -66,3 +66,34 @@ src-tauri/target/release/examples/semantic_benchmark multi --lookup
 ```
 
 Append `.exe` to the executable on Windows. The JSON `lookup_results` array records uncached index time and verse IDs/scores. The `results` array records full detector time and resolved references; round 0 contains new phrases, while rounds 1 and 2 exercise the cache. `--lookup` prepares phrase embeddings and exercises the index before detector timing, so its first detector timing is not a cold query. Keep parity validation (`multi --verify`) separate from speed comparisons.
+
+## Quotation-index memory reduction (third step)
+
+Measured 2026-10-19 against `3c5191b`. Removed the unused `IndexedVerse.words` field. Index construction consumes the temporary unique-word set into the shared posting lists instead of cloning each word and retaining a word set per verse. The unique-word count, posting-list contents, stop words, matching windows, scoring, thresholds, and result limits are unchanged. Embedding padding is unchanged; the ONNX embedder source hash was checked before and after.
+
+A new `quotation_benchmark` example loads all 217,696 English verse records from a temporary database copy, builds the actual quotation matcher, and runs 80 queries: the 50 existing evaluation phrases plus 30 exact quotations sampled throughout the English corpus. The matcher omits 470 very short verses, as before. Three fresh release-build processes were measured before the production edit, then three after. Hardware: M4 Pro, 12 CPU cores, 24 GB RAM. No microphone, inference model, or provider request is used by this benchmark.
+
+| Measure | Before (three runs) | After (three runs) |
+| --- | --- | --- |
+| Process peak resident memory | 265.4 / 273.4 / 273.6 MiB | 109.2 / 109.1 / 109.5 MiB |
+| Process peak memory footprint | 256.2 / 255.9 / 256.2 MiB | 91.6 / 91.3 / 91.9 MiB |
+| Quotation-index build | 1,131 / 1,291 / 1,110 ms | 1,017 / 1,031 / 1,033 ms |
+| Database load through index ready | 1,369 / 1,485 / 1,281 ms | 1,200 / 1,213 / 1,208 ms |
+| Median matching time per query | 5.83 / 5.76 / 5.76 ms | 5.51 / 5.51 / 5.61 ms |
+
+The median process peak resident memory fell about 60% (about 164 MiB). Median index-build time fell about 9%, and database-load-through-index-ready time fell about 12%. These are component-benchmark results, not whole-app memory or full application startup measurements. The database copy is outside the startup timer. OS file caches were not cleared. Windows has not been measured; the change uses portable Rust with no new dependency or hardware requirement.
+
+All 80 queries retained the same confidence and word-overlap score lists across all three comparisons. The 198 checked uniquely scored results above the cutoff retained their verse IDs. Exact tied rankings already vary between baseline runs because the matcher builds candidates in randomized HashMap order. The baseline itself changed tied result lists for 40–43 of 80 queries across processes. The new runs showed the same kind of tie variation; this change does not introduce a tie-order rule or promise identical order among equal-scoring verses.
+
+The test also exposed an existing accuracy limitation: five of the 20 negative phrases produce weak quotation suggestions at confidence 0.75, before and after this change. These include announcements about phones, notebooks, meetings, and microphones. They are below the current quotation auto-queue gate of 0.85, but the native path can still emit them as suggestions. Do not confuse the earlier semantic-detector result of zero negative hits with this separate quotation matcher. Reducing weak quotation suggestions is a separate accuracy follow-up; it was not mixed into this memory change.
+
+Two added unit tests cover repeated words (unique-word scoring) and shared posting lists after very short verses are skipped. The full native detection suite passed 160 tests with one existing local-model test ignored. Frontend verification passed 445 tests, lint, and the typed production build; the application compile check and native performance lint also passed. Existing general Rust style warnings and the frontend bundle-size warning remain.
+
+To reproduce from the repository root:
+
+```
+cargo build --offline --release --manifest-path src-tauri/Cargo.toml -p rhema-detection --example quotation_benchmark
+src-tauri/target/release/examples/quotation_benchmark
+```
+
+Append `.exe` to the executable on Windows. Use the platform's process-memory tool to measure each fresh process. On this Mac, `/usr/bin/time -l` recorded maximum resident memory and peak footprint. Raw measurements for this session are `/tmp/manna-quotation-before-{1,2,3}.{json,time}` and `/tmp/manna-quotation-after-{1,2,3}.{json,time}`; the comparison summary is `/tmp/manna-quotation-comparison.json`. Temporary raw files can be removed by the OS.
