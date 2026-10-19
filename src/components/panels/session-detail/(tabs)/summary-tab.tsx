@@ -30,7 +30,7 @@ export function SummaryTab({
   handleCopySummary,
 }: SummaryTabProps) {
   return (
-    <div className="flex flex-col gap-3 p-3">
+    <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-9 px-5 py-7 [overflow-wrap:anywhere] sm:px-10 sm:py-9">
       {!summary && !summarizing && !summaryError && (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-8 text-center">
           <SparklesIcon className="size-6 text-muted-foreground/40" />
@@ -53,7 +53,10 @@ export function SummaryTab({
       )}
 
       {summarizing && (
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 p-3">
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 p-3"
+        >
           <LoaderIcon className="size-3.5 animate-spin text-primary" />
           <p className="text-xs text-muted-foreground">
             Summarizing transcript…
@@ -76,19 +79,19 @@ export function SummaryTab({
         </div>
       )}
 
-      {summary && !summarizing && (
+      {summary && (
         <>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-1.5">
               <SparklesIcon className="size-3.5 text-primary" />
-              <span className="text-[10px] font-medium tracking-wider text-primary uppercase">
-                AI Summary
+              <span className="text-sm font-medium text-primary">
+                AI summary
               </span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="ghost"
-                size="icon-xs"
+                size="sm"
                 onClick={handleCopySummary}
                 title="Copy summary as markdown"
               >
@@ -97,23 +100,30 @@ export function SummaryTab({
                 ) : (
                   <CopyIcon className="size-3" />
                 )}
+                <span aria-live="polite">
+                  {summaryCopied ? "Copied" : "Copy summary"}
+                </span>
               </Button>
               <Button
                 variant="ghost"
-                size="icon-xs"
+                size="sm"
                 onClick={handleSummarize}
                 title="Regenerate"
                 disabled={summarizing}
               >
                 <RefreshCwIcon className="size-3" />
+                Regenerate
               </Button>
             </div>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+          <div className="flex min-w-0 flex-col gap-10">
             <SummaryNarrative summary={summary} />
             <SummaryFollowUp summary={summary} speaker={session?.speaker} />
           </div>
+          <p className="border-t border-border pt-4 text-sm leading-relaxed text-muted-foreground">
+            AI-generated summary. Review alongside the original transcript.
+          </p>
         </>
       )}
     </div>
