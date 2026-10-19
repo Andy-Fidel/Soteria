@@ -4,6 +4,7 @@ import type {
   RenderOptions,
   WordHitBox,
 } from "@/types/broadcast"
+import { opaqueTextColor } from "@/lib/opaque-text-color"
 import { validHighlights } from "@/lib/text-highlights"
 
 export interface VerseLayoutRect {
@@ -367,6 +368,7 @@ function drawReference(
   y: number,
 ): number {
   const ref = theme.reference
+  const referenceColor = opaqueTextColor(ref.color)
   const transformed = applyTextTransform(
     ref.uppercase ? text.toUpperCase() : text,
     resolveTextTransform(ref.textTransform),
@@ -375,9 +377,9 @@ function drawReference(
   const refDecoration = resolveTextDecoration(ref.textDecoration)
 
   ctx.save()
-  ctx.globalAlpha = (ctx.globalAlpha ?? 1) * (ref.opacity ?? 0.5)
+  ctx.globalAlpha = 1
   ctx.font = `${ref.fontWeight} ${ref.fontSize}px "${ref.fontFamily}", sans-serif`
-  ctx.fillStyle = ref.color
+  ctx.fillStyle = referenceColor
   ctx.textBaseline = "top"
 
   if (ref.letterSpacing > 0) {
@@ -389,7 +391,7 @@ function drawReference(
   const x = alignX(canvasAlign, textRectX, textRectWidth)
   ctx.fillText(transformed, x, y)
   const drawnWidth = Math.min(textRectWidth, Math.max(1, ctx.measureText(transformed).width))
-  drawTextDecorationLine(ctx, refDecoration, ref.color, refAlign, x, y, drawnWidth, ref.fontSize, textRectX)
+  drawTextDecorationLine(ctx, refDecoration, referenceColor, refAlign, x, y, drawnWidth, ref.fontSize, textRectX)
   ctx.restore()
 
   return ref.fontSize * 1.5

@@ -1,167 +1,50 @@
 # Backlog
 
-Unscheduled work. Grouped by type. Items pulled from EXECUTION.md history and this session. Priority is rough — shuffle as needed.
+Last reviewed: 2026-10-19.
 
----
+This is the current work list. Completed features, deliberately deferred ideas, and release checks are separate. Old estimates and model benchmarks have been removed; they are not current commitments. This review was not a new whole-project audit.
 
-## Features
+## In progress
 
-### ~~Songs tab (Wave 2)~~ ✅ shipped (pending smoke test)
+- **Summary export and printing:** separate work is underway in the session-review UI and native print command. Verify its own completion and checks before treating it as shipped. It is outside the opacity/header cleanup change.
 
-- Spec: `docs/superpowers/specs/2026-04-20-songs-tab-design.md`
-- Plan: `docs/superpowers/plans/2026-04-20-songs-tab.md`
-- Shipped: 260 GHS hymns seeded at startup, local fuzzy search (minisearch), Genius API lookup, paste-lyrics fallback, typed shared queue (verse + song-stanza union), per-hymn line-mode + auto-chorus toggles, Cmd+G quick-jump, queue auto-prune on song delete
-- 17 new Vitest unit tests passing (expandSong × 7, songMeta × 4, searchSongs × 6)
-- Manual smoke test pending in live Tauri app
+## Open, low priority
 
-### ~~Service Plan / Playlist (Feature B)~~ ✅ shipped 2026-04-21
+- **Remote-control UI:** bring the mobile remote into the current Manna visual style.
+- **Additional translation search indexes:** consider ESV, NASB, NKJV, AMP and other supported translations after KJV/NIV/NLT. Measure detection accuracy, startup cost and memory before expanding.
+- **Automated microphone/reconnect coverage:** implement the deferred end-to-end test for speaking, silence, disconnect/reconnect and resumed speech. Decide provider-credit use and offline Whisper coverage before enabling it in CI.
+- **Release follow-ups:** evaluate signed installers, Linux builds, delta updates and Windows full-model packaging when preparing wider distribution. These are optional release improvements, not confirmed live-session bugs.
 
-- Spec: [docs/superpowers/specs/2026-04-20-service-plan-design.md](superpowers/specs/2026-04-20-service-plan-design.md)
-- Plan: [docs/superpowers/plans/2026-04-20-service-plan.md](superpowers/plans/2026-04-20-service-plan.md)
-- Shipped: 5 item types (verse/song/announcement/section/blank), templates + per-session copies, click-to-activate + optional auto-advance, drag-reorder via HTML5 DnD, keyboard nav (↑/↓/Enter), template save/load, clone-from-past-session
-- 13 Rust CRUD methods, 13 Tauri commands, 11 Rust integration tests + 11 TS unit tests, all passing
-- Smoke-tested live — drag reorder, templates, auto-advance all work
-- Foundation for Features C (Slide Editor), E (Media Playback), F (Theme Editor) to slot into
+## Deliberately deferred
 
-### ~~Planner tab~~ ✅ shipped
+- **Configurable default items for new service plans:** skipped at the user's request. The plan header now keeps only Add slide; template and section-header buttons have been removed from that header.
+- **Split-scripture first-part behavior:** optional return to the first part was discussed and deferred. Recheck the exact queue behavior and desired interaction before changing it; it is not a confirmed outstanding defect.
 
-- Built: [src/components/panels/planner-panel.tsx](../src/components/panels/planner-panel.tsx), wired in workspace
+## Completed from recent feedback
 
-### ~~Theme Editor (Feature F)~~ ✅ shipped
+- **Projection and operator workflow:** queue presentation selects the correct Bible book, chapter and verse; translation changes update the Bible, Queue and Detections panels; queue items display translation labels; On Screen supports continuous word highlighting, color confirmation and one-click clearing. Blank-slide clearing and the earlier live-presentation audit fixes are complete.
+- **Listening and detection:** shared inference-lock fixes, detection warm-up, microphone recovery and multi-translation paraphrase search with NIV/NLT alongside KJV are implemented. Optional translation indexes must match the active embedding model; missing/incompatible indexes retain KJV search. See [translation index guidance](../embeddings/translation-indexes/README.md).
+- **Songs and session review:** song display capitalization preserves original lyrics. Summaries distinguish worship from sermon content and retain the original transcript. Summary response-size/JSON failures were addressed. The improved summary reading layout is committed as `d28780c`.
+- **Titles and slide library:** AI-confirmed announced sermon titles name eligible live sessions and fill empty service-title slides; manual names and slide edits stay protected. Editable titles/announcements, the approved pastor artwork, EWC mark, looping blank video, prayer slides, welcome/Jesus/closing artwork and redesigned welcome/MoMo slides are implemented. MoMo payment details are unchanged. The Add sheet is a single slide gallery; the plan uses a two-column visual card layout with live labels, editing, deletion and drag reordering.
+- **Reference appearance and header cleanup:** references render at full opacity, including colors with embedded transparency, while preserving their color channels and verse-text opacity. The reference editor reflects full opacity. The service-plan header keeps only Add slide. These changes are included in the current cleanup backup.
 
-- Built: [src/components/broadcast/theme-designer.tsx](../src/components/broadcast/theme-designer.tsx) (fullscreen dialog), [theme-library.tsx](../src/components/broadcast/theme-library.tsx), [design-canvas.tsx](../src/components/broadcast/design-canvas.tsx) (live preview), [properties-panel.tsx](../src/components/broadcast/properties-panel.tsx) with split modules (background / layout / text)
-- Backend: `save_custom_theme`, `list_custom_themes`, `delete_custom_theme` Tauri commands
-- Full BroadcastTheme schema editable (background / textBox / verseText / divider / verseNumbers / reference / layout / transition)
-- Built-ins + custom themes, draft/save/discard workflow
+## Verification and release checks
 
-### Remote control web UI redesign
+- **Latest cleanup verification (2026-10-19):** 382 frontend tests, lint, TypeScript checks and the production build passed. Browser checks covered all six built-in themes, legacy transparent reference colors, the reference editor and unchanged verse-text opacity controls. These checks did not restart the running presentation app and did not constitute a physical-projector test.
+- **Historical smoke checklists:** older Songs and Overlay Themes plans still contain pending/manual checklist entries. Reconcile those entries against current operator testing before the next release; an unmarked historical checkbox alone is not evidence of a current bug.
+- **Native validation:** recording/session lifecycle and JSON plan persistence were tested during the earlier audit and slide work. Rerun native checks for subsequent native changes, including the separate print work; the opacity/header changes are frontend-only.
 
-- Current remote control panel works but looks dated
-- Target: match new Manna warm OKLCH palette, mobile-friendly
-- **Est:** 2–3 days
-- **Priority:** low
+## Earlier shipped foundations
 
-### ~~DMG / EXE release pipeline~~ ✅ shipped 2026-04-22
+- Songs library, shared song/scripture queue and Planner are implemented.
+- Service-plan persistence, timing, keyboard navigation and existing template data support are implemented. Removing header buttons does not delete saved plans or templates.
+- Theme Designer, custom-theme persistence, projection overlays, verse history and analytics are implemented.
+- The six-item historical reliability sweep and the later seven-issue audit fixes were completed; `56b976f` backed up the latter.
+- Release automation, setup commands and Qwen3 INT8 feature-extraction support are implemented. Shipping signed installers or additional packaging variants remains separate from the existing release pipeline.
 
-- Spec: `docs/superpowers/specs/2026-04-22-release-pipeline-design.md`
-- Plan: `docs/superpowers/plans/2026-04-22-release-pipeline.md`
-- Shipped: GitHub Actions matrix build (macOS-minimal + macOS-full + windows-minimal), unsigned DMG + NSIS EXE, Tauri auto-updater with flavor-aware endpoints, git-cliff release notes, welcome wizard step 3 (API key). Zero cert cost. Tag → ~1hr → published release.
-- See `docs/RELEASE.md` for maintainer runbook.
-- Future: Apple Developer ($99/yr) + Windows EV cert ($400/yr) to eliminate Gatekeeper/SmartScreen warnings; Linux builds; delta updates; Windows-full (needs cross-built embeddings).
+## Research only
 
-### ~~Simplified setup docs~~ ✅ shipped 2026-04-22
-
-- Spec: `docs/superpowers/specs/2026-04-21-simplified-setup-design.md`
-- Plan: `docs/superpowers/plans/2026-04-21-simplified-setup.md`
-- Shipped: `setup:minimal` (10 min, no GPU) + `setup:semantic` (GPU required, aborts on CPU unless `FORCE_CPU=1`) + `setup:whisper` + `setup:all` (unchanged). `--phases=<csv>` flag on orchestrator for per-phase control. GPU pre-flight in precompute phase detects MPS/CUDA/CPU and gates accordingly.
-- README rewritten: decision matrix + feature matrix + minimal-first flow + Advanced per-phase reference
-
-### Cloud hosting (thin client + cloud hybrid)
-
-- Run STT + detection in cloud, thin Tauri client just renders + broadcasts
-- Enables lower-end hardware for church PCs
-- **Est:** 2+ weeks (infra, auth, billing model)
-- **Priority:** research-phase only
-
-### ~~Overlay themes~~ ✅ shipped
-
-- Plan: [docs/superpowers/plans/2026-04-13-overlay-themes.md](superpowers/plans/2026-04-13-overlay-themes.md)
-- All 7 implementation tasks complete (type, 4 new themes, divider/centered-lines renderer, CanvasVerse monitors, DB CRUD, Tauri commands, hydration)
-- Task 8 smoke test pending live app verification
-
-### ~~Verse history + analytics~~ ✅ shipped
-
-- Plan: [docs/superpowers/plans/2026-04-14-verse-history-analytics.md](superpowers/plans/2026-04-14-verse-history-analytics.md)
-- Built: [analytics-panel.tsx](../src/components/panels/analytics-panel.tsx), [session-detail.tsx](../src/components/panels/session-detail.tsx), [analytics.rs](../src-tauri/src/commands/analytics.rs), workspace wiring
-- Plan checkboxes unmarked in file but implementation complete (verified 2026-04-19)
-
----
-
-## ML / Detection Pipeline
-
-### Precompute embeddings for non-KJV English translations
-
-- Currently only KJV has embeddings — semantic detection runs against KJV text then maps ref → user's active translation
-- Precompute for NIV, ESV, NASB, NKJV, NLT, AMP, etc. (9 bundled)
-- **Est:** 1–2 hr per translation on MPS (Qwen3), ~1 day total
-- **Priority:** low — current approach works, ref mapping is lossless
-
-### ~~Proper INT8 feature-extraction quantization for Qwen3~~ ✅ shipped 2026-06-02
-
-- Shipped: `data/quantize-qwen3-int8.py` converts the feature-extraction ONNX graph from FP16 to FP32 before ONNX Runtime dynamic INT8 quantization, avoiding the FLOAT16 load errors hit by the naive quantizer.
-- Runtime now prefers Qwen3 INT8, validates model signatures to reject generation/KV-cache exports, and falls back to Qwen3 FP32/MiniLM if a stale bad INT8 file is present.
-- Verified: INT8 graph has `input_ids`, `attention_mask`, `position_ids` → `last_hidden_state`; Rust precompute smoke loads it; local app logs show 31,102 KJV vectors loaded with the INT8 model.
-
-### ~~EmbeddingGemma-300M model swap~~ ❌ rejected 2026-04-19
-
-Researched vs current Qwen3-Embedding-0.6B. **Gemma is a downgrade on retrieval — our core metric.**
-
-| Metric                       | Qwen3-0.6B | EmbeddingGemma-300M |
-| ---------------------------- | ---------- | ------------------- |
-| MTEB Multilingual avg        | 64.33      | 61.15               |
-| **MTEB Retrieval sub-score** | **64.64**  | **~54**             |
-| Context                      | 32K        | 2K                  |
-| License                      | Apache-2.0 | Gemma (restricted)  |
-| Size Q4                      | 880MB      | 190MB               |
-
-Gemma wins on size (5×) and cleaner ONNX (no KV cache), but that's irrelevant on desktop. Only compelling for a future mobile companion app. Source: [research 2026-04-19], [EmbeddingGemma tech report](https://arxiv.org/abs/2509.20354), [Qwen3 MTEB tables](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B).
-
-### Qwen3-Embedding-4B upgrade (real upgrade path)
-
-- Current: Qwen3-Embedding-0.6B (MTEB Multilingual 64.33, Retrieval 64.64)
-- Target: Qwen3-Embedding-4B (MTEB Multilingual **69.45**, Retrieval **69.60**) — same family, Apache-2.0
-- Trade-off: ~4× RAM + ~4× cold-load time. Likely 4–6 GB RAM at inference, 4–8 GB ONNX file.
-- **Est:** ~1 day (download ONNX, verify `ort` loads, precompute KJV on MPS ~10 hr, threshold retune, docs)
-- **Priority:** low — 0.6B works well for live sermon detection. Only justifies if false-negative rate on paraphrased verses becomes a real complaint.
-- **Unknown:** whether ONNX feature-extraction export exists on HF without KV cache (learning #7).
-
----
-
-## Tech Debt / Reliability
-
-> All 6 items below were cleared in the 2026-04-19 tech debt sweep. Kept here for history — see [EXECUTION.md](EXECUTION.md) "Session: 2026-04-19 (cont)" for details.
-
-### ~~Store `SttProvider` handle in `AppState`~~ ✅ Done 2026-04-19
-
-- `Arc<dyn SttProvider>` stored in `AppState.stt_provider`
-- `stop_transcription` now calls `provider.stop()` directly — deterministic cancellation
-- Commit: [src-tauri/src/state.rs](../src-tauri/src/state.rs), [src-tauri/src/commands/stt.rs](../src-tauri/src/commands/stt.rs)
-
-### ~~Convert `emitTo` → scoped `emit` in broadcast-settings.tsx~~ ✅ Done 2026-04-19
-
-- All 3 NDI config `emitTo` call sites switched to `emit("broadcast:ndi-config:${outputId}", ...)`
-- Listener in `broadcast-output.tsx` updated to match
-- `broadcast:output-ready` kept on `emitTo` (low-volume, reverse direction)
-
-### ~~Integration test: Deepgram silence-close → reconnect~~ ✅ Done 2026-04-19
-
-- New `src/stores/transcript-store.test.ts` with 5 regression cases
-- Guards learnings #16 and #17 — `stt_disconnected` must not flip `isTranscribing=false`
-- Vitest suite now 16 tests
-
-### ~~E2E verify: 30s speak → 15s silence → resume~~ 🟡 Design-only 2026-04-19
-
-- Design sketch in [docs/superpowers/specs/2026-04-19-stt-e2e-framework-design.md](superpowers/specs/2026-04-19-stt-e2e-framework-design.md)
-- Stack: Playwright + Tauri v2 + BlackHole virtual mic + pre-recorded WAV
-- Build estimate: 1 day (4 × 0.5-day phases)
-- **Blockers to ask user about:** Deepgram/AAI credits in CI? Whisper coverage needed in v1?
-- **Priority:** low — design captured, build deferred
-
-### ~~"Connecting…" progress indicator~~ ✅ Done 2026-04-19
-
-- `Loader2Icon` with `animate-spin` on Start Service button during `connectionStatus === "connecting"`
-- Tooltip hint for cold-start wait expectation
-- Commit: [src/components/layout/toolbar.tsx](../src/components/layout/toolbar.tsx)
-
-### ~~Warm reqwest / rustls connection pool at startup~~ ✅ Done 2026-04-19
-
-- `warm_connection_pool()` helper in [lib.rs](../src-tauri/src/lib.rs) — HEAD requests to Deepgram / AssemblyAI / Anthropic on app launch
-- 10s timeout + 5s connect timeout + `http1_only()`
-- First user-initiated verify call no longer pays 6–10s cold-TLS cost
-
----
-
-## Research / Long-horizon
-
-- **Cloud hybrid architecture** — thin client + cloud STT/detection (est: 2+ weeks, research-phase only)
-- **Twi/Ga/Ewe Bible sourcing** — dependency for EmbeddingGemma multilingual work (legal + data wrangling, timeline TBD)
+- Cloud processing with a lightweight desktop client for lower-end hardware.
+- A larger Qwen embedding model, only if measured retrieval problems justify its memory/startup costs.
+- Twi/Ga/Ewe Bible sourcing and licensing, followed by a suitable multilingual retrieval evaluation.
+- The earlier EmbeddingGemma replacement proposal was rejected; it is not an active task.

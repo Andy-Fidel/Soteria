@@ -1,3 +1,4 @@
+import { opaqueTextColor } from "@/lib/opaque-text-color"
 import { useEffect, useState } from "react"
 import { useBroadcastStore } from "@/stores/broadcast-store"
 import { Slider } from "@/components/ui/slider"
@@ -112,7 +113,7 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
   if (!draftTheme) return null
 
   const data = prefix === "verseText" ? draftTheme.verseText : draftTheme.reference
-  const { hex: colorHex, opacity: colorOpacity } = parseColorOpacity(data.color)
+  const { hex: colorHex, opacity: colorOpacity } = parseColorOpacity(prefix === "reference" ? opaqueTextColor(data.color) : data.color)
   const horizontalAlign = data.horizontalAlign ?? draftTheme.layout.textAlign
   const verticalAlign = data.verticalAlign ?? "top"
   const textTransform = data.textTransform ?? "none"
@@ -312,15 +313,17 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
           />
           <span className="ml-auto text-xs tabular-nums text-muted-foreground">{colorOpacity}%</span>
         </div>
-        <Slider
-          min={0}
-          max={100}
-          step={1}
-          value={[colorOpacity]}
-          onValueChange={([v]) =>
-            update(`${prefix}.color`, buildColorWithOpacity(colorHex, v))
-          }
-        />
+        {prefix !== "reference" && (
+          <Slider
+            min={0}
+            max={100}
+            step={1}
+            value={[colorOpacity]}
+            onValueChange={([v]) =>
+              update(`${prefix}.color`, buildColorWithOpacity(colorHex, v))
+            }
+          />
+        )}
       </div>
     </div>
   )

@@ -63,7 +63,7 @@ const BOLD_PROCLAMATION: BroadcastTheme = {
     superscript: true,
   },
   reference: {
-    opacity: 0.5,
+    opacity: 1,
     fontFamily: "Geist Variable",
     fontSize: 56,
     fontWeight: 700,
