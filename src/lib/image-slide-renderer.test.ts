@@ -5,6 +5,7 @@ function context() {
   const draws: string[] = []
   const ctx = {
     font: "",
+    globalAlpha: 1,
     save() {},
     restore() {},
     fillRect() {},
@@ -18,7 +19,7 @@ function context() {
       }
     },
     fillText(text: string) {
-      draws.push(text)
+      if (this.globalAlpha === 1) draws.push(text)
     },
   }
   return { ctx: ctx as unknown as CanvasRenderingContext2D, draws }
@@ -28,6 +29,85 @@ const slide: ImageSlide = {
   label: "Title",
   textOverlay: { layout: "title", title: "JOHN DOE", body: "LEAD PASTOR" },
 }
+it("renders editable title text with the approved grotesk spacing and directional trail", () => {
+  const { ctx } = context()
+  const passes: Array<{
+    text: string
+    x: number
+    y: number
+    alpha: number
+    font: string
+    spacing: string
+    shadowBlur: number
+    shadowColor: string
+  }> = []
+  ctx.fillText = (text, x, y) =>
+    passes.push({
+      text,
+      x,
+      y,
+      alpha: ctx.globalAlpha,
+      font: ctx.font,
+      spacing: ctx.letterSpacing,
+      shadowBlur: ctx.shadowBlur,
+      shadowColor: ctx.shadowColor,
+    })
+  const words = { layout: "title" as const, title: "Living by faith", body: "" }
+  const original = JSON.stringify(words)
+  const lines = drawImageSlide(
+    ctx,
+    undefined,
+    { ...slide, textOverlay: words },
+    1920,
+    1080
+  )
+  const core = passes.filter((pass) => pass.alpha === 1)
+  const trails = passes.filter((pass) => pass.alpha < 1)
+  expect(core.map((pass) => pass.text)).toEqual(["LIVING BY FAITH"])
+  expect(core[0].font).toMatch(/^700 /)
+  expect(core[0].shadowBlur).toBeCloseTo(1920 * (6 / 720))
+  expect(core[0].shadowColor).toBe("rgba(236, 223, 193, 0.48)")
+  expect(parseFloat(core[0].spacing)).toBeCloseTo(-lines[0].fontSize * 0.055)
+  expect(trails.length).toBeGreaterThan(0)
+  expect(trails.some((pass) => pass.x > core[0].x)).toBe(true)
+  expect(trails.every((pass) => pass.y === core[0].y)).toBe(true)
+  expect(JSON.stringify(words)).toBe(original)
+})
+
+it("scales the title trail with the artwork and leaves speaker names and announcements clean", () => {
+  const render = (
+    width: number,
+    layout: "title" | "announcement" = "title"
+  ) => {
+    const { ctx } = context()
+    const passes: Array<{ text: string; x: number; alpha: number }> = []
+    ctx.fillText = (text, x) => passes.push({ text, x, alpha: ctx.globalAlpha })
+    drawImageSlide(
+      ctx,
+      undefined,
+      {
+        ...slide,
+        textOverlay: { layout, title: "Faith", body: "Pastor Jane" },
+      },
+      width,
+      (width * 9) / 16
+    )
+    return passes
+  }
+  const full = render(1920)
+  const panel = render(480)
+  const fullTrail = full.filter((pass) => pass.alpha < 1)
+  const panelTrail = panel.filter((pass) => pass.alpha < 1)
+  expect(fullTrail.length).toBeGreaterThan(0)
+  expect(fullTrail.every((pass) => pass.text === "FAITH")).toBe(true)
+  expect(panelTrail).toHaveLength(fullTrail.length)
+  fullTrail.forEach((pass, i) =>
+    expect(panelTrail[i].x).toBeCloseTo(pass.x / 4)
+  )
+  expect(render(1920, "announcement").every((pass) => pass.alpha === 1)).toBe(
+    true
+  )
+})
 it("draws editable words instead of baking them into the background", () => {
   const { ctx, draws } = context()
   drawImageSlide(ctx, undefined, slide, 1920, 1080)
@@ -151,7 +231,7 @@ it("keeps the speaker size fixed when a long title shrinks", () => {
       textOverlay: {
         layout: "title",
         title:
-          "The promise of hope and faith through every season of our lives",
+          "The promise of hope and faith through every season of our lives and the strength to stay faithful when the road ahead feels uncertain",
         body,
       },
     },
@@ -221,7 +301,7 @@ it("uses the approved full background, hides its speaker name, and keeps the tit
   expect(draw).not.toHaveBeenCalled()
 })
 
-it("matches prayer typography to service titles while keeping prayer text white", () => {
+it("keeps prayer typography and white text unchanged when title styling changes", () => {
   const title = drawImageSlide(
     context().ctx,
     undefined,
@@ -252,8 +332,9 @@ it("matches prayer typography to service titles while keeping prayer text white"
     1920,
     1080
   )
-  expect(prayer[0].fontSize).toBe(title[0].fontSize)
-  expect(prayer[0].lineHeight).toBe(title[0].lineHeight)
+  expect(prayer[0].fontSize).toBeCloseTo(1920 * 0.098)
+  expect(prayer[0].lineHeight).toBeCloseTo(prayer[0].fontSize * 1.02)
+  expect(title[0].fontSize).toBeLessThan(prayer[0].fontSize)
   const body = styles.find((style) => style.text === "PRAY")!
   expect(body.font).toMatch(/^600 /)
   expect(body.color).toBe("#ffffff")
