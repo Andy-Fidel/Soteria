@@ -16,7 +16,7 @@ The native default now chooses Whisper for Whisper-enabled Windows and Mac build
 
 Windows disables tokenizers’ optional `esaxx_fast` C++ training feature. Its build script hard-codes the static CRT and caused a reproduced LNK2038/LNK1319 mismatch with Whisper. Manna loads existing tokenizers rather than training them, so Windows retains the `onig` inference feature and the pure Rust trainer fallback. Non-Windows dependency features are unchanged. The resolved Windows feature tree confirms `esaxx-rs/cpp` is absent.
 
-The CMake runtime policy uses the DLL Microsoft runtime, matching the remaining native dependencies. `STATIC_VCRUNTIME=false` keeps Tauri from adding a conflicting static runtime. Required Microsoft runtime DLLs are copied from the build machine's redistributable directory into the installation. WebView2's bootstrapper is embedded; installation may still need internet if WebView2 is missing. See [Tauri's installer guide](https://v2.tauri.app/distribute/windows-installer/).
+The CMake runtime policy uses the DLL Microsoft runtime, matching the remaining native dependencies. `STATIC_VCRUNTIME=false` keeps Tauri from adding a conflicting static runtime. Packaging explicitly rebuilds `whisper-rs-sys`, because its build script does not track our external toolchain file and could otherwise reuse stale native flags. Required Microsoft runtime DLLs are copied from the build machine's redistributable directory into the installation. WebView2's bootstrapper is embedded; installation may still need internet if WebView2 is missing. See [Tauri's installer guide](https://v2.tauri.app/distribute/windows-installer/).
 
 ## Authenticated CI resources
 

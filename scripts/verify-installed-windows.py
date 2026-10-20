@@ -15,6 +15,12 @@ standard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(standard)
 
 
+def same_directory(resource, installed):
+    # Windows may report the same directory with a \\?\ extended path prefix.
+    # Compare file identity rather than path spelling.
+    return os.path.samefile(resource, installed)
+
+
 def signature(path):
     # Pass the path through the environment, never through PowerShell source text.
     env = dict(os.environ, MANNA_SIGNATURE_PATH=str(path))
@@ -64,10 +70,12 @@ def main():
     if not line:
         raise ValueError("Installed app did not return a verification report")
     report = json.loads(line.split("=", 1)[1])
+    args.report.parent.mkdir(parents=True, exist_ok=True)
+    args.report.with_name("windows-native-check.json").write_text(json.dumps(report, indent=2)+"\n", encoding="utf-8")
     if not report["passed"] or report["default_speech_provider"] != "whisper" or not report["speech"]["transcript"]:
         raise ValueError("Installed offline speech and detection check failed")
-    if Path(report["resources"]).resolve() != installed:
-        raise ValueError("Check did not use installed resources")
+    if not same_directory(report["resources"], installed):
+        raise ValueError(f"Check did not use installed resources: {report['resources']!r} != {str(installed)!r}")
     standard.validate(installed, manifest)
     if list(installed.rglob("*-wal")) or list(installed.rglob("*-shm")):
         raise ValueError("App wrote SQLite journals into resources")

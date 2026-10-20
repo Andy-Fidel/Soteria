@@ -6,6 +6,9 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
+      windows_installer_run:
+        description: Retest an existing internal unsigned installer from this run ID
+        type: string
       windows_speech_probe:
         description: Diagnose portable speech kernels only
         type: boolean
@@ -23,7 +26,7 @@ on:
 
 jobs:
   build:
-    if: ${{ !inputs.windows_standard && !inputs.windows_speech_probe }}
+    if: ${{ !inputs.windows_standard && !inputs.windows_speech_probe && !inputs.windows_installer_run }}
     strategy:
       fail-fast: false
       matrix:
@@ -255,6 +258,7 @@ jobs:
           Expand-Archive artifacts/source/windows-standard-sources.zip -DestinationPath artifacts/windows-sources
       - run: bun run download:ndi-sdk --platform windows
       - run: python -m unittest discover -s scripts -p test_standard_package.py
+      - run: python -m unittest discover -s scripts -p test_windows_verifier.py
       - run: bun run test:run
       - run: bun run lint
       - name: Build internal NSIS installer
@@ -284,6 +288,51 @@ jobs:
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
             artifacts/windows-installed-check.json
           if-no-files-found: error
+          retention-days: 14
+
+  windows-installed-check:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.windows_installer_run }}
+    runs-on: windows-2022
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest discover -s scripts -p test_windows_verifier.py
+      - name: Download existing internal installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INSTALLER_RUN: ${{ inputs.windows_installer_run }}
+        run: |
+          if ($env:INSTALLER_RUN -notmatch '^[0-9]+$') { throw 'Invalid installer run ID' }
+          gh run download $env:INSTALLER_RUN --repo $env:GITHUB_REPOSITORY --name manna-windows-internal-unsigned --dir artifacts/installer
+          if ($LASTEXITCODE -ne 0) { throw 'Installer download failed' }
+      - name: Generate local speech fixture
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -File scripts/generate-windows-speech.ps1 -OutputPath "$env:GITHUB_WORKSPACE/artifacts/speech.wav"
+          if ($LASTEXITCODE -ne 0) { throw 'Speech fixture generation failed' }
+          python -c "import wave,pathlib; w=wave.open('artifacts/speech.wav'); assert (w.getnchannels(),w.getsampwidth(),w.getframerate())==(1,2,16000); pathlib.Path('artifacts/speech.s16le').write_bytes(w.readframes(w.getnframes()))"
+      - name: Verify the exact installed EXE
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem artifacts/installer -Recurse -Filter *.exe | Select-Object -First 1
+          if (!$installer) { throw 'Installer missing' }
+          python scripts/verify-installed-windows.py $installer.FullName --speech-audio artifacts/speech.s16le --install-dir artifacts/installed/Manna --report artifacts/windows-installed-check.json
+          if ($LASTEXITCODE -ne 0) { throw 'Installed app checks failed' }
+      - name: Save installed verification reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installed-verification
+          path: |
+            artifacts/windows-installed-check.json
+            artifacts/windows-native-check.json
+          if-no-files-found: warn
           retention-days: 14
 
   windows-speech-probe:
