@@ -57,7 +57,7 @@ def main():
     environment = dict(os.environ, PATH=os.pathsep.join((str(installed), str(Path(os.environ["SystemRoot"]) / "System32"), os.environ["SystemRoot"])))
     started = time.perf_counter()
     with tempfile.TemporaryDirectory(prefix="manna-verify-") as temporary:
-        process = subprocess.run([str(executable), "--verify-package", "--verify-whisper-audio", str(args.speech_audio.resolve())], cwd=temporary, env=environment, capture_output=True, text=True, timeout=180)
+        process = subprocess.run([str(executable), "--verify-package", "--verify-whisper-audio", str(args.speech_audio.resolve())], cwd=temporary, env=environment, capture_output=True, text=True, encoding="utf-8", timeout=180)
     if process.returncode:
         raise RuntimeError(f"Installed app failed ({process.returncode}): {(process.stdout + process.stderr)[-8000:]}")
     line = next((line for line in process.stdout.splitlines() if line.startswith("MANNA_PACKAGE_CHECK=")), None)
