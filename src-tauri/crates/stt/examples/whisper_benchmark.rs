@@ -69,6 +69,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if threads < 1 {
         return Err("Thread count must be positive".into());
     }
+    eprintln!("CPU features: {}", whisper_rs::print_system_info());
     let started = Instant::now();
     let mut context_params = WhisperContextParameters::default();
     context_params.use_gpu(args[3] == "metal");
@@ -99,6 +100,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             params.set_no_speech_thold(0.4);
             params.set_suppress_blank(true);
             params.set_suppress_non_speech_tokens(true);
+            eprintln!(
+                "Starting {} chunk {}: {} samples, {} threads",
+                clip.label,
+                index,
+                chunk.len(),
+                threads
+            );
             let inference = Instant::now();
             state.full(params, &floats)?;
             let inference_ms = inference.elapsed().as_secs_f64() * 1000.0;
