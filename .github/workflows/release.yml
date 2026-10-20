@@ -6,6 +6,10 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
+      windows_speech_probe:
+        description: Diagnose portable speech kernels only
+        type: boolean
+        default: false
       windows_standard:
         description: Build and test the internal Windows offline package only
         type: boolean
@@ -19,7 +23,7 @@ on:
 
 jobs:
   build:
-    if: ${{ !inputs.windows_standard }}
+    if: ${{ !inputs.windows_standard && !inputs.windows_speech_probe }}
     strategy:
       fail-fast: false
       matrix:
@@ -278,4 +282,61 @@ jobs:
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
             artifacts/windows-installed-check.json
           if-no-files-found: error
+          retention-days: 14
+
+  windows-speech-probe:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.windows_speech_probe }}
+    runs-on: windows-2022
+    permissions:
+      contents: write # Read authenticated draft build-resource assets; never publish them.
+    env:
+      CMAKE_TOOLCHAIN_FILE: ${{ github.workspace }}/scripts/windows-cpu.cmake
+      CMAKE_POLICY_VERSION_MINIMUM: '3.5'
+      STATIC_VCRUNTIME: 'false'
+      MANNA_FLAVOR: standard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+          key: windows-offline-cpu-v1
+          cache-on-failure: true
+      - run: bun install --frozen-lockfile
+      - name: Download verified build resources
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESOURCE_RELEASE: ${{ inputs.resource_release }}
+          RESOURCE_SHA256: ${{ inputs.resource_sha256 }}
+        run: |
+          if ($env:RESOURCE_RELEASE -notmatch '^windows-build-resources-[a-zA-Z0-9.-]+$') { throw 'Invalid build resource release' }
+          if ($env:RESOURCE_SHA256 -notmatch '^[a-f0-9]{64}$') { throw 'Missing resource checksum' }
+          New-Item -ItemType Directory -Force artifacts/source | Out-Null
+          gh release download $env:RESOURCE_RELEASE --repo $env:GITHUB_REPOSITORY --pattern windows-standard-sources.zip --dir artifacts/source
+          if ($LASTEXITCODE -ne 0) { throw 'Build resource download failed' }
+          if ((Get-FileHash artifacts/source/windows-standard-sources.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:RESOURCE_SHA256) { throw 'Build resource checksum mismatch' }
+          Expand-Archive artifacts/source/windows-standard-sources.zip -DestinationPath artifacts/windows-sources
+      - name: Generate local speech fixture
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -File scripts/generate-windows-speech.ps1 -OutputPath "$env:GITHUB_WORKSPACE/artifacts/speech.wav"
+          if ($LASTEXITCODE -ne 0) { throw 'Speech fixture generation failed' }
+          python -c "import wave,pathlib; w=wave.open('artifacts/speech.wav'); assert (w.getnchannels(),w.getsampwidth(),w.getframerate())==(1,2,16000); pathlib.Path('artifacts/speech.s16le').write_bytes(w.readframes(w.getnframes()))"
+      - name: Measure scalar and SSE3 kernels
+        run: python scripts/probe-windows-speech.py
+      - name: Save speech diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-speech-diagnostics
+          path: artifacts/speech-probe/
+          if-no-files-found: warn
           retention-days: 14
