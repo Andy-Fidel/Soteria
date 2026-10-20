@@ -38,7 +38,11 @@ Physical microphone permission/capture, projector output, SmartScreen on a brows
 
 ## Run results
 
-Pending Windows runner completion. Do not infer success from local Mac tests.
+The first complete Windows build produced an unsigned NSIS installer. The Windows suite passed 395 native tests (8 ignored), 512 frontend tests and 10 packaging tests. Installed model loading passed, but transcription exceeded its 90-second limit. This candidate is not ready for distribution.
+
+Narrow tests with the same 5.24-second generated recording found that CMake had dropped native C/C++ optimization flags, despite Cargo reporting a release build. The Windows toolchain now explicitly restores `/O2 /Ob2 /DNDEBUG`. A new Windows diagnostic run checks the actual compiler flags before comparing portable, SSE3 and AVX2 kernels. AVX2 is a diagnostic control, not an installer requirement. Optimized installed-app results are pending.
+
+The publisher will be Derrick Tsorme personally. An individual code-signing certificate is required. [SSL.com IV](https://www.ssl.com/products/software-integrity/code-signing/iv/) supports personal names and cloud signing. Its advertised certificate price is $129/year, plus a separate signing subscription. Ghana-specific identity verification and the final subscription price must be confirmed before purchase. No account or purchase has been made.
 
 ## Operator check on a real laptop
 

@@ -258,6 +258,7 @@ jobs:
       - run: bun run test:run
       - run: bun run lint
       - name: Build internal NSIS installer
+        id: windows_installer
         run: bun run package:windows artifacts/windows-sources
       - name: Test native Windows code with local speech and inference
         run: cargo test --manifest-path src-tauri/Cargo.toml --workspace --release --target x86_64-pc-windows-msvc --no-default-features --features onnx,whisper,package-check --locked
@@ -275,6 +276,7 @@ jobs:
           python scripts/verify-installed-windows.py $installer.FullName --speech-audio artifacts/speech.s16le --install-dir artifacts/installed/Manna --report artifacts/windows-installed-check.json
           if ($LASTEXITCODE -ne 0) { throw 'Installed app checks failed' }
       - name: Save internal unsigned installer
+        if: ${{ always() && steps.windows_installer.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: manna-windows-internal-unsigned
