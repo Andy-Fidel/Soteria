@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/drawer"
 import { Button } from "@/components/ui/button"
 import { useSettingsStore } from "@/stores/settings-store"
-import { resolveBrandAsset } from "@/lib/brand"
+import { givingSlide } from "@/lib/giving-slide"
 import type { PlanItemPayload } from "@/types"
 import { WELCOME_SLIDE, WELCOME_MOTION_SLIDE } from "../(lib)/welcome-slide"
 import { JESUS_SLIDES } from "../(lib)/jesus-slides"
@@ -32,15 +32,35 @@ export function AddPlanSheet({ open, onOpenChange, adding, onAdd }: Props) {
     payload: PlanItemPayload
   }> = [
     { label: "Prayer", image: PRAYER_SLIDE.imageUrl!, payload: PRAYER_SLIDE },
-    ...IMAGE_TEXT_PRESETS.map((payload) => ({
-      label: payload.imageLabel!,
-      image: payload.imageUrl!,
-      payload,
-    })),
+    ...IMAGE_TEXT_PRESETS.map((original) => {
+      const payload =
+        original.textOverlay?.layout === "title" && !brand.legacyEwc
+          ? { ...original, textOverlay: { ...original.textOverlay, body: "" } }
+          : original
+      return {
+        label: payload.imageLabel!,
+        image: payload.imageUrl!,
+        payload,
+      }
+    }),
     {
-      label: "EWC Adenta — Welcome",
-      image: WELCOME_SLIDE.imageUrl!,
-      payload: WELCOME_SLIDE,
+      label: brand.legacyEwc ? "EWC Adenta — Welcome" : "Welcome",
+      image: brand.legacyEwc
+        ? WELCOME_SLIDE.imageUrl!
+        : "/service-slides/starburst-black.png",
+      payload: brand.legacyEwc
+        ? WELCOME_SLIDE
+        : {
+            type: "blank",
+            showLogo: false,
+            imageUrl: "/service-slides/starburst-black.png",
+            imageLabel: "Welcome",
+            textOverlay: {
+              layout: "announcement",
+              title: "Welcome",
+              body: brand.churchName ?? "",
+            },
+          },
     },
     {
       label: "Welcome — Motion",
@@ -48,8 +68,8 @@ export function AddPlanSheet({ open, onOpenChange, adding, onAdd }: Props) {
       payload: WELCOME_MOTION_SLIDE,
     },
     {
-      label: "MoMo",
-      image: resolveBrandAsset("momo", brand.momoImagePath),
+      label: "Giving",
+      image: givingSlide(brand).url,
       payload: { type: "momo" },
     },
     {

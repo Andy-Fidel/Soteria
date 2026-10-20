@@ -59,8 +59,8 @@ export const CanvasVerse = memo(function CanvasVerse({
   fullscreenImage = null,
   blankLogo = false,
   blankVideoUrl = null,
-  blankLogoLabel = "Adenta Campus",
-  blankLogoUrl = "/EWC-White.png",
+  blankLogoLabel = "Manna",
+  blankLogoUrl = "/manna-logo.png",
   className,
   onRenderResult,
 }: CanvasVerseProps) {

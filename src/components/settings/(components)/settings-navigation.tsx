@@ -76,7 +76,7 @@ export const navItems: {
     icon: <TvIcon strokeWidth={2} />,
   },
   {
-    name: "Branding",
+    name: "Church Profile",
     id: "branding",
     group: "Output",
     icon: <PaletteIcon strokeWidth={2} />,
@@ -126,7 +126,7 @@ export const sectionTitles: Record<NavSection, string> = {
   speech: "Speech Recognition",
   bible: "Bible Translation",
   display: "Display Mode",
-  branding: "Branding",
+  branding: "Church Profile",
   presentation: "Presentation",
   hymnals: "Hymnals",
   remote: "Remote Control",
