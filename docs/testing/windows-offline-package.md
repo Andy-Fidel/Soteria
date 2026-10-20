@@ -14,7 +14,9 @@ The native default now chooses Whisper for Whisper-enabled Windows and Mac build
 
 `scripts/windows-cpu.cmake` disables host-specific CPU tuning and AVX/AVX2/FMA/F16C, so Whisper does not assume those instructions exist on older low-cost processors. This conservative choice can reduce inference speed on newer CPUs. No CUDA, Vulkan or dedicated GPU is required. This does not establish a minimum CPU/RAM requirement; physical hardware measurements remain necessary.
 
-The CMake runtime policy uses the DLL Microsoft runtime, matching the other native dependencies. `STATIC_VCRUNTIME=false` keeps Tauri from adding a conflicting static runtime. Required Microsoft runtime DLLs are copied from the build machine's redistributable directory into the installation. WebView2's bootstrapper is embedded; installation may still need internet if WebView2 is missing. See [Tauri's installer guide](https://v2.tauri.app/distribute/windows-installer/).
+Windows disables tokenizers’ optional `esaxx_fast` C++ training feature. Its build script hard-codes the static CRT and caused a reproduced LNK2038/LNK1319 mismatch with Whisper. Manna loads existing tokenizers rather than training them, so Windows retains the `onig` inference feature and the pure Rust trainer fallback. Non-Windows dependency features are unchanged. The resolved Windows feature tree confirms `esaxx-rs/cpp` is absent.
+
+The CMake runtime policy uses the DLL Microsoft runtime, matching the remaining native dependencies. `STATIC_VCRUNTIME=false` keeps Tauri from adding a conflicting static runtime. Required Microsoft runtime DLLs are copied from the build machine's redistributable directory into the installation. WebView2's bootstrapper is embedded; installation may still need internet if WebView2 is missing. See [Tauri's installer guide](https://v2.tauri.app/distribute/windows-installer/).
 
 ## Authenticated CI resources
 
