@@ -25,6 +25,7 @@ import { useSharingDrafts } from "./session-detail/(hooks)/use-sharing-drafts"
 import { SharingTab } from "./session-detail/(tabs)/sharing-tab"
 import type { DetailTab } from "./session-detail/(lib)/types"
 import { SessionHeader } from "./session-detail/(components)/session-header"
+import { sessionStartedAtMs } from "./session-detail/(lib)/transcript-presentation"
 import { sessionSlideTitle } from "./session-detail/(lib)/session-slide-title"
 import { exportSummary } from "./session-detail/(lib)/summary-export"
 
@@ -227,8 +228,9 @@ function SessionDetailContent({
         )}
         {!loading && (tab === "public-recap" || tab === "sms") && (
           <SharingTab
-            key={tab}
+            key={`${tab}-${audioNonce}`}
             kind={tab}
+            startedAtMs={sessionStartedAtMs(session?.startedAt)}
             sharing={sharing}
             summary={summary}
             title={artworkTitle}

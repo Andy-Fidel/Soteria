@@ -140,7 +140,13 @@ export function SettingsDialog() {
             </Button>
           </header>
           <div className="flex flex-1 flex-col overflow-y-auto">
-            <div className="mx-auto w-full max-w-3xl p-8">
+            <div
+              className={
+                activeSection === "branding"
+                  ? "mx-auto min-h-full w-full max-w-5xl"
+                  : "mx-auto w-full max-w-3xl p-8"
+              }
+            >
               <ActiveContent />
             </div>
           </div>

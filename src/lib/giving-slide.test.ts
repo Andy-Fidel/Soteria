@@ -31,3 +31,19 @@ it("renders only the configured giving details and escapes markup", () => {
   expect(svg).not.toContain("<script>")
   expect(svg).not.toContain("024 006 8152")
 })
+
+it("restores the approved original for an existing EWC profile with empty giving fields", () => {
+  expect(givingSlide({ ...DEFAULT_CHURCH_PROFILE, legacyEwc: true }).url).toBe(
+    "/service-slides/momo.png"
+  )
+  expect(givingSlide({ ...DEFAULT_CHURCH_PROFILE, legacyEwc: false }).url).toBe(
+    "/service-slides/giving-placeholder.svg"
+  )
+  expect(
+    givingSlide({
+      ...DEFAULT_CHURCH_PROFILE,
+      legacyEwc: true,
+      givingNumber: "0123456789",
+    }).url
+  ).toContain("data:image/svg+xml")
+})

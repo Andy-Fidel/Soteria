@@ -18,7 +18,8 @@ export function givingSlide(
   brand: Pick<
     BrandConfig,
     "momoImagePath" | "givingProvider" | "givingNumber" | "givingAccountName"
-  >
+  > &
+    Pick<BrandConfig, "legacyEwc">
 ): ImageSlide {
   if (brand.momoImagePath)
     return {
@@ -26,7 +27,19 @@ export function givingSlide(
       label: "Giving",
     }
   const number = brand.givingNumber?.trim() ?? ""
-  if (!number) return { url: resolveBrandAsset("momo", null), label: "Giving" }
+  if (!number) {
+    // Preserve this installation's approved artwork until custom details exist.
+    const original =
+      brand.legacyEwc &&
+      !brand.givingProvider?.trim() &&
+      !brand.givingAccountName?.trim()
+    return {
+      url: original
+        ? "/service-slides/momo.png"
+        : resolveBrandAsset("momo", null),
+      label: "Giving",
+    }
+  }
   const provider = escape(
     (brand.givingProvider?.trim() || "Giving").toUpperCase()
   )

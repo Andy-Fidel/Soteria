@@ -4,6 +4,11 @@ import type { useSharingDrafts } from "../(hooks)/use-sharing-drafts"
 import { SharingTab } from "./sharing-tab"
 import { SessionHeader } from "../(components)/session-header"
 
+vi.mock("../(components)/sermon-audio-panel", () => ({
+  SermonAudioPanel: () => null,
+  AudioUploadProgress: () => null,
+}))
+
 vi.mock("../(components)/sms-send-action", () => ({
   SmsSendAction: () => <button>Send SMS</button>,
 }))
@@ -45,6 +50,7 @@ describe("separate sharing tabs", () => {
     const html = render("public-recap")
     expect(html).toContain('aria-label="Public Recap"')
     expect(html).toContain('aria-label="Sermon recap draft"')
+    expect(html).not.toContain('aria-label="Sermon audio"')
     expect(html).not.toContain('aria-label="SMS draft"')
     expect(html).not.toContain("Send SMS</button>")
   })

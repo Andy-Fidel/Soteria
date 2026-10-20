@@ -1,3 +1,8 @@
+import {
+  SermonAudioPanel,
+  AudioUploadProgress,
+} from "../(components)/sermon-audio-panel"
+import type { AudioPublicationState } from "../(lib)/sermon-audio"
 import { useState } from "react"
 import {
   CopyIcon,
@@ -11,12 +16,14 @@ import { Input } from "@/components/ui/input"
 import type { SermonSummary } from "@/lib/summarize"
 import { hasSermonContent } from "@/lib/summarize"
 import { formatSermonSms } from "../(lib)/publication"
-import { smsMetrics } from "../(lib)/sharing-drafts"
 import type { useSharingDrafts } from "../(hooks)/use-sharing-drafts"
 import { PublicationActions } from "../(components)/publication-actions"
 import { RecapEditor } from "../(components)/recap-editor"
 import { SmsAlternatives } from "../(components)/sms-alternatives"
-import { SmsSendAction } from "../(components)/sms-send-action"
+import { SmsDraftEditor } from "../(components)/sms-draft-editor"
+
+// Paused until sermon audio is ready to resume.
+const sermonAudioEnabled = false
 
 export function SharingTab({
   kind,
@@ -25,14 +32,19 @@ export function SharingTab({
   title,
   speaker,
   summarizing,
+  startedAtMs,
 }: {
   kind: "public-recap" | "sms"
   sharing: ReturnType<typeof useSharingDrafts>
   summary: SermonSummary | null
   title: string
   speaker?: string | null
+  startedAtMs?: number
   summarizing: boolean
 }) {
+  const [audioState, setAudioState] = useState<AudioPublicationState>({
+    mode: "excluded",
+  })
   const [copyState, setCopyState] = useState("")
   const { draft, operation, error, dirty } = sharing
   const busy = operation !== "idle"
@@ -41,7 +53,6 @@ export function SharingTab({
   const hasDraft = Boolean(isSms ? draft.sms : draft.title || draft.recap)
   const canGenerate = summary && hasSermonContent(summary) && !summarizing
   const formattedSms = formatSermonSms(draft.sms)
-  const metrics = smsMetrics(formattedSms)
   const words = draft.recap.trim() ? draft.recap.trim().split(/\s+/).length : 0
   const copy = async (kind: "recap" | "sms") => {
     try {
@@ -56,7 +67,7 @@ export function SharingTab({
   return (
     <div
       aria-label={label}
-      className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-5 px-5 py-7 sm:px-8 sm:py-9"
+      className={`mx-auto flex w-full ${!isSms && sermonAudioEnabled ? "max-w-6xl" : "max-w-3xl"} min-w-0 flex-col gap-5 px-5 py-7 sm:px-8 sm:py-9`}
     >
       <div>
         <h2 className="text-base font-semibold tracking-tight">{label}</h2>
@@ -125,46 +136,85 @@ export function SharingTab({
             </p>
           )}
           {!isSms && (
-            <section aria-label="Sermon recap draft" className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold">Sermon recap</h3>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={!draft.recap}
-                  onClick={() => void copy("recap")}
-                >
-                  <CopyIcon className="size-3" />
-                  Copy
-                </Button>
-              </div>
-              <label className="block space-y-1.5 text-xs font-medium">
-                Title
-                <Input
-                  value={draft.title}
+            <div
+              className={
+                sermonAudioEnabled
+                  ? "grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]"
+                  : "min-w-0"
+              }
+            >
+              <section
+                aria-label="Sermon recap draft"
+                className="min-w-0 space-y-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold">Sermon recap</h3>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={!draft.recap}
+                    onClick={() => void copy("recap")}
+                  >
+                    <CopyIcon className="size-3" />
+                    Copy
+                  </Button>
+                </div>
+                <label className="block space-y-1.5 text-xs font-medium">
+                  Title
+                  <Input
+                    value={draft.title}
+                    disabled={busy}
+                    maxLength={200}
+                    onChange={(event) =>
+                      sharing.update("title", event.target.value)
+                    }
+                    placeholder="Sermon title"
+                  />
+                </label>
+                <RecapEditor
+                  value={draft.recap}
                   disabled={busy}
-                  maxLength={200}
-                  onChange={(event) =>
-                    sharing.update("title", event.target.value)
-                  }
-                  placeholder="Sermon title"
+                  onChange={(value) => sharing.update("recap", value)}
                 />
-              </label>
-              <RecapEditor
-                value={draft.recap}
-                disabled={busy}
-                onChange={(value) => sharing.update("recap", value)}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                {words} words · Suggested length: 240–360
-              </p>
-              <PublicationActions
-                publication={sharing.publication}
-                disabled={busy || !draft.title.trim() || !draft.recap.trim()}
-                publishing={operation === "publishing"}
-                onPublish={() => void sharing.publish(title, speaker)}
-              />
-            </section>
+                <p className="text-[11px] text-muted-foreground">
+                  {words} words · Suggested length: 240–360
+                </p>
+                <PublicationActions
+                  publication={sharing.publication}
+                  disabled={
+                    busy ||
+                    (sermonAudioEnabled && audioState.mode === "busy") ||
+                    !draft.title.trim() ||
+                    !draft.recap.trim()
+                  }
+                  publishing={operation === "publishing"}
+                  onPublish={() =>
+                    void sharing.publish(
+                      title,
+                      speaker,
+                      sermonAudioEnabled && audioState.mode === "included",
+                      sermonAudioEnabled && audioState.mode === "included"
+                        ? audioState.revision
+                        : undefined
+                    )
+                  }
+                />
+              </section>
+              {sermonAudioEnabled && (
+                <aside aria-label="Sermon audio" className="min-w-0 space-y-3">
+                  <SermonAudioPanel
+                    sessionId={sharing.sessionId}
+                    startedAtMs={startedAtMs}
+                    disabled={busy}
+                    onChange={setAudioState}
+                  />
+                  {operation === "publishing" &&
+                    audioState.mode === "included" && (
+                      <AudioUploadProgress sessionId={sharing.sessionId} />
+                    )}
+                </aside>
+              )}
+            </div>
           )}
           {isSms && (
             <SmsAlternatives
@@ -175,60 +225,11 @@ export function SharingTab({
             />
           )}
           {isSms && (
-            <section aria-label="SMS draft" className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold">SMS</h3>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={!draft.sms}
-                  onClick={() => void copy("sms")}
-                >
-                  <CopyIcon className="size-3" />
-                  Copy
-                </Button>
-              </div>
-              <label className="block space-y-1.5 text-xs font-medium">
-                Message
-                <textarea
-                  value={draft.sms}
-                  onBlur={() => {
-                    if (draft.sms !== formattedSms)
-                      sharing.update("sms", formattedSms)
-                  }}
-                  disabled={busy}
-                  maxLength={2000}
-                  onChange={(event) =>
-                    sharing.update("sms", event.target.value)
-                  }
-                  placeholder="One takeaway to carry into the week…"
-                  className="min-h-28 w-full resize-y rounded-md border border-input bg-background p-3 text-sm leading-relaxed disabled:opacity-60"
-                />
-              </label>
-              <p
-                role="status"
-                className={`text-xs ${metrics.segments > 1 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}
-              >
-                {metrics.units}/{metrics.limit} · {metrics.segments} SMS{" "}
-                {metrics.segments === 1 ? "part" : "parts"} · {metrics.encoding}
-              </p>
-              {metrics.encoding === "Unicode" && (
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  This text uses Unicode. One SMS holds 70 units; emoji can use
-                  two units each.
-                </p>
-              )}
-              {metrics.segments > 1 && (
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Shorten this message to keep it in one SMS.
-                </p>
-              )}
-              <SmsSendAction
-                sessionId={sharing.sessionId}
-                message={formattedSms}
-                disabled={busy || !draft.sms.trim()}
-              />
-            </section>
+            <SmsDraftEditor
+              sharing={sharing}
+              busy={busy}
+              onCopy={() => void copy("sms")}
+            />
           )}
           <p role="status" className="text-xs text-muted-foreground">
             {dirty

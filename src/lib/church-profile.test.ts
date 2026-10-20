@@ -43,3 +43,38 @@ it("does not restore bundled payment details after the user clears them", () => 
     loadChurchProfile({ ...profile, givingNumber: "" }, true).givingNumber
   ).toBe("")
 })
+
+it("retains profile defaults across reloads without changing saved assets", () => {
+  const value = {
+    ...DEFAULT_CHURCH_PROFILE,
+    campusName: "Adentan",
+    defaultSpeakerName: "Pastor Jane",
+    welcomeTitle: "Welcome home",
+    welcomeMessage: "Sunday service",
+  }
+  expect(loadChurchProfile(value, true)).toMatchObject(value)
+  expect(
+    loadChurchProfile({ ...value, defaultSpeakerName: 123 }, true)
+      .defaultSpeakerName
+  ).toBeNull()
+})
+
+it("reloads valid slide presets and ignores malformed entries", () => {
+  const good = {
+    imageUrl: "data:image/jpeg;base64,abc",
+    title: "Welcome",
+    body: "Sunday",
+  }
+  const profile = loadChurchProfile(
+    {
+      ...DEFAULT_CHURCH_PROFILE,
+      slidePresets: {
+        welcome: good,
+        title: { ...good, imageUrl: "https://untrusted.example/image" },
+        closing: { ...good, title: 123 },
+      },
+    },
+    true
+  )
+  expect(profile.slidePresets).toEqual({ welcome: good })
+})

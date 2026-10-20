@@ -1,6 +1,10 @@
 import { CLOSING_SLIDE } from "../(lib)/closing-slide"
 import { PRAYER_SLIDE } from "../(lib)/prayer-slide"
-import { IMAGE_TEXT_PRESETS } from "../(lib)/image-text-slide"
+import {
+  applyProfilePreset,
+  profileTitlePresets,
+  profileWelcomeSlide,
+} from "../(lib)/profile-slide-presets"
 import { XIcon } from "lucide-react"
 import {
   Drawer,
@@ -12,9 +16,10 @@ import {
 } from "@/components/ui/drawer"
 import { Button } from "@/components/ui/button"
 import { useSettingsStore } from "@/stores/settings-store"
+import { resolveBrandAsset } from "@/lib/brand"
 import { givingSlide } from "@/lib/giving-slide"
 import type { PlanItemPayload } from "@/types"
-import { WELCOME_SLIDE, WELCOME_MOTION_SLIDE } from "../(lib)/welcome-slide"
+import { WELCOME_MOTION_SLIDE } from "../(lib)/welcome-slide"
 import { JESUS_SLIDES } from "../(lib)/jesus-slides"
 
 interface Props {
@@ -32,36 +37,12 @@ export function AddPlanSheet({ open, onOpenChange, adding, onAdd }: Props) {
     payload: PlanItemPayload
   }> = [
     { label: "Prayer", image: PRAYER_SLIDE.imageUrl!, payload: PRAYER_SLIDE },
-    ...IMAGE_TEXT_PRESETS.map((original) => {
-      const payload =
-        original.textOverlay?.layout === "title" && !brand.legacyEwc
-          ? { ...original, textOverlay: { ...original.textOverlay, body: "" } }
-          : original
-      return {
-        label: payload.imageLabel!,
-        image: payload.imageUrl!,
-        payload,
-      }
-    }),
-    {
-      label: brand.legacyEwc ? "EWC Adenta — Welcome" : "Welcome",
-      image: brand.legacyEwc
-        ? WELCOME_SLIDE.imageUrl!
-        : "/service-slides/starburst-black.png",
-      payload: brand.legacyEwc
-        ? WELCOME_SLIDE
-        : {
-            type: "blank",
-            showLogo: false,
-            imageUrl: "/service-slides/starburst-black.png",
-            imageLabel: "Welcome",
-            textOverlay: {
-              layout: "announcement",
-              title: "Welcome",
-              body: brand.churchName ?? "",
-            },
-          },
-    },
+    ...profileTitlePresets(brand).map((payload) => ({
+      label: payload.imageLabel!,
+      image: payload.imageUrl!,
+      payload,
+    })),
+    profileWelcomeSlide(brand),
     {
       label: "Welcome — Motion",
       image: WELCOME_MOTION_SLIDE.imageUrl!,
@@ -74,14 +55,25 @@ export function AddPlanSheet({ open, onOpenChange, adding, onAdd }: Props) {
     },
     {
       label: "Thank You — Closing",
-      image: CLOSING_SLIDE.imageUrl!,
-      payload: CLOSING_SLIDE,
+      image: applyProfilePreset(brand, "closing", CLOSING_SLIDE).imageUrl!,
+      payload: applyProfilePreset(brand, "closing", CLOSING_SLIDE),
     },
-    ...JESUS_SLIDES.map((payload) => ({
-      label: payload.imageLabel!,
-      image: payload.imageUrl!,
-      payload,
-    })),
+    ...JESUS_SLIDES.map((original, index) => {
+      const payload =
+        index === 0
+          ? applyProfilePreset(brand, "jesus", {
+              ...original,
+              ...(brand.jesusImagePath
+                ? { imageUrl: resolveBrandAsset("jesus", brand.jesusImagePath) }
+                : {}),
+            })
+          : original
+      return {
+        label: payload.imageLabel!,
+        image: payload.imageUrl!,
+        payload,
+      }
+    }),
   ]
 
   return (

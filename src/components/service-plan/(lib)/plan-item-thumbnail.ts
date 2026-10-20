@@ -8,6 +8,7 @@ export function getPlanItemThumbnail(
   item: PlanItem,
   brand: Pick<
     BrandConfig,
+    | "legacyEwc"
     | "momoImagePath"
     | "jesusImagePath"
     | "givingProvider"

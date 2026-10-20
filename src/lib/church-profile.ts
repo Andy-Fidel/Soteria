@@ -1,7 +1,64 @@
+export type SlidePresetId =
+  | "welcome"
+  | "title"
+  | "announcement"
+  | "jesus"
+  | "closing"
+export interface SlidePresetDefault {
+  imageUrl: string
+  title: string
+  body: string
+}
+export type SlidePresetDefaults = Partial<
+  Record<SlidePresetId, SlidePresetDefault>
+>
+
+function loadSlidePresets(value: unknown): SlidePresetDefaults {
+  if (!value || typeof value !== "object") return {}
+  const result: SlidePresetDefaults = {}
+  for (const id of [
+    "welcome",
+    "title",
+    "announcement",
+    "jesus",
+    "closing",
+  ] as const) {
+    const preset = (value as Record<string, unknown>)[id]
+    if (!preset || typeof preset !== "object") continue
+    const entry = preset as Record<string, unknown>
+    if (
+      typeof entry.imageUrl !== "string" ||
+      entry.imageUrl.length > 3_000_000 ||
+      !/^(data:image\/(png|jpeg|webp);base64,|\/service-slides\/)/.test(
+        entry.imageUrl
+      )
+    )
+      continue
+    if (
+      typeof entry.title !== "string" ||
+      entry.title.length > 200 ||
+      typeof entry.body !== "string" ||
+      entry.body.length > 600
+    )
+      continue
+    result[id] = {
+      imageUrl: entry.imageUrl,
+      title: entry.title,
+      body: entry.body,
+    }
+  }
+  return result
+}
+
 export interface BrandConfig {
+  slidePresets?: SlidePresetDefaults
   profileVersion?: number
   legacyEwc?: boolean
   churchName: string | null
+  campusName?: string | null
+  defaultSpeakerName?: string | null
+  welcomeTitle?: string | null
+  welcomeMessage?: string | null
   logoPath: string | null
   blankImagePath: string | null
   blankVideoPath?: string | null
@@ -40,8 +97,13 @@ export function loadChurchProfile(
     typeof saved?.[key] === "string" ? (saved[key] as string) : null
   return {
     ...DEFAULT_CHURCH_PROFILE,
+    slidePresets: loadSlidePresets(saved?.slidePresets),
     legacyEwc: legacy || saved?.legacyEwc === true,
     churchName: string("churchName"),
+    campusName: string("campusName"),
+    defaultSpeakerName: string("defaultSpeakerName"),
+    welcomeTitle: string("welcomeTitle"),
+    welcomeMessage: string("welcomeMessage"),
     logoPath: string("logoPath"),
     blankImagePath:
       string("blankImagePath") || (legacy ? "/EWC-White.png" : null),

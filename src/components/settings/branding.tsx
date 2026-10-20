@@ -1,177 +1,132 @@
 import { useState } from "react"
-import { toast } from "sonner"
+import {
+  ChurchIcon,
+  UsersIcon,
+  PanelsTopLeftIcon,
+  MonitorIcon,
+  HeartHandshakeIcon,
+  SendIcon,
+  MusicIcon,
+  ArrowUpRightIcon,
+} from "lucide-react"
+import { ChurchProfileFields } from "./(components)/church-profile-fields"
+import { ChurchProfileAssets } from "./(components)/church-profile-assets"
 import { GivingDetails } from "./(components)/giving-details"
 import { BlankBackgroundSettings } from "./blank-background"
-import { useBroadcastStore } from "@/stores/broadcast-store"
-import { invoke } from "@tauri-apps/api/core"
-import { open as openDialog } from "@tauri-apps/plugin-dialog"
-import { useSettingsStore } from "@/stores"
-import { persistBrandConfig } from "@/stores/settings-store"
-import {
-  resolveBlankBackground,
-  resolveBrandAsset,
-  type BrandAssetKind,
-} from "@/lib/brand"
-import { Input } from "@/components/ui/input"
+import { HighlightSettingsSection } from "./highlight-settings"
+import { DisplayModeSection } from "./(tabs)/display-mode-tab"
+import { HymnalsSection } from "./(tabs)/hymnals-tab"
+import { SlidePresets } from "./(components)/slide-presets"
+import { ChurchMessaging } from "./(components)/church-messaging"
 import { Button } from "@/components/ui/button"
+import { openSettings } from "@/lib/settings-dialog"
 
-const IMAGE_EXTS = [
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "webp",
-  "bmp",
-  "tif",
-  "tiff",
-  "avif",
-  "heic",
-  "heif",
-  "svg",
-  "ico",
-  "jfif",
-  "apng",
-]
-
-const ASSET_ROWS: {
-  kind: BrandAssetKind
-  label: string
-  field: "logoPath" | "blankImagePath" | "momoImagePath" | "jesusImagePath"
-}[] = [
-  { kind: "logo", label: "App logo (sessions screen)", field: "logoPath" },
-  {
-    kind: "blank",
-    label: "Blank-slide image (projector)",
-    field: "blankImagePath",
-  },
-  { kind: "momo", label: "Custom giving slide image", field: "momoImagePath" },
-  { kind: "jesus", label: "Jesus slide image", field: "jesusImagePath" },
-]
-
+const sections = [
+  { id: "identity", label: "Identity & branding", icon: ChurchIcon },
+  { id: "speakers", label: "Speakers", icon: UsersIcon },
+  { id: "slides", label: "Slide presets", icon: PanelsTopLeftIcon },
+  { id: "presentation", label: "Presentation defaults", icon: MonitorIcon },
+  { id: "giving", label: "Giving", icon: HeartHandshakeIcon },
+  { id: "publishing", label: "Publishing & messaging", icon: SendIcon },
+  { id: "worship", label: "Worship collections", icon: MusicIcon },
+] as const
 export function BrandingSection() {
-  const brand = useSettingsStore((s) => s.brand)
-  const [churchName, setChurchName] = useState(brand.churchName ?? "")
-  const [savingName, setSavingName] = useState(false)
-  const saveName = async () => {
-    setSavingName(true)
-    const saved = await persistBrandConfig({
-      churchName: churchName.trim() || null,
-    })
-    setSavingName(false)
-    if (!saved) {
-      toast.error("Could not save church name. Try again.")
-      return
-    }
-    setChurchName(churchName.trim())
-    toast.success("Church name saved.")
-  }
-
-  const pickAsset = async (
-    kind: BrandAssetKind,
-    field: (typeof ASSET_ROWS)[number]["field"]
-  ) => {
-    const file = await openDialog({
-      directory: false,
-      multiple: false,
-      filters: [{ name: "Images", extensions: IMAGE_EXTS }],
-    })
-    if (typeof file !== "string") return
-    try {
-      const stored = await invoke<string>("save_brand_asset", {
-        kind,
-        srcPath: file,
-      })
-      if (!(await persistBrandConfig({ [field]: stored })))
-        throw new Error("The selected image could not be saved.")
-      useBroadcastStore.getState().syncBroadcastOutput()
-    } catch (e) {
-      toast.error(`Could not save image: ${String(e)}`)
-    }
-  }
-
-  const resetAsset = async (
-    kind: BrandAssetKind,
-    field: (typeof ASSET_ROWS)[number]["field"]
-  ) => {
-    if (!(await persistBrandConfig({ [field]: null }))) {
-      toast.error("Could not reset image. Try again.")
-      return
-    }
-    try {
-      await invoke("delete_brand_asset", { kind })
-    } catch {
-      // The settings no longer reference the file; cleanup can be retried later.
-    }
-    useBroadcastStore.getState().syncBroadcastOutput()
-  }
-
+  const [active, setActive] =
+    useState<(typeof sections)[number]["id"]>("identity")
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium">Church name</label>
-        <Input
-          value={churchName}
-          placeholder="Manna"
-          maxLength={120}
-          disabled={savingName}
-          onChange={(e) => setChurchName(e.target.value)}
-        />
-        <p className="text-[10px] text-muted-foreground">
-          Shown on the landing screen and window title. Blank uses the default.
-        </p>
-      </div>
-
-      <Button
-        size="sm"
-        className="self-start"
-        disabled={savingName || churchName === (brand.churchName ?? "")}
-        onClick={() => void saveName()}
+    <div className="grid min-h-full grid-cols-[160px_minmax(0,1fr)] lg:grid-cols-[200px_minmax(0,1fr)]">
+      <nav
+        aria-label="Church profile sections"
+        className="sticky top-0 flex h-fit flex-col gap-1 self-start px-3 py-6"
       >
-        {savingName ? "Saving…" : "Save church name"}
-      </Button>
-      <section className="space-y-4 border-t pt-5">
-        <h3 className="text-sm font-semibold">Branding and backgrounds</h3>
-        <BlankBackgroundSettings />
-      </section>
-
-      {ASSET_ROWS.filter(
-        (row) => row.kind !== "blank" || !resolveBlankBackground(brand).videoUrl
-      ).map(({ kind, label, field }) => (
-        <div key={kind} className="flex items-center gap-3">
-          <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded border border-border bg-black/40">
-            <img
-              src={resolveBrandAsset(kind, brand[field])}
-              alt={label}
-              className="max-h-full max-w-full object-contain"
+        {sections.map(({ id, label, icon: Icon }) => (
+          <Button
+            key={id}
+            size="sm"
+            variant={active === id ? "secondary" : "ghost"}
+            aria-current={active === id ? "page" : undefined}
+            onClick={() => setActive(id)}
+            className="h-auto min-h-9 w-full justify-start gap-2 px-2.5 py-2 text-left text-xs whitespace-normal"
+          >
+            <Icon className="size-3.5 shrink-0" />
+            {label}
+          </Button>
+        ))}
+      </nav>
+      <section
+        key={active}
+        aria-label={sections.find((s) => s.id === active)!.label}
+        className="min-w-0 space-y-6 border-l p-6 lg:p-8"
+      >
+        <h3 className="text-sm font-semibold">
+          {sections.find((s) => s.id === active)!.label}
+        </h3>
+        {active === "identity" && (
+          <>
+            <ChurchProfileFields
+              fields={[
+                {
+                  key: "churchName",
+                  label: "Church name",
+                  placeholder: "Your church",
+                },
+                { key: "campusName", label: "Campus", placeholder: "Optional" },
+              ]}
             />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium">{label}</div>
-            <div className="truncate text-[10px] text-muted-foreground">
-              {brand[field] ? brand[field] : "Using default artwork"}
+            <ChurchProfileAssets kinds={["logo"]} />
+          </>
+        )}
+        {active === "speakers" && (
+          <>
+            <ChurchProfileFields
+              fields={[
+                {
+                  key: "defaultSpeakerName",
+                  label: "Default speaker",
+                  placeholder: "Speaker name",
+                },
+              ]}
+            />
+            <p className="text-xs text-muted-foreground">
+              Used on new title slides. You can change the speaker on each
+              slide.
+            </p>
+          </>
+        )}
+        {active === "slides" && <SlidePresets />}
+        {active === "presentation" && (
+          <>
+            <BlankBackgroundSettings />
+            <ChurchProfileAssets kinds={["blank"]} />
+            <div className="border-t pt-5">
+              <HighlightSettingsSection />
             </div>
-          </div>
-          <div className="flex shrink-0 gap-2">
+            <div className="border-t pt-5">
+              <DisplayModeSection />
+            </div>
+          </>
+        )}
+        {active === "giving" && (
+          <>
+            <GivingDetails />
+            <ChurchProfileAssets kinds={["momo"]} />
+          </>
+        )}
+        {active === "publishing" && (
+          <>
+            <ChurchMessaging />
             <Button
               size="sm"
               variant="outline"
-              onClick={() => void pickAsset(kind, field)}
+              onClick={() => openSettings("api-keys")}
             >
-              Change
+              Manage API keys
+              <ArrowUpRightIcon className="size-3.5" />
             </Button>
-            {brand[field] && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => void resetAsset(kind, field)}
-              >
-                Reset
-              </Button>
-            )}
-          </div>
-        </div>
-      ))}
-      <GivingDetails />
+          </>
+        )}
+        {active === "worship" && <HymnalsSection />}
+      </section>
     </div>
   )
 }

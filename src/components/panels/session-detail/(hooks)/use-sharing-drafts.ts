@@ -179,7 +179,12 @@ export function useSharingDrafts(sessionId: number) {
       setOperation("idle")
     }
   }
-  const publish = async (title: string, speaker?: string | null) => {
+  const publish = async (
+    title: string,
+    speaker?: string | null,
+    includeAudio = false,
+    audioRevision?: string
+  ) => {
     if (operation !== "idle") return
     setOperation("publishing")
     setError(null)
@@ -202,6 +207,8 @@ export function useSharingDrafts(sessionId: number) {
       published = await invoke<SessionPublication>("publish_session_recap", {
         sessionId,
         artwork: `data:image/jpeg;base64,${encoded}`,
+        includeAudio,
+        audioRevision: audioRevision ?? null,
       })
       setPublication(published)
     } catch (reason) {

@@ -34,6 +34,8 @@ pub async fn publish_session_recap(
     db: State<'_, Mutex<SessionDb>>,
     session_id: i64,
     artwork: String,
+    include_audio: Option<bool>,
+    audio_revision: Option<String>,
 ) -> Result<SessionPublication, String> {
     if artwork.len() > 1_500_000 || !artwork.starts_with("data:image/jpeg;base64,") {
         return Err("The title artwork is too large or invalid.".into());
@@ -52,7 +54,7 @@ pub async fn publish_session_recap(
         return Err("Website publishing settings are invalid.".into());
     }
     // Release the shared database lock before rendering or making network requests.
-    let (session, draft, publication) = {
+    let (session, draft, publication, audio) = {
         let db = db.lock().map_err(|e| e.to_string())?;
         let session = db.get_session(session_id).map_err(|e| e.to_string())?;
         let draft = db
@@ -66,9 +68,18 @@ pub async fn publish_session_recap(
         let publication = db
             .ensure_publication(session_id, &candidate[..16])
             .map_err(|e| e.to_string())?;
-        (session, draft, publication)
+        let audio = if include_audio.unwrap_or(false) {
+            let (path, prepared)=super::sermon_audio::reviewed_source(&db,session_id)?;
+            if audio_revision.as_deref()!=Some(prepared.revision.as_str()) {return Err("The prepared audio changed. Review it again before publishing.".into());}
+            Some((path,prepared))
+        } else { None };
+        (session, draft, publication, audio)
     };
-    let body = serde_json::json!({"id":publication.id,"title":draft.title,"recap":draft.recap,"speaker":session.speaker,"date":session.date,"artwork":artwork});
+    let audio = if let Some((path, prepared)) = audio {
+        Some(super::sermon_audio::upload::upload(&app,session_id,&publication.id,SITE,&config.key,&path,&prepared).await?)
+    } else { None };
+    let mut body = serde_json::json!({"id":publication.id,"title":draft.title,"recap":draft.recap,"speaker":session.speaker,"date":session.date,"artwork":artwork});
+    if let Some(audio)=audio { body["audio"]=serde_json::to_value(audio).map_err(|e|e.to_string())?; }
     let response = reqwest::Client::builder()
         .timeout(Duration::from_secs(45))
         .build()

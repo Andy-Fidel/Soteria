@@ -259,6 +259,7 @@ pub fn run() {
         .manage(Mutex::new(commands::remote::OscRuntime::new()))
         .manage(Mutex::new(commands::remote::HttpRuntime::new()))
         .manage(commands::sms::SmsRuntime::default())
+        .manage(commands::sermon_audio::AudioEditRuntime::default())
         .manage(Mutex::new({
             let app_data = dirs::data_dir()
                 .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -327,6 +328,10 @@ pub fn run() {
             commands::publishing::get_session_publication,
             commands::publishing::publish_session_recap,
             commands::publishing::generate_linked_sms,
+            commands::sermon_audio::get_sermon_audio,
+            commands::sermon_audio::suggest_sermon_audio,
+            commands::sermon_audio::prepare_sermon_audio,
+            commands::sermon_audio::read_prepared_sermon_audio,
             commands::sms::get_comms360_settings,
             commands::sms::save_comms360_settings,
             commands::sms::get_test_sms_batch,
