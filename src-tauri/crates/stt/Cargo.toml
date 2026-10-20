@@ -34,3 +34,7 @@ whisper-rs = { version = "0.13", optional = true }
 default = ["rest-fallback"]
 rest-fallback = ["reqwest"]
 whisper = ["dep:whisper-rs", "rhema-audio"]
+
+[[example]]
+name = "whisper_benchmark"
+required-features = ["whisper"]

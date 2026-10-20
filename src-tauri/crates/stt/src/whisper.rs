@@ -4,7 +4,7 @@
 //! then runs Whisper inference on each speech segment. Emits the same
 //! [`TranscriptEvent`] types as the Deepgram provider.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -23,6 +23,14 @@ const MAX_BUFFER_SAMPLES: usize = 16_000 * 10;
 /// Minimum audio buffer for inference (1.0 seconds).
 /// Whisper warns "input is too short" below 1s.
 const MIN_BUFFER_SAMPLES: usize = 16_000;
+
+/// Verify that the local model can create a usable inference state.
+pub fn validate_model(path: &Path) -> Result<(), SttError> {
+    let context = WhisperContext::new_with_params(&path.to_string_lossy(), WhisperContextParameters::default())
+        .map_err(|e| SttError::ModelNotFound(format!("Could not load offline speech: {e}")))?;
+    context.create_state().map_err(|e| SttError::ModelNotFound(format!("Could not prepare offline speech: {e}")))?;
+    Ok(())
+}
 
 /// Convert i16 PCM samples to f32 in [-1.0, 1.0] range.
 fn i16_to_f32(samples: &[i16]) -> Vec<f32> {
@@ -199,8 +207,6 @@ impl SttProvider for WhisperProvider {
             )));
         }
 
-        let _ = event_tx.send(TranscriptEvent::Connected).await;
-
         let model_path = self.model_path.clone();
         let language = self.language.clone();
         let n_threads = self.n_threads;
@@ -305,6 +311,7 @@ impl SttProvider for WhisperProvider {
             };
 
             log::info!("[Whisper] Model loaded, ready for inference");
+            let _ = inf_event_tx.blocking_send(TranscriptEvent::Connected);
 
             while let Some(audio_i16) = inference_rx.blocking_recv() {
                 if inf_cancelled.load(Ordering::SeqCst) {

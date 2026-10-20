@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { load, type Store } from "@tauri-apps/plugin-store"
 import { emit } from "@tauri-apps/api/event"
+import { invoke } from "@tauri-apps/api/core"
 import {
   type CalibrationInsets,
   IDENTITY_INSETS,
@@ -21,6 +22,7 @@ export type { BrandConfig } from "@/lib/church-profile"
 const DEFAULT_BRAND = DEFAULT_CHURCH_PROFILE
 
 interface SettingsState {
+  settingsHydrated: boolean
   deepgramApiKey: string | null
   assemblyAiApiKey: string | null
   claudeApiKey: string | null
@@ -73,6 +75,7 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
+  settingsHydrated: false,
   deepgramApiKey: null,
   assemblyAiApiKey: null,
   claudeApiKey: null,
@@ -202,6 +205,13 @@ export async function hydrateSettings(): Promise<void> {
     if (braveApiKey) s.setBraveApiKey(braveApiKey)
     if (localImageFolder) s.setLocalImageFolder(localImageFolder)
     if (sttProvider) s.setSttProvider(sttProvider)
+    else if (!onboardingComplete && !deepgramApiKey && !assemblyAiApiKey) {
+      const provider = await invoke<SttProvider>("get_default_stt_provider")
+        .catch(() => "deepgram" as const)
+      s.setSttProvider(provider)
+      await store.set("sttProvider", provider)
+      await store.save()
+    }
     if (onboardingComplete) s.setOnboardingComplete(true)
     if (gain != null) s.setGain(gain)
     if (audioDeviceId) s.setAudioDeviceId(audioDeviceId)
@@ -243,6 +253,8 @@ export async function hydrateSettings(): Promise<void> {
       s.setDefaultHighlightColor(normalizeHighlightColor(defaultHighlightColor))
   } catch {
     console.warn("[settings] Failed to load persisted settings, using defaults")
+  } finally {
+    useSettingsStore.setState({ settingsHydrated: true })
   }
 }
 
@@ -252,6 +264,7 @@ export async function persistOnboardingComplete(): Promise<void> {
   try {
     const store = await getStore()
     await store.set("onboardingComplete", true)
+    await store.save()
   } catch {
     console.warn("[settings] Failed to persist onboarding state")
   }

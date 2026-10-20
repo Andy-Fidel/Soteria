@@ -2,6 +2,8 @@
 
 Research date: 20 October 2026. Scope: direct downloads for macOS and Windows, using the existing Tauri 2 application. This is a release proposal, not a completed installer test. No application code, release settings, tags, or signing keys were changed.
 
+Follow-up on 20 October: the standard package and internal DMG were completed, followed by a Developer ID signed and notarized Apple Silicon Manna candidate. Both the app and DMG passed Gatekeeper and stapled-ticket checks; installed detection passed for KJV, NIV, and NLT. See [signed Mac package verification](../testing/signed-mac-package.md). The findings below describe the initial research state; Windows, updater delivery, and clean-machine/hardware checks remain separate work.
+
 ## Recommended first release
 
 Ship one standard edition with the measured MiniLM local scripture detector. Keep the model, tokenizer, KJV vectors, and compatible NIV/NLT vectors together with their matching Bible database, subject to distribution permissions. Use cloud speech recognition initially. Local scripture matching does not make cloud transcription or AI summaries work offline.
@@ -151,3 +153,7 @@ Record each tested OS/CPU/RAM, exact artifact checksum, install mode, and result
 First fix the standard resource pack and Windows ONNX feature selection. Then build an internal Mac DMG that proves packaged detection works without the checkout. Add Mac signing/notarization and upgrade support, followed by the Windows installer and signing. Complete the clean-machine checks before publishing broadly. Intel Mac, optional local Whisper, additional model packs, MSI, Linux, and delta updates can follow separately.
 
 The immediate next task is release preparation for the standard MiniLM package. Signing accounts and content permissions can be checked alongside it. No public release or certificate purchase is authorized by this research alone.
+
+## Offline Mac candidate follow-up
+
+The signed and notarized `0.1.0-rc3` Apple Silicon candidate now includes Small English Q8, chooses Whisper for fresh installs, preserves saved speech choices, and shows a brief first-launch guide. Installed offline speech and KJV/NIV/NLT detection checks passed without paid API calls. See [the RC3 verification record](../testing/offline-mac-rc3.md) for the final artifact checksum, Apple receipts, automated coverage, and remaining hardware checks. This candidate is not a Windows or Intel Mac release.

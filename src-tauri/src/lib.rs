@@ -320,6 +320,8 @@ pub fn run() {
             commands::audio::record_audio_clip,
             commands::stt::start_transcription,
             commands::stt::prepare_stt_connection,
+            commands::stt::local::get_default_stt_provider,
+            commands::stt::local::prepare_local_speech,
             commands::stt::stop_transcription,
             commands::stt::get_stt_status,
             commands::stt::set_recording_paused,

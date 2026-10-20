@@ -2,6 +2,8 @@
 
 Verified on 20 October 2026 on the local Apple Silicon Mac. This is an internal build, not a public release. Developer ID signing, notarization, Windows packaging, physical microphone testing, and testing on another Mac remain separate steps.
 
+Follow-up: the separate Developer ID signed and notarized Apple Silicon candidate has now passed installer and installed-detection checks. See [signed Mac package verification](signed-mac-package.md). This page preserves the original ad-hoc internal build results.
+
 ## Build result
 
 - Installer: `src-tauri/target/release/bundle/dmg/Manna Internal_0.1.0-rc2_aarch64.dmg`

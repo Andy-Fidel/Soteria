@@ -71,6 +71,8 @@ def prepare(source, destination, lock):
             else:
                 shutil.copyfile(source / relative, target)
         manifest = dict(version=1, model="MiniLM-L6-v2", dimension=384, translations=counts, files={relative: digest(stage / relative) for relative in lock["files"]})
+        if "speech" in lock:
+            manifest["speech"] = lock["speech"]
         (stage / "standard-package.json").write_text(json.dumps(manifest, indent=2) + "\n")
         validate(stage, manifest)
         if destination.exists():
@@ -83,7 +85,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=ROOT)
     parser.add_argument("--destination", type=Path, default=ROOT / "build-resources/standard")
+    parser.add_argument("--with-whisper-mac", action="store_true")
     args = parser.parse_args()
     lock = json.loads((ROOT / "data/standard-package.lock.json").read_text())
+    if args.with_whisper_mac:
+        speech = json.loads((ROOT / "data/whisper-mac.lock.json").read_text())
+        lock["files"].update(speech["files"])
+        lock["speech"] = speech["speech"]
     manifest = prepare(args.source, args.destination, lock)
     print(json.dumps({"destination": str(args.destination), "translations": manifest["translations"], "bytes": sum((args.destination / relative).stat().st_size for relative in manifest["files"])}))

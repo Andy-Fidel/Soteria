@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "resources": {
+      "../build-resources/standard/models/whisper/": "models/whisper/"
+    },
+    "macOS": {
+      "hardenedRuntime": true,
+      "entitlements": "Entitlements.plist"
+    }
+  }
+}

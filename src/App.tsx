@@ -7,9 +7,11 @@ import { hydrateSettings, useSettingsStore } from "@/stores"
 import { ResumeSessionDialog } from "@/components/resume-session-dialog"
 import { SettingsDialog } from "@/components/settings-dialog"
 import { Toaster } from "sonner"
+import { GettingStartedDialog } from "@/components/onboarding/(modals)/getting-started-dialog"
 
 export function App() {
   useRemoteControl()
+  const hydrated = useSettingsStore((s) => s.settingsHydrated)
 
   useEffect(() => {
     void hydrateSettings().then(() => {
@@ -30,6 +32,8 @@ export function App() {
     })
   }, [])
 
+  if (!hydrated) return <div className="p-6 text-sm text-muted-foreground">Opening Manna…</div>
+
   return (
     <>
       <Workspace />
@@ -37,6 +41,7 @@ export function App() {
       {/* Mounted at root so it works on the landing screen too, not just
           once a workspace toolbar is visible. */}
       <SettingsDialog />
+      <GettingStartedDialog />
       <Toaster position="top-right" />
     </>
   )

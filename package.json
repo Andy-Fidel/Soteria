@@ -1,7 +1,7 @@
 {
   "name": "manna",
   "private": true,
-  "version": "0.1.0-rc2",
+  "version": "0.1.0-rc3",
   "type": "module",
   "scripts": {
     "package:prepare": "python3 scripts/prepare-standard-package.py",
@@ -31,7 +31,8 @@
     "setup:minimal": "bun run data/prepare-embeddings.ts --phases=venv,bible-data,build-db,export-verses",
     "setup:semantic": "bun run data/prepare-embeddings.ts --phases=onnx,precompute",
     "setup:whisper": "bun run data/prepare-embeddings.ts --phases=whisper",
-    "prep:hymnals": "bun scripts/prep-hymnals.ts"
+    "prep:hymnals": "bun scripts/prep-hymnals.ts",
+    "package:mac:signed": "bun scripts/build-signed-mac.ts"
   },
   "dependencies": {
     "@dnd-kit/react": "^0.3.2",

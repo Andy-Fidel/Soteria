@@ -87,6 +87,30 @@ class StandardPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "NIV provenance mismatch"):
             standard.validate(self.source, self.lock)
 
+    def test_optional_speech_pack_keeps_its_model_and_metadata(self):
+        relative = "models/whisper/ggml-small.en-q8_0.bin"
+        model = self.source / relative
+        model.parent.mkdir(parents=True)
+        model.write_bytes(b"synthetic speech model")
+        self.lock["files"][relative] = standard.digest(model)
+        self.lock["speech"] = {"model": "Small English Q8", "language": "en"}
+        manifest = standard.prepare(self.source, self.destination, self.lock)
+        self.assertEqual(manifest["speech"], self.lock["speech"])
+        self.assertEqual((self.destination / relative).read_bytes(), model.read_bytes())
+
+    def test_changed_speech_model_cannot_replace_a_valid_pack(self):
+        relative = "models/whisper/ggml-small.en-q8_0.bin"
+        model = self.source / relative
+        model.parent.mkdir(parents=True)
+        model.write_bytes(b"synthetic speech model")
+        self.lock["files"][relative] = standard.digest(model)
+        standard.prepare(self.source, self.destination, self.lock)
+        previous = (self.destination / "standard-package.json").read_bytes()
+        model.write_bytes(b"corrupt speech model")
+        with self.assertRaisesRegex(ValueError, "Missing or changed resource"):
+            standard.prepare(self.source, self.destination, self.lock)
+        self.assertEqual((self.destination / "standard-package.json").read_bytes(), previous)
+
 
 if __name__ == "__main__":
     unittest.main()
