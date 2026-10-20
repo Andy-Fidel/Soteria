@@ -5,6 +5,7 @@ import sqlite3
 import struct
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location("standard", Path(__file__).with_name("prepare-standard-package.py"))
@@ -20,7 +21,7 @@ class StandardPackageTests(unittest.TestCase):
         self.source, self.destination = self.root / "source", self.root / "output"
         database = self.source / "data/rhema.db"
         database.parent.mkdir(parents=True)
-        with sqlite3.connect(database) as connection:
+        with closing(sqlite3.connect(database)) as connection, connection:
             connection.executescript("CREATE TABLE translations(id INTEGER, abbreviation TEXT); CREATE TABLE verses(id INTEGER, translation_id INTEGER);")
             for number, name in enumerate(("KJV", "NIV", "NLT"), 1):
                 connection.execute("INSERT INTO translations VALUES (?,?)", (number, name))
@@ -45,7 +46,7 @@ class StandardPackageTests(unittest.TestCase):
         manifest = standard.prepare(self.source, self.destination, self.lock)
         self.source.rename(self.root / "hidden-source")
         self.assertEqual(standard.validate(self.destination, manifest), {"KJV": 1, "NIV": 1, "NLT": 1})
-        with sqlite3.connect(self.destination / "data/rhema.db") as database:
+        with closing(sqlite3.connect(self.destination / "data/rhema.db")) as database:
             self.assertEqual(database.execute("PRAGMA journal_mode").fetchone()[0], "delete")
         self.assertFalse(list(self.destination.rglob("*-wal")))
 

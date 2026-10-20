@@ -233,6 +233,7 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
           key: windows-offline-cpu-v1
+          cache-on-failure: true
       - run: bun install --frozen-lockfile
       - name: Download verified build resources
         shell: pwsh

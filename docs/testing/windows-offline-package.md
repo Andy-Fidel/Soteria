@@ -37,3 +37,11 @@ Physical microphone permission/capture, projector output, SmartScreen on a brows
 ## Run results
 
 Pending Windows runner completion. Do not infer success from local Mac tests.
+
+## Operator check on a real laptop
+
+1. Install the candidate under a normal Windows account and open Manna. A fresh profile should select Whisper and show the short guide; an existing profile should keep its saved provider.
+2. Select and test the microphone in Settings → Audio. Start a service and say: “John chapter three verse sixteen.” Confirm transcription and the detected reference.
+3. Say: “God loved everyone so much that he sent his only Son so believers could live forever.” Confirm a useful scripture result with each translation.
+4. Disconnect and reconnect the microphone. Confirm that recording and detection can resume.
+5. Connect a projector and run a normal service with scripture, song, highlighting and video output. Record the laptop CPU/RAM, startup time, memory use and noticeable speech delay before setting public minimum requirements.
