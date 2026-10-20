@@ -84,6 +84,8 @@ rusqlite = { version = "0.34", features = ["bundled"] }
 default = ["whisper", "onnx"]
 whisper = ["rhema-stt/whisper"]
 onnx = ["rhema-detection/onnx"]
+# Internal installers can verify the real packaged app without microphone/API use.
+package-check = ["onnx"]
 
 [lints]
 workspace = true

@@ -4,6 +4,8 @@
   "version": "0.1.0-rc2",
   "type": "module",
   "scripts": {
+    "package:prepare": "python3 scripts/prepare-standard-package.py",
+    "package:mac:internal": "bun scripts/build-internal-mac.ts",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:typed": "tsc -b && vite build",

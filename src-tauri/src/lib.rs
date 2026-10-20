@@ -5,13 +5,15 @@ mod menu;
 #[cfg(feature = "onnx")]
 mod semantic_resources;
 mod state;
+#[cfg(feature = "package-check")]
+mod package_check;
 
 use rhema_notes::SessionDb;
 use std::sync::Mutex;
 
 use hymnals::{HymnalDef, HYMNALS};
 
-/// Compile-time flavor marker ("minimal" or "full"). Set by `build.rs` from
+/// Compile-time flavor marker ("minimal", "standard", or "full"). Set by `build.rs` from
 /// the `MANNA_FLAVOR` env var at build time; defaults to "minimal".
 pub const FLAVOR: &str = env!("MANNA_FLAVOR");
 
@@ -31,20 +33,16 @@ fn print_summary(window: tauri::WebviewWindow) -> Result<(), String> {
     Err("Summary printing requires the desktop app.".to_owned())
 }
 
-/// Resolve a bundled resource path. Checks `resource_dir/<rel>` first
-/// (production install); falls back to `$CARGO_MANIFEST_DIR/../<rel>` (dev mode).
+/// Release builds resolve only installed resources. Development builds can also
+/// resolve files from the checkout; a missing release resource must stay missing.
 fn resolve_resource(app: &tauri::App, rel: &str) -> std::path::PathBuf {
     use tauri::Manager;
-    app.path()
-        .resource_dir()
-        .ok()
-        .map(|p| p.join(rel))
-        .filter(|p| p.exists())
-        .unwrap_or_else(|| {
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("..")
-                .join(rel)
-        })
+    let bundled = app.path().resource_dir().unwrap_or_default().join(rel);
+    if cfg!(debug_assertions) && !bundled.exists() {
+        return std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..").join(rel);
+    }
+    bundled
 }
 
 #[derive(serde::Deserialize)]
@@ -234,10 +232,16 @@ async fn warm_connection_pool() {
 #[expect(clippy::too_many_lines, reason = "app setup is inherently complex")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let checking_package = cfg!(feature = "package-check")
+        && std::env::args().any(|argument| argument == "--verify-package");
     // Load .env files — src-tauri/.env, project root ../.env, and ../.env.local
-    dotenvy::dotenv().ok();
-    dotenvy::from_filename("../.env").ok();
-    dotenvy::from_filename("../.env.local").ok();
+    if !checking_package {
+        dotenvy::dotenv().ok();
+        dotenvy::from_filename("../.env").ok();
+        dotenvy::from_filename("../.env.local").ok();
+    }
+    let context = tauri::generate_context!();
+    let application_identifier = context.config().identifier.clone();
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -263,9 +267,13 @@ pub fn run() {
         .manage(Mutex::new({
             let app_data = dirs::data_dir()
                 .unwrap_or_else(|| std::path::PathBuf::from("."))
-                .join("com.manna.app");
-            std::fs::create_dir_all(&app_data).ok();
-            let db_path = app_data.join("manna.db");
+                .join(application_identifier);
+            let db_path = if checking_package {
+                std::path::PathBuf::from(":memory:")
+            } else {
+                std::fs::create_dir_all(&app_data).ok();
+                app_data.join("manna.db")
+            };
             // Tauri's setup() hasn't run yet, so a plugin-dialog message box
             // isn't available here. Print to stderr and exit cleanly with a
             // non-zero code so the user sees a readable message instead of a
@@ -439,7 +447,7 @@ pub fn run() {
             commands::assets::delete_brand_asset,
             commands::images::import_library_image,
         ])
-        .setup(|app| {
+        .setup(move |app| {
             use tauri::Manager;
 
             // Hold a keepawake assertion for the app's lifetime so the laptop
@@ -646,6 +654,22 @@ pub fn run() {
                 log::info!("Built without 'onnx' feature — semantic detection disabled.");
             }
 
+            #[cfg(feature = "package-check")]
+            if checking_package {
+                // Exit before frontend startup, settings hydration or provider warm-up.
+                let result = tauri::async_runtime::block_on(package_check::verify(app));
+                match result {
+                    Ok(report) => {
+                        println!("MANNA_PACKAGE_CHECK={report}");
+                        std::process::exit(0);
+                    }
+                    Err(error) => {
+                        eprintln!("MANNA_PACKAGE_CHECK_FAILED={error}");
+                        std::process::exit(1);
+                    }
+                }
+            }
+
             // Seed hymnals into songs table — respects enabledHymnals setting,
             // idempotent via per-hymnal seed_version check.
             let enabled = read_enabled_hymnals(app).unwrap_or_else(|| {
@@ -687,7 +711,7 @@ pub fn run() {
                 log::error!("[menu] failed to emit menu-event: {e}");
             }
         })
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }
 

@@ -1,0 +1,15 @@
+{
+  "bundle": {
+    "resources": {
+      "../build-resources/standard/data/rhema.db": "data/rhema.db",
+      "../build-resources/standard/models/fallback-minilm/": "models/fallback-minilm/",
+      "../build-resources/standard/embeddings/translation-indexes/": "embeddings/translation-indexes/",
+      "../build-resources/standard/standard-package.json": "standard-package.json"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://github.com/uxderrick/Manna/releases/latest/download/latest-standard.json"]
+    }
+  }
+}

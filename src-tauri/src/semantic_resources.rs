@@ -99,6 +99,7 @@ mod tests {
     #[test]
     fn metadata_query_error_preserves_base_index() {
         let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("empty.db"), []).unwrap();
         let db = BibleDb::open(&temp.path().join("empty.db")).unwrap();
         let index = add_translations(
             base_index(),
