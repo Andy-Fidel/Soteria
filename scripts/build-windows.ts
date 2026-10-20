@@ -31,6 +31,10 @@ const signCommand = process.env.MANNA_WINDOWS_SIGN_COMMAND
 if (process.env.MANNA_REQUIRE_WINDOWS_SIGNING === "true" && !signCommand) throw new Error("Windows publisher signing is required but not configured.")
 const config = { ...standard, bundle: { ...standard.bundle, ...windows.bundle, resources,
   windows: { ...windows.bundle.windows, ...(signCommand ? { signCommand } : {}) } } }
+// whisper-rs-sys does not track changes to the external CMake toolchain file.
+// Rebuild it so a cache cannot retain old optimization or CPU requirements.
+execFileSync("cargo", ["clean", "--manifest-path", "src-tauri/Cargo.toml", "--release",
+  "--target", "x86_64-pc-windows-msvc", "-p", "whisper-rs-sys"], { cwd: root, stdio: "inherit" })
 execFileSync("bun", ["run", "tauri", "build", "--ci", "--bundles", "nsis", "--target", "x86_64-pc-windows-msvc",
   "--config", JSON.stringify(config), "--features", "onnx,whisper,package-check", "--", "--no-default-features", "--locked"], {
   cwd: root, stdio: "inherit", env: { ...process.env, MANNA_FLAVOR: "standard", STATIC_VCRUNTIME: "false",
