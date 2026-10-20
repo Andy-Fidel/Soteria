@@ -86,8 +86,8 @@ export function SpeechSection() {
                 Local (Whisper)
               </span>
               <p className="text-[0.625rem] leading-relaxed text-muted-foreground">
-                Transcribes English on your device. The Mac app includes
-                Small English. No speech API key or internet is needed.
+                Transcribes English on your device. Windows includes Base English;
+                Mac includes Small English. No speech API key or internet is needed.
               </p>
             </div>
           </label>

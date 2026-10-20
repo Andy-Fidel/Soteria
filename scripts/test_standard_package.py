@@ -87,6 +87,17 @@ class StandardPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "NIV provenance mismatch"):
             standard.validate(self.source, self.lock)
 
+    def test_windows_lock_includes_only_base_english(self):
+        lock = standard.load_lock("windows")
+        self.assertIn("models/whisper/ggml-base.en.bin", lock["files"])
+        self.assertNotIn("models/whisper/ggml-small.en-q8_0.bin", lock["files"])
+        self.assertEqual(lock["speech"]["model"], "Base English")
+
+    def test_mac_lock_keeps_small_english(self):
+        lock = standard.load_lock("mac")
+        self.assertIn("models/whisper/ggml-small.en-q8_0.bin", lock["files"])
+        self.assertNotIn("models/whisper/ggml-base.en.bin", lock["files"])
+
     def test_optional_speech_pack_keeps_its_model_and_metadata(self):
         relative = "models/whisper/ggml-small.en-q8_0.bin"
         model = self.source / relative

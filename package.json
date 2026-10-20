@@ -32,7 +32,8 @@
     "setup:semantic": "bun run data/prepare-embeddings.ts --phases=onnx,precompute",
     "setup:whisper": "bun run data/prepare-embeddings.ts --phases=whisper",
     "prep:hymnals": "bun scripts/prep-hymnals.ts",
-    "package:mac:signed": "bun scripts/build-signed-mac.ts"
+    "package:mac:signed": "bun scripts/build-signed-mac.ts",
+    "package:windows": "bun scripts/build-windows.ts"
   },
   "dependencies": {
     "@dnd-kit/react": "^0.3.2",

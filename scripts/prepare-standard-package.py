@@ -12,6 +12,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def load_lock(speech_platform=None):
+    lock = json.loads((ROOT / "data/standard-package.lock.json").read_text())
+    if speech_platform is not None:
+        if speech_platform not in ("mac", "windows"):
+            raise ValueError("Unsupported speech package platform")
+        speech = json.loads((ROOT / f"data/whisper-{speech_platform}.lock.json").read_text())
+        lock["files"].update(speech["files"])
+        lock["speech"] = speech["speech"]
+    return lock
+
+
 def digest(path):
     result = hashlib.sha256()
     with path.open("rb") as stream:
@@ -85,12 +96,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=ROOT)
     parser.add_argument("--destination", type=Path, default=ROOT / "build-resources/standard")
-    parser.add_argument("--with-whisper-mac", action="store_true")
+    speech = parser.add_mutually_exclusive_group()
+    speech.add_argument("--with-whisper-mac", action="store_true")
+    speech.add_argument("--with-whisper-windows", action="store_true")
     args = parser.parse_args()
-    lock = json.loads((ROOT / "data/standard-package.lock.json").read_text())
-    if args.with_whisper_mac:
-        speech = json.loads((ROOT / "data/whisper-mac.lock.json").read_text())
-        lock["files"].update(speech["files"])
-        lock["speech"] = speech["speech"]
+    lock = load_lock("mac" if args.with_whisper_mac else "windows" if args.with_whisper_windows else None)
     manifest = prepare(args.source, args.destination, lock)
     print(json.dumps({"destination": str(args.destination), "translations": manifest["translations"], "bytes": sum((args.destination / relative).stat().st_size for relative in manifest["files"])}))
