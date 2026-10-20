@@ -157,3 +157,7 @@ The immediate next task is release preparation for the standard MiniLM package. 
 ## Offline Mac candidate follow-up
 
 The signed and notarized `0.1.0-rc3` Apple Silicon candidate now includes Small English Q8, chooses Whisper for fresh installs, preserves saved speech choices, and shows a brief first-launch guide. Installed offline speech and KJV/NIV/NLT detection checks passed without paid API calls. See [the RC3 verification record](../testing/offline-mac-rc3.md) for the final artifact checksum, Apple receipts, automated coverage, and remaining hardware checks. This candidate is not a Windows or Intel Mac release.
+
+## Offline Windows candidate follow-up
+
+An internal x64 NSIS candidate now includes Base English, MiniLM, KJV, NIV and NLT, defaults fresh installs to Whisper, and preserves saved provider choices. Windows source tests and an installed offline speech/detection check passed. It is unsigned and has not been tested with a physical microphone or projector. The portable CPU build is still too slow for comfortable live speech in the measured Windows runner tests. Both publisher signing and CPU performance remain release blockers. The user will arrange the personal signing account for Derrick Tsorme. See [the Windows verification record](../testing/windows-offline-package.md) for the exact installer checksum, measurements and remaining checks.

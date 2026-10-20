@@ -26,7 +26,7 @@ Resource draft: `windows-build-resources-20261020-rc3`. Asset: `windows-standard
 
 ## Signing boundary
 
-The user confirmed there is no Windows signing account yet. The current GitHub secrets are Tauri updater keys, not publisher certificates. The internal CI artifact is explicitly named unsigned. It must not be described as signed or ready for public distribution.
+The user confirmed there is no Windows signing account yet and will handle account setup personally. The publisher will be Derrick Tsorme. The current GitHub secrets are Tauri updater keys, not publisher certificates. The internal CI artifact is explicitly named unsigned. It must not be described as signed or ready for public distribution.
 
 `MANNA_WINDOWS_SIGN_COMMAND` can supply a provider-specific Tauri signing command when a real publisher identity is available. `MANNA_REQUIRE_WINDOWS_SIGNING=true` rejects a missing command. The installed verifier's `--require-publisher` requires valid Authenticode signatures and the expected certificate subject on both the application and setup EXE. Actual publisher signing remains blocked until credentials are provisioned. A self-signed certificate is not a substitute.
 
@@ -38,11 +38,15 @@ Physical microphone permission/capture, projector output, SmartScreen on a brows
 
 ## Run results
 
-The first complete Windows build produced an unsigned NSIS installer. The Windows suite passed 395 native tests (8 ignored), 512 frontend tests and 10 packaging tests. Installed model loading passed, but transcription exceeded its 90-second limit. This candidate is not ready for distribution.
+Build run `39506010626`, source `cf92e59`, produced an unsigned NSIS installer. The Windows suite passed 395 native tests (8 ignored), 512 frontend tests, 10 packaging tests and lint. The first installed check passed native speech/detection but rejected Windows' extended path prefix when comparing directory strings. Checker commit `10077c5` uses file identity and adds three verifier tests. Installed-only run `39508528224` passed those three tests and successfully retested the exact same EXE, without rebuilding it.
+
+Final internal file: `artifacts/windows-internal-2026-10-20/Manna_0.1.0-rc3_x64-setup-unsigned.exe`, 417,880,061 bytes (398.52 MiB), SHA256 `cc81dd52a0b003a8aff84264aeb4b443d5aeb068da80b5f1e2614050f1b5821d`. The local checksum matches the installed-test report. The adjacent `windows-installed-check.json` and `windows-native-check.json` retain the results. The installer remains unsigned; `publisher_verified` is false, and no valid Authenticode publisher identity was established.
+
+The installed process selected Whisper by default and transcribed “John chapter 3 verse 16 For God so loved the world.” Direct references, quotations and nine paraphrase checks passed across KJV, NIV and NLT. Installed resource hashes remained unchanged, no SQLite journals appeared, the packaged NDI 6.2.1 library loaded, and the check used a restricted PATH. No paid provider calls were made. The native package check took 46.828 seconds; total external verification took 57.255 seconds. This proves offline functionality, not acceptable live speed or physical microphone/projector support.
 
 Narrow tests with the same 5.24-second generated recording found that CMake had dropped native C/C++ optimization flags, despite Cargo reporting a release build. The Windows toolchain now explicitly restores `/O2 /Ob2 /DNDEBUG`. Diagnostic run `39503588996` verified those actual flags. With two threads, portable scalar completed in 51.573 seconds, SSE3 in 49.249 seconds and AVX2 in 4.672 seconds. Each produced “John chapter 3 verse 16” and “For God so loved the world.” Portable/SSE3 one-thread runs exceeded 60 seconds; AVX2 one-thread completed in 7.929 seconds. These are single synthetic-clip measurements, not an accent accuracy study or a hardware support guarantee.
 
-AVX2 is a diagnostic control, not an installer requirement. The compatible build remains too slow for comfortable live use on this runner. Optimized installed-app results are pending. Runtime selection of a fast CPU backend, while retaining an older-CPU fallback, needs separate implementation and measurement before a broad Windows release.
+AVX2 is a diagnostic control, not an installer requirement. The compatible build remains too slow for comfortable live use on this runner. Runtime selection of a fast CPU backend, while retaining an older-CPU fallback, needs separate implementation and measurement before a broad Windows release. Older CPUs also need a measured acceleration path; the fallback alone does not establish acceptable speed.
 
 The publisher will be Derrick Tsorme personally. An individual code-signing certificate is required. [SSL.com IV](https://www.ssl.com/products/software-integrity/code-signing/iv/) supports personal names and cloud signing. Its advertised certificate price is $129/year, plus a separate signing subscription. Ghana-specific identity verification and the final subscription price must be confirmed before purchase. No account or purchase has been made.
 
