@@ -1,8 +1,18 @@
+import {
+  parseBroadcastTheme,
+  constrainThemeLayout,
+} from "@/lib/broadcast-theme"
 import { useServicePlanStore } from "./service-plan-store"
 import { create } from "zustand"
 import { emit } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api/core"
-import type { ImageSlide, BroadcastTheme, VerseRenderData, NotesSlide, TextHighlight } from "@/types"
+import type {
+  ImageSlide,
+  BroadcastTheme,
+  VerseRenderData,
+  NotesSlide,
+  TextHighlight,
+} from "@/types"
 import { BUILTIN_THEMES } from "@/lib/builtin-themes"
 import { useSessionStore } from "@/stores/session-store"
 import { useBibleStore } from "@/stores/bible-store"
@@ -39,8 +49,8 @@ interface BroadcastState {
 
   // Theme management
   loadThemes: () => void
-  saveTheme: (theme: BroadcastTheme) => void
-  deleteTheme: (id: string) => void
+  saveTheme: (theme: BroadcastTheme) => Promise<void>
+  deleteTheme: (id: string) => Promise<void>
   duplicateTheme: (id: string) => void
   setActiveTheme: (id: string) => void
   setAltActiveTheme: (id: string) => void
@@ -60,7 +70,13 @@ interface BroadcastState {
   startEditing: (themeId: string) => void
   updateDraft: (updates: Partial<BroadcastTheme>) => void
   updateDraftNested: (path: string, value: unknown) => void
-  saveDraft: () => void
+  themeSaveStatus: "idle" | "saving"
+  draftPast: BroadcastTheme[]
+  draftFuture: BroadcastTheme[]
+  undoDraft: () => void
+  redoDraft: () => void
+  updateDraftAsset: (themeId: string, path: string, url: string) => void
+  saveDraft: () => Promise<BroadcastTheme | null>
   discardDraft: () => void
   setSelectedElement: (el: SelectedElement) => void
 
@@ -75,7 +91,11 @@ interface BroadcastState {
     remainingMs: number | null
     paused: boolean
   } | null
-  sendAnnouncement: (announcement: { text: string; mode: "ticker" | "slide"; duration: number | null }) => void
+  sendAnnouncement: (announcement: {
+    text: string
+    mode: "ticker" | "slide"
+    duration: number | null
+  }) => void
   pauseAnnouncement: () => void
   resumeAnnouncement: () => void
   dismissAnnouncement: () => void
@@ -84,8 +104,20 @@ interface BroadcastState {
 type Nested = Record<string, unknown> | unknown[]
 
 function sameVerseIdentity(
-  a: { id: number; translation_id: number; book_number: number; chapter: number; verse: number },
-  b: { id: number; translation_id: number; book_number: number; chapter: number; verse: number },
+  a: {
+    id: number
+    translation_id: number
+    book_number: number
+    chapter: number
+    verse: number
+  },
+  b: {
+    id: number
+    translation_id: number
+    book_number: number
+    chapter: number
+    verse: number
+  }
 ): boolean {
   return (
     a.book_number === b.book_number &&
@@ -96,7 +128,11 @@ function sameVerseIdentity(
 
 /** Immutably set a dot-path value, cloning each container along the way.
  *  Numeric path segments index into arrays (e.g. `"items.0.label"`). */
-function setNestedValue<T extends Nested>(obj: T, path: string, value: unknown): T {
+function setNestedValue<T extends Nested>(
+  obj: T,
+  path: string,
+  value: unknown
+): T {
   const parts = path.split(".").filter(Boolean)
   if (parts.length === 0) return obj
 
@@ -115,7 +151,9 @@ function setNestedValue<T extends Nested>(obj: T, path: string, value: unknown):
     if (index === parts.length - 1) {
       target[property] = value
     } else {
-      const child = (current as Record<string | number, unknown> | null | undefined)?.[property]
+      const child = (
+        current as Record<string | number, unknown> | null | undefined
+      )?.[property]
       target[property] = setAt(child, index + 1)
     }
     return next
@@ -156,13 +194,15 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     get().syncBroadcastOutput()
   },
   projectorMonitorIndex: null,
-  setProjectorMonitorIndex: (projectorMonitorIndex) => set({ projectorMonitorIndex }),
+  setProjectorMonitorIndex: (projectorMonitorIndex) =>
+    set({ projectorMonitorIndex }),
   fullscreenImage: null,
   setFullscreenImage: (fullscreenImage) => {
     releasePlanOutput()
     set({
       fullscreenImage,
-      outputHidden: false,      blankLogo: fullscreenImage ? false : get().blankLogo,
+      outputHidden: false,
+      blankLogo: fullscreenImage ? false : get().blankLogo,
       liveVerse: fullscreenImage ? null : get().liveVerse,
       liveNotes: fullscreenImage ? null : get().liveNotes,
       isLive: fullscreenImage ? true : get().isLive,
@@ -174,7 +214,8 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     releasePlanOutput()
     set({
       liveNotes,
-      outputHidden: false,      liveVerse: liveNotes ? null : get().liveVerse,
+      outputHidden: false,
+      liveVerse: liveNotes ? null : get().liveVerse,
       fullscreenImage: liveNotes ? null : get().fullscreenImage,
       blankLogo: liveNotes ? false : get().blankLogo,
       isLive: liveNotes ? true : get().isLive,
@@ -185,43 +226,51 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   loadThemes: () => {
     set({ themes: [...BUILTIN_THEMES] })
   },
-  saveTheme: (theme) => {
+  saveTheme: async (theme) => {
+    const valid = parseBroadcastTheme(theme)
+    await invoke("save_custom_theme", {
+      id: valid.id,
+      name: valid.name,
+      themeJson: JSON.stringify(valid),
+    })
     set((s) => ({
-      themes: s.themes.some((t) => t.id === theme.id)
-        ? s.themes.map((t) => (t.id === theme.id ? theme : t))
-        : [...s.themes, theme],
+      themes: s.themes.some((t) => t.id === valid.id)
+        ? s.themes.map((t) => (t.id === valid.id ? valid : t))
+        : [...s.themes, valid],
     }))
-    if (!theme.builtin) {
-      invoke("save_custom_theme", {
-        id: theme.id,
-        name: theme.name,
-        themeJson: JSON.stringify(theme),
-      }).catch((err) => console.warn("[broadcast-store]", err))
-    }
+    if (get().activeThemeId === valid.id) get().syncBroadcastOutputFor("main")
+    if (get().altActiveThemeId === valid.id) get().syncBroadcastOutputFor("alt")
   },
-  deleteTheme: (id) => {
-    set((s) => ({ themes: s.themes.filter((t) => t.id !== id || t.builtin) }))
-    invoke("delete_custom_theme", { id }).catch((err) => console.warn("[broadcast-store]", err))
+  deleteTheme: async (id) => {
+    const theme = get().themes.find((t) => t.id === id)
+    if (!theme || theme.builtin) return
+    await invoke("delete_custom_theme", { id })
+    set((s) => ({ themes: s.themes.filter((t) => t.id !== id) }))
+    if (get().activeThemeId === id) get().setActiveTheme(BUILTIN_THEMES[0].id)
+    if (get().altActiveThemeId === id)
+      get().setAltActiveTheme(BUILTIN_THEMES[0].id)
+    if (get().editingThemeId === id) get().startEditing(get().activeThemeId)
   },
   duplicateTheme: (id) => {
-    const s = get()
-    const source = s.themes.find((t) => t.id === id)
+    if (get().themeSaveStatus === "saving") return
+    const source = get().themes.find((t) => t.id === id)
     if (!source) return
-    const newTheme: BroadcastTheme = {
-      ...source,
+    const draftTheme = {
+      ...structuredClone(source),
       id: crypto.randomUUID(),
-      name: `${source.name} Copy`,
+      name: `${source.name.slice(0, 115)} Copy`,
       builtin: false,
       pinned: false,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
-    set((s) => ({
-      themes: [...s.themes, newTheme],
-      editingThemeId: newTheme.id,
-      draftTheme: newTheme,
+    set({
+      editingThemeId: draftTheme.id,
+      draftTheme,
       selectedElement: "verse",
-    }))
+      draftPast: [],
+      draftFuture: [],
+    })
   },
   syncBroadcastOutputFor: (outputId: string) => {
     const s = get()
@@ -294,9 +343,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
           void import("@/stores/queue-store").then(({ useQueueStore }) => {
             const q = useQueueStore.getState()
             const exists = q.items.some(
-              (it) =>
-                it.kind === "verse" &&
-                sameVerseIdentity(it.verse, sel),
+              (it) => it.kind === "verse" && sameVerseIdentity(it.verse, sel)
             )
             if (exists) return
             q.addItem({
@@ -328,7 +375,9 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
           verseRef,
           verseText,
           translation,
-        }).catch((e) => console.warn("[broadcast-store] record_presented_verse failed:", e))
+        }).catch((e) =>
+          console.warn("[broadcast-store] record_presented_verse failed:", e)
+        )
       }
     }
     get().syncBroadcastOutput()
@@ -356,7 +405,9 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   addToHistory: (verse) => {
     const { history } = get()
     if (history[0]?.verse.reference === verse.reference) return
-    set({ history: [{ verse, presentedAt: Date.now() }, ...history].slice(0, 50) })
+    set({
+      history: [{ verse, presentedAt: Date.now() }, ...history].slice(0, 50),
+    })
   },
   goLive: () => {
     const { projectorMonitorIndex } = get()
@@ -366,7 +417,10 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
       .then((isOpen) => {
         if (isOpen) return
         const idx = projectorMonitorIndex ?? 0
-        return invoke("open_broadcast_window", { outputId: "main", monitorIndex: idx })
+        return invoke("open_broadcast_window", {
+          outputId: "main",
+          monitorIndex: idx,
+        })
       })
       .catch((err) => console.warn("[broadcast-store]", err))
 
@@ -378,9 +432,18 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   },
   clearScreen: () => {
     releasePlanOutput()
-    set({ liveVerse: null, isLive: false, outputHidden: true, blankLogo: false, fullscreenImage: null, liveNotes: null })
+    set({
+      liveVerse: null,
+      isLive: false,
+      outputHidden: true,
+      blankLogo: false,
+      fullscreenImage: null,
+      liveNotes: null,
+    })
     get().syncBroadcastOutput()
-    invoke("close_broadcast_window", { outputId: "main" }).catch((err) => console.warn("[broadcast-store]", err))
+    invoke("close_broadcast_window", { outputId: "main" }).catch((err) =>
+      console.warn("[broadcast-store]", err)
+    )
   },
   showProjector: () => {
     set({ outputHidden: false, isLive: true })
@@ -388,7 +451,8 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     // If projector is reopening after a Kill (nothing live), default to the
     // blank EWC-logo screen so the audience sees branding, not a black void.
     const s = get()
-    const hasContent = s.liveVerse !== null || s.fullscreenImage !== null || s.blankLogo
+    const hasContent =
+      s.liveVerse !== null || s.fullscreenImage !== null || s.blankLogo
     if (!hasContent) {
       set({ blankLogo: true, isLive: true })
     }
@@ -398,7 +462,10 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
           get().syncBroadcastOutput()
           return
         }
-        return invoke("open_broadcast_window", { outputId: "main", monitorIndex: idx }).then(() => {
+        return invoke("open_broadcast_window", {
+          outputId: "main",
+          monitorIndex: idx,
+        }).then(() => {
           // Fresh window: listener registers AFTER React mount. Emit on a
           // short burst so the verse-update event lands once the listener is
           // attached. Without this the projector opens black despite our
@@ -413,70 +480,132 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   },
 
   // Designer
+  themeSaveStatus: "idle",
+  draftPast: [],
+  draftFuture: [],
   setDesignerOpen: (isDesignerOpen) => {
     if (!isDesignerOpen) {
-      set({ isDesignerOpen, editingThemeId: null, draftTheme: null, selectedElement: null })
+      if (get().themeSaveStatus === "saving") return
+      set({
+        isDesignerOpen,
+        editingThemeId: null,
+        draftTheme: null,
+        selectedElement: null,
+        draftPast: [],
+        draftFuture: [],
+      })
     } else {
       set({ isDesignerOpen })
+      if (!get().draftTheme) get().startEditing(get().activeThemeId)
     }
   },
   startEditing: (themeId) => {
+    if (get().themeSaveStatus === "saving") return
     const theme = get().themes.find((t) => t.id === themeId)
     if (!theme) return
     set({
       editingThemeId: themeId,
-      draftTheme: { ...theme, updatedAt: Date.now() },
-      selectedElement: null,
+      draftTheme: structuredClone(theme),
+      selectedElement: "verse",
+      draftPast: [],
+      draftFuture: [],
     })
   },
   updateDraft: (updates) =>
-    set((s) => ({
-      draftTheme: s.draftTheme ? { ...s.draftTheme, ...updates, updatedAt: Date.now() } : null,
-    })),
-  updateDraftNested: (path, value) =>
-    set((s) => ({
-      draftTheme: s.draftTheme
-        ? { ...setNestedValue(s.draftTheme as unknown as Record<string, unknown>, path, value), updatedAt: Date.now() } as BroadcastTheme
-        : null,
-    })),
-  saveDraft: () => {
-    const { draftTheme } = get()
-    if (!draftTheme) return
-    // If editing a builtin, save as a new custom theme
-    if (draftTheme.builtin) {
-      const customTheme = {
-        ...draftTheme,
-        id: crypto.randomUUID(),
-        name: `${draftTheme.name} (Custom)`,
-        builtin: false,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+    set((s) => {
+      if (!s.draftTheme || s.themeSaveStatus === "saving") return {}
+      return {
+        draftTheme: constrainThemeLayout({
+          ...s.draftTheme,
+          ...updates,
+          updatedAt: Date.now(),
+        }),
+        draftPast: [...s.draftPast, s.draftTheme].slice(-50),
+        draftFuture: [],
       }
-      get().saveTheme(customTheme)
-      set((s) => ({
-        themes: s.themes.some((theme) => theme.id === customTheme.id)
-          ? s.themes
-          : [...s.themes, customTheme],
-        activeThemeId: customTheme.id,
-        editingThemeId: customTheme.id,
-        draftTheme: customTheme,
-      }))
-    } else {
-      get().saveTheme(draftTheme)
+    }),
+  updateDraftNested: (path, value) => {
+    const draft = get().draftTheme
+    if (!draft) return
+    const next = setNestedValue(
+      draft as unknown as Record<string, unknown>,
+      path,
+      value
+    ) as unknown as BroadcastTheme
+    get().updateDraft(next)
+  },
+  updateDraftAsset: (themeId, path, url) => {
+    if (get().draftTheme?.id !== themeId) return
+    if (path === "background.image.url" && !get().draftTheme?.background.image)
+      return
+    if (path === "logo.url" && !get().draftTheme?.logo) return
+    get().updateDraftNested(path, url)
+  },
+  undoDraft: () =>
+    set((s) => {
+      const previous = s.draftPast.at(-1)
+      return !previous || !s.draftTheme || s.themeSaveStatus === "saving"
+        ? {}
+        : {
+            draftTheme: previous,
+            draftPast: s.draftPast.slice(0, -1),
+            draftFuture: [...s.draftFuture, s.draftTheme],
+          }
+    }),
+  redoDraft: () =>
+    set((s) => {
+      const next = s.draftFuture.at(-1)
+      return !next || !s.draftTheme || s.themeSaveStatus === "saving"
+        ? {}
+        : {
+            draftTheme: next,
+            draftPast: [...s.draftPast, s.draftTheme],
+            draftFuture: s.draftFuture.slice(0, -1),
+          }
+    }),
+  saveDraft: async () => {
+    const { draftTheme, themeSaveStatus } = get()
+    if (!draftTheme || themeSaveStatus === "saving") return null
+    const saved = parseBroadcastTheme(
+      draftTheme.builtin
+        ? {
+            ...draftTheme,
+            id: crypto.randomUUID(),
+            name: `${draftTheme.name} (Custom)`,
+            builtin: false,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          }
+        : draftTheme
+    )
+    set({ themeSaveStatus: "saving" })
+    try {
+      await get().saveTheme(saved)
+      if (get().draftTheme?.id === draftTheme.id)
+        set({
+          editingThemeId: saved.id,
+          draftTheme: saved,
+          draftPast: [],
+          draftFuture: [],
+        })
+      return saved
+    } finally {
+      set({ themeSaveStatus: "idle" })
     }
   },
   discardDraft: () => {
-    const { editingThemeId } = get()
-    if (editingThemeId) {
-      get().startEditing(editingThemeId)
-    }
+    const id = get().editingThemeId
+    if (id && get().themes.some((t) => t.id === id)) get().startEditing(id)
+    else get().startEditing(get().activeThemeId)
   },
   setSelectedElement: (selectedElement) => set({ selectedElement }),
 
   // Announcements
   announcement: null,
   sendAnnouncement: (announcement) => {
-    const expiresAt = announcement.duration ? Date.now() + announcement.duration * 1000 : null
+    const expiresAt = announcement.duration
+      ? Date.now() + announcement.duration * 1000
+      : null
     const full = {
       ...announcement,
       expiresAt,
@@ -484,9 +613,15 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
       paused: false,
     }
     set({ announcement: full })
-    invoke("ensure_broadcast_window", { outputId: "main" }).catch((err) => console.warn("[broadcast-store]", err))
-    void emit("broadcast:announcement:main", announcement).catch((err) => console.warn("[broadcast-store]", err))
-    void emit("broadcast:announcement:alt", announcement).catch((err) => console.warn("[broadcast-store]", err))
+    invoke("ensure_broadcast_window", { outputId: "main" }).catch((err) =>
+      console.warn("[broadcast-store]", err)
+    )
+    void emit("broadcast:announcement:main", announcement).catch((err) =>
+      console.warn("[broadcast-store]", err)
+    )
+    void emit("broadcast:announcement:alt", announcement).catch((err) =>
+      console.warn("[broadcast-store]", err)
+    )
     scheduleAnnouncementExpiry(get)
   },
   pauseAnnouncement: () => {
@@ -496,8 +631,18 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     set({ announcement: { ...a, paused: true, remainingMs, expiresAt: null } })
     clearAnnouncementTimer()
     // Tell broadcast output to freeze the ticker scroll.
-    void emit("broadcast:announcement:main", { ...a, paused: true, remainingMs, expiresAt: null }).catch(() => {})
-    void emit("broadcast:announcement:alt", { ...a, paused: true, remainingMs, expiresAt: null }).catch(() => {})
+    void emit("broadcast:announcement:main", {
+      ...a,
+      paused: true,
+      remainingMs,
+      expiresAt: null,
+    }).catch(() => {})
+    void emit("broadcast:announcement:alt", {
+      ...a,
+      paused: true,
+      remainingMs,
+      expiresAt: null,
+    }).catch(() => {})
   },
   resumeAnnouncement: () => {
     const a = get().announcement
@@ -505,15 +650,29 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     const remainingMs = a.remainingMs ?? 0
     const expiresAt = remainingMs > 0 ? Date.now() + remainingMs : null
     set({ announcement: { ...a, paused: false, expiresAt, remainingMs: null } })
-    void emit("broadcast:announcement:main", { ...a, paused: false, expiresAt, remainingMs: null }).catch(() => {})
-    void emit("broadcast:announcement:alt", { ...a, paused: false, expiresAt, remainingMs: null }).catch(() => {})
+    void emit("broadcast:announcement:main", {
+      ...a,
+      paused: false,
+      expiresAt,
+      remainingMs: null,
+    }).catch(() => {})
+    void emit("broadcast:announcement:alt", {
+      ...a,
+      paused: false,
+      expiresAt,
+      remainingMs: null,
+    }).catch(() => {})
     scheduleAnnouncementExpiry(get)
   },
   dismissAnnouncement: () => {
     clearAnnouncementTimer()
     set({ announcement: null })
-    void emit("broadcast:announcement:main", null).catch((err) => console.warn("[broadcast-store]", err))
-    void emit("broadcast:announcement:alt", null).catch((err) => console.warn("[broadcast-store]", err))
+    void emit("broadcast:announcement:main", null).catch((err) =>
+      console.warn("[broadcast-store]", err)
+    )
+    void emit("broadcast:announcement:alt", null).catch((err) =>
+      console.warn("[broadcast-store]", err)
+    )
   },
 }))
 
@@ -528,9 +687,7 @@ function clearAnnouncementTimer() {
   }
 }
 
-function scheduleAnnouncementExpiry(
-  get: () => BroadcastState,
-) {
+function scheduleAnnouncementExpiry(get: () => BroadcastState) {
   clearAnnouncementTimer()
   const a = get().announcement
   if (!a || a.expiresAt == null) return
@@ -550,24 +707,31 @@ function scheduleAnnouncementExpiry(
 
 export async function hydrateCustomThemes(): Promise<void> {
   try {
-    const rows = await invoke<Array<[string, string, string]>>("list_custom_themes")
-    const customThemes: BroadcastTheme[] = []
-    for (const [id, , json] of rows) {
+    const rows =
+      await invoke<Array<[string, string, string]>>("list_custom_themes")
+    const loaded = new Map<string, BroadcastTheme>()
+    for (const [id, name, json] of rows) {
       try {
-        customThemes.push(JSON.parse(json) as BroadcastTheme)
-      } catch (err) {
-        console.warn("[themes] dropping corrupt row", id, err)
+        loaded.set(id, parseBroadcastTheme({ ...JSON.parse(json), id, name }))
+      } catch {
+        console.warn("[themes] Skipping damaged theme", id)
       }
     }
-    if (customThemes.length > 0) {
-      const { themes } = useBroadcastStore.getState()
-      const builtinIds = new Set(themes.filter(t => t.builtin).map(t => t.id))
-      const merged = [
-        ...themes.filter(t => t.builtin),
-        ...customThemes.filter(t => !builtinIds.has(t.id)),
-      ]
-      useBroadcastStore.setState({ themes: merged })
-    }
+    useBroadcastStore.setState((s) => ({
+      themes: [
+        ...s.themes
+          .filter((t) => t.builtin)
+          .map((t) => ({ ...t, pinned: loaded.get(t.id)?.pinned ?? t.pinned })),
+        ...s.themes.filter((t) => !t.builtin),
+        ...[...loaded.values()]
+          .filter(
+            (t) =>
+              !BUILTIN_THEMES.some((b) => b.id === t.id) &&
+              !s.themes.some((existing) => existing.id === t.id)
+          )
+          .map((t) => ({ ...t, builtin: false })),
+      ],
+    }))
   } catch {
     console.warn("[themes] Failed to load custom themes")
   }

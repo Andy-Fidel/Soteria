@@ -176,7 +176,7 @@ it("draws centered-line text using the same alignment as its selection boxes", (
   expect(draws.find((draw) => draw.text.startsWith("For God"))?.align).toBe("center")
 })
 
-it.each(BUILTIN_THEMES)("renders $name references at half opacity without dimming the verse", (theme) => {
+it.each(BUILTIN_THEMES)("renders $name references at full opacity without changing verse opacity", (theme) => {
   let alpha = 1
   const saved: number[] = []
   const draws: Array<{ text: string; opacity: number }> = []
@@ -195,7 +195,35 @@ it.each(BUILTIN_THEMES)("renders $name references at half opacity without dimmin
 
   renderVerse(context, theme, verse, { opacity: 0.8 })
 
-  expect(draws.find((draw) => draw.text === verse.reference.toUpperCase())?.opacity).toBeCloseTo(0.4)
+  expect(draws.find((draw) => draw.text === verse.reference.toUpperCase())?.opacity).toBeCloseTo(1)
   expect(draws.find((draw) => draw.text.startsWith("For God"))?.opacity).toBeCloseTo(0.8)
   expect(alpha).toBe(1)
+})
+
+it.each(["#ffffff80", "#fff8", "rgba(255, 255, 255, 0.5)"])("removes embedded transparency from reference text and its underline: %s", (color) => {
+  const theme = structuredClone(BUILTIN_THEMES[0])
+  theme.reference = { ...theme.reference, color, opacity: 0.5, textDecoration: "underline" }
+  let alpha = 1
+  type Paint = string | CanvasGradient | CanvasPattern
+  let fill: Paint = "#000000"
+  const saved: Array<{ alpha: number; fill: Paint }> = []
+  const draws: Array<{ text: string; alpha: number; fill: Paint }> = []
+  const painted: Array<Paint> = []
+  const context = new Proxy({
+    ...measureContext(),
+    save: () => { saved.push({ alpha, fill }) },
+    restore: () => { const state = saved.pop(); if (state) { alpha = state.alpha; fill = state.fill } },
+    get globalAlpha() { return alpha },
+    set globalAlpha(value: number) { alpha = value },
+    get fillStyle() { return fill },
+    set fillStyle(value: Paint) { fill = value },
+    fillText: (text: string) => { draws.push({ text, alpha, fill }) },
+    set strokeStyle(value: Paint) { painted.push(value) },
+  }, { get(target, key) { return key in target ? Reflect.get(target, key) : () => {} } }) as unknown as CanvasRenderingContext2D
+  renderVerse(context, theme, verse, { opacity: 0.8 })
+  const reference = draws.find(draw => draw.text === verse.reference.toUpperCase())!
+  expect(reference.alpha).toBe(1)
+  expect(reference.fill).toBe(color.startsWith("#") ? "#ffffff" : "rgb(255, 255, 255)")
+  expect(painted).toContain(reference.fill)
+  expect(draws.find(draw => draw.text.startsWith("For God"))?.alpha).toBeCloseTo(0.8)
 })

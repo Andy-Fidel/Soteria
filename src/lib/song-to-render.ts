@@ -14,11 +14,12 @@ import type { QueueItem, Song, VerseRenderData } from "@/types"
  */
 export function songStanzaToRenderData(
   item: Extract<QueueItem, { kind: "song-stanza" }>,
-  song: Song | undefined,
+  song: Song | undefined
 ): VerseRenderData | null {
   if (!song) return null
   return {
     reference: item.reference,
+    hideReference: true,
     segments: [{ text: capitalizeSongLyrics(item.text) }],
   }
 }

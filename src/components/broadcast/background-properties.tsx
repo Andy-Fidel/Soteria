@@ -1,6 +1,9 @@
+import { ImageEffectSlider } from "./theme-designer/(components)/image-effect-slider"
+import { parseColorOpacity, buildColorWithOpacity } from "@/lib/color-value"
+import { ThemeImageUpload } from "./theme-designer/(components)/theme-image-upload"
+import { ColorValueInput } from "./theme-designer/(components)/color-value-input"
 import { useBroadcastStore } from "@/stores/broadcast-store"
 import { Slider } from "@/components/ui/slider"
-import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -8,28 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-
-function parseColorOpacity(color: string): { hex: string; opacity: number } {
-  if (color.length === 9 && color.startsWith("#")) {
-    const alphaHex = color.slice(7, 9)
-    const alpha = parseInt(alphaHex, 16) / 255
-    return { hex: color.slice(0, 7), opacity: Math.round(alpha * 100) }
-  }
-  if (color.length === 7 && color.startsWith("#")) {
-    return { hex: color, opacity: 100 }
-  }
-  return { hex: color || "#000000", opacity: 100 }
-}
-
-function buildColorWithOpacity(hex: string, opacity: number): string {
-  if (opacity >= 100) return hex
-  const alphaHex = Math.round((opacity / 100) * 255)
-    .toString(16)
-    .padStart(2, "0")
-  return `${hex}${alphaHex}`
-}
 
 function SolidSection() {
   const draftTheme = useBroadcastStore((s) => s.draftTheme)
@@ -39,21 +21,22 @@ function SolidSection() {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-medium text-muted-foreground">Background Color</label>
+      <label className="text-xs font-medium text-muted-foreground">
+        Background Color
+      </label>
       <div className="flex items-center gap-2">
         <input
+          aria-label="Background Color"
           type="color"
           value={draftTheme.background.color}
           onChange={(e) => update("background.color", e.target.value)}
           className="h-7 w-8 cursor-pointer rounded border border-input bg-transparent p-0.5"
         />
-        <Input
+        <ColorValueInput
+          aria-label="Background Color"
           value={draftTheme.background.color}
-          onChange={(e) => {
-            const v = e.target.value
-            if (/^#[0-9a-fA-F]{6}$/.test(v)) {
-              update("background.color", v)
-            }
+          onValueChange={(v) => {
+            update("background.color", v)
           }}
           className="w-24 font-mono"
         />
@@ -76,12 +59,14 @@ function GradientSection() {
     <div className="flex flex-col gap-3">
       {/* Gradient Type */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Gradient Type</label>
+        <label className="text-xs font-medium text-muted-foreground">
+          Gradient Type
+        </label>
         <Select
           value={gradient.type}
           onValueChange={(v) => update("background.gradient.type", v)}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger aria-label="Gradient Type" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -95,10 +80,15 @@ function GradientSection() {
       {gradient.type === "linear" && (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-muted-foreground">Angle</label>
-            <span className="text-xs tabular-nums text-muted-foreground">{gradient.angle}&deg;</span>
+            <label className="text-xs font-medium text-muted-foreground">
+              Angle
+            </label>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {gradient.angle}&deg;
+            </span>
           </div>
           <Slider
+            aria-label="Angle"
             min={0}
             max={360}
             step={1}
@@ -110,69 +100,89 @@ function GradientSection() {
 
       {/* Color Stop 1 */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Color Stop 1</label>
+        <label className="text-xs font-medium text-muted-foreground">
+          Color Stop 1
+        </label>
         <div className="flex items-center gap-2">
           <input
+            aria-label="Color Stop 1"
             type="color"
             value={stop0.color}
-            onChange={(e) => update("background.gradient.stops.0.color", e.target.value)}
+            onChange={(e) =>
+              update("background.gradient.stops.0.color", e.target.value)
+            }
             className="h-7 w-8 cursor-pointer rounded border border-input bg-transparent p-0.5"
           />
-          <Input
+          <ColorValueInput
+            aria-label="Color Stop 1"
             value={stop0.color}
-            onChange={(e) => {
-              const v = e.target.value
-              if (/^#[0-9a-fA-F]{6}$/.test(v)) {
-                update("background.gradient.stops.0.color", v)
-              }
+            onValueChange={(v) => {
+              update("background.gradient.stops.0.color", v)
             }}
             className="w-20 font-mono"
           />
         </div>
         <div className="flex items-center justify-between">
-          <label className="text-xs font-medium text-muted-foreground">Position</label>
-          <span className="text-xs tabular-nums text-muted-foreground">{stop0.position}%</span>
+          <label className="text-xs font-medium text-muted-foreground">
+            Position
+          </label>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {stop0.position}%
+          </span>
         </div>
         <Slider
+          aria-label="Position"
           min={0}
           max={100}
           step={1}
           value={[stop0.position]}
-          onValueChange={([v]) => update("background.gradient.stops.0.position", v)}
+          onValueChange={([v]) =>
+            update("background.gradient.stops.0.position", v)
+          }
         />
       </div>
 
       {/* Color Stop 2 */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Color Stop 2</label>
+        <label className="text-xs font-medium text-muted-foreground">
+          Color Stop 2
+        </label>
         <div className="flex items-center gap-2">
           <input
+            aria-label="Color Stop 2"
             type="color"
             value={stop1.color}
-            onChange={(e) => update("background.gradient.stops.1.color", e.target.value)}
+            onChange={(e) =>
+              update("background.gradient.stops.1.color", e.target.value)
+            }
             className="h-7 w-8 cursor-pointer rounded border border-input bg-transparent p-0.5"
           />
-          <Input
+          <ColorValueInput
+            aria-label="Color Stop 2"
             value={stop1.color}
-            onChange={(e) => {
-              const v = e.target.value
-              if (/^#[0-9a-fA-F]{6}$/.test(v)) {
-                update("background.gradient.stops.1.color", v)
-              }
+            onValueChange={(v) => {
+              update("background.gradient.stops.1.color", v)
             }}
             className="w-20 font-mono"
           />
         </div>
         <div className="flex items-center justify-between">
-          <label className="text-xs font-medium text-muted-foreground">Position</label>
-          <span className="text-xs tabular-nums text-muted-foreground">{stop1.position}%</span>
+          <label className="text-xs font-medium text-muted-foreground">
+            Position
+          </label>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {stop1.position}%
+          </span>
         </div>
         <Slider
+          aria-label="Position"
           min={0}
           max={100}
           step={1}
           value={[stop1.position]}
-          onValueChange={([v]) => update("background.gradient.stops.1.position", v)}
+          onValueChange={([v]) =>
+            update("background.gradient.stops.1.position", v)
+          }
         />
       </div>
     </div>
@@ -186,46 +196,35 @@ function ImageSection() {
   if (!draftTheme || !draftTheme.background.image) return null
 
   const image = draftTheme.background.image
-  const tint = image.tint ? parseColorOpacity(image.tint) : { hex: "#000000", opacity: 50 }
+  const tint = image.tint
+    ? parseColorOpacity(image.tint)
+    : { hex: "#000000", opacity: 50 }
 
   return (
     <div className="flex flex-col gap-3">
       {/* Image Source */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Background Image</label>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          onClick={() => {
-            const input = document.createElement("input")
-            input.type = "file"
-            input.accept = "image/*"
-            input.onchange = (e) => {
-              const file = (e.target as HTMLInputElement).files?.[0]
-              if (file) {
-                const reader = new FileReader()
-                reader.onload = () => {
-                  update("background.image.url", reader.result as string)
-                }
-                reader.readAsDataURL(file)
-              }
-            }
-            input.click()
-          }}
-        >
-          Change Image
-        </Button>
+        <label className="text-xs font-medium text-muted-foreground">
+          Background Image
+        </label>
+        <ThemeImageUpload
+          key={draftTheme.id}
+          themeId={draftTheme.id}
+          path="background.image.url"
+          label="Change Image"
+        />
       </div>
 
       {/* Fit Mode */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Fit Mode</label>
+        <label className="text-xs font-medium text-muted-foreground">
+          Fit Mode
+        </label>
         <Select
           value={image.fit}
           onValueChange={(v) => update("background.image.fit", v)}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger aria-label="Fit Mode" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -240,35 +239,25 @@ function ImageSection() {
       <div className="flex flex-col gap-3 border-t pt-3">
         <h4 className="text-xs font-semibold">Effects</h4>
 
-        {/* Blur */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-muted-foreground">Blur</label>
-            <span className="text-xs tabular-nums text-muted-foreground">{image.blur}px</span>
-          </div>
-          <Slider
-            min={0}
-            max={50}
-            step={1}
-            value={[image.blur]}
-            onValueChange={([v]) => update("background.image.blur", v)}
-          />
-        </div>
-
-        {/* Brightness */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-muted-foreground">Brightness</label>
-            <span className="text-xs tabular-nums text-muted-foreground">{image.brightness}%</span>
-          </div>
-          <Slider
-            min={0}
-            max={200}
-            step={1}
-            value={[image.brightness]}
-            onValueChange={([v]) => update("background.image.brightness", v)}
-          />
-        </div>
+        <ImageEffectSlider
+          key={`blur-${draftTheme.id}`}
+          label="Blur"
+          value={image.blur}
+          max={50}
+          suffix="px"
+          onCommit={(value) => update("background.image.blur", value)}
+        />
+        <ImageEffectSlider
+          key={`brightness-${draftTheme.id}`}
+          label="Brightness"
+          value={image.brightness}
+          max={200}
+          suffix="%"
+          onCommit={(value) => update("background.image.brightness", value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          Effects update when you release the slider.
+        </p>
       </div>
 
       {/* Color Overlay */}
@@ -276,11 +265,15 @@ function ImageSection() {
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-semibold">Color Overlay</h4>
           <input
+            aria-label="Brightness"
             type="checkbox"
             checked={image.tint !== null}
             onChange={(e) => {
               if (e.target.checked) {
-                update("background.image.tint", buildColorWithOpacity("#000000", 50))
+                update(
+                  "background.image.tint",
+                  buildColorWithOpacity("#000000", 50)
+                )
               } else {
                 update("background.image.tint", null)
               }
@@ -293,35 +286,48 @@ function ImageSection() {
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <input
+                aria-label="Brightness"
                 type="color"
                 value={tint.hex}
                 onChange={(e) =>
-                  update("background.image.tint", buildColorWithOpacity(e.target.value, tint.opacity))
+                  update(
+                    "background.image.tint",
+                    buildColorWithOpacity(e.target.value, tint.opacity)
+                  )
                 }
                 className="h-7 w-8 cursor-pointer rounded border border-input bg-transparent p-0.5"
               />
-              <Input
+              <ColorValueInput
+                aria-label="Brightness"
                 value={tint.hex}
-                onChange={(e) => {
-                  const v = e.target.value
-                  if (/^#[0-9a-fA-F]{6}$/.test(v)) {
-                    update("background.image.tint", buildColorWithOpacity(v, tint.opacity))
-                  }
+                onValueChange={(v) => {
+                  update(
+                    "background.image.tint",
+                    buildColorWithOpacity(v, tint.opacity)
+                  )
                 }}
                 className="w-20 font-mono"
               />
             </div>
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground">Opacity</label>
-              <span className="text-xs tabular-nums text-muted-foreground">{tint.opacity}%</span>
+              <label className="text-xs font-medium text-muted-foreground">
+                Opacity
+              </label>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {tint.opacity}%
+              </span>
             </div>
             <Slider
+              aria-label="Opacity"
               min={0}
               max={100}
               step={1}
               value={[tint.opacity]}
               onValueChange={([v]) =>
-                update("background.image.tint", buildColorWithOpacity(tint.hex, v))
+                update(
+                  "background.image.tint",
+                  buildColorWithOpacity(tint.hex, v)
+                )
               }
             />
           </div>
@@ -355,6 +361,7 @@ function TextBoxSection() {
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-semibold">Text Box</h4>
         <input
+          aria-label="Opacity"
           type="checkbox"
           checked={textBox.enabled}
           onChange={(e) => update("textBox.enabled", e.target.checked)}
@@ -366,21 +373,22 @@ function TextBoxSection() {
         <div className="flex flex-col gap-3">
           {/* Color */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Color</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              Color
+            </label>
             <div className="flex items-center gap-2">
               <input
+                aria-label="Color"
                 type="color"
                 value={boxColorHex}
                 onChange={(e) => update("textBox.color", e.target.value)}
                 className="h-7 w-8 cursor-pointer rounded border border-input bg-transparent p-0.5"
               />
-              <Input
+              <ColorValueInput
+                aria-label="Color"
                 value={boxColorHex}
-                onChange={(e) => {
-                  const v = e.target.value
-                  if (/^#[0-9a-fA-F]{6}$/.test(v)) {
-                    update("textBox.color", v)
-                  }
+                onValueChange={(v) => {
+                  update("textBox.color", v)
                 }}
                 className="w-20 font-mono"
               />
@@ -390,10 +398,15 @@ function TextBoxSection() {
           {/* Opacity */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground">Opacity</label>
-              <span className="text-xs tabular-nums text-muted-foreground">{Math.round(textBox.opacity * 100)}%</span>
+              <label className="text-xs font-medium text-muted-foreground">
+                Opacity
+              </label>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {Math.round(textBox.opacity * 100)}%
+              </span>
             </div>
             <Slider
+              aria-label="Opacity"
               min={0}
               max={100}
               step={1}
@@ -405,10 +418,15 @@ function TextBoxSection() {
           {/* Border Radius */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground">Border Radius</label>
-              <span className="text-xs tabular-nums text-muted-foreground">{textBox.borderRadius}px</span>
+              <label className="text-xs font-medium text-muted-foreground">
+                Border Radius
+              </label>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {textBox.borderRadius}px
+              </span>
             </div>
             <Slider
+              aria-label="Border Radius"
               min={0}
               max={50}
               step={1}
@@ -420,10 +438,15 @@ function TextBoxSection() {
           {/* Padding */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground">Padding</label>
-              <span className="text-xs tabular-nums text-muted-foreground">{textBox.padding}px</span>
+              <label className="text-xs font-medium text-muted-foreground">
+                Padding
+              </label>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {textBox.padding}px
+              </span>
             </div>
             <Slider
+              aria-label="Padding"
               min={0}
               max={100}
               step={1}
@@ -449,7 +472,9 @@ export function BackgroundProperties() {
     <div className="flex flex-col gap-3">
       {/* Background Type */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Background Type</label>
+        <label className="text-xs font-medium text-muted-foreground">
+          Background Type
+        </label>
         <Select
           value={bgType}
           onValueChange={(v) => {
@@ -476,7 +501,7 @@ export function BackgroundProperties() {
             }
           }}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger aria-label="Background Type" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -515,6 +540,7 @@ function LogoSection() {
       <div className="flex items-center justify-between">
         <label className="text-xs font-bold text-foreground">Logo</label>
         <Switch
+          aria-label="Logo"
           checked={!!logo}
           onCheckedChange={(checked) => {
             if (checked) {
@@ -534,36 +560,22 @@ function LogoSection() {
 
       {logo && (
         <div className="flex flex-col gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={() => {
-              const input = document.createElement("input")
-              input.type = "file"
-              input.accept = "image/*"
-              input.onchange = (e) => {
-                const file = (e.target as HTMLInputElement).files?.[0]
-                if (!file) return
-                const reader = new FileReader()
-                reader.onload = () => {
-                  update("logo.url", reader.result as string)
-                }
-                reader.readAsDataURL(file)
-              }
-              input.click()
-            }}
-          >
-            {logo.url ? "Change Logo" : "Pick Logo"}
-          </Button>
+          <ThemeImageUpload
+            key={draftTheme.id}
+            themeId={draftTheme.id}
+            path="logo.url"
+            label={logo.url ? "Change Logo" : "Pick Logo"}
+          />
 
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground">Position</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              Position
+            </label>
             <Select
               value={logo.position}
               onValueChange={(v) => update("logo.position", v)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger aria-label="Position" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -577,10 +589,15 @@ function LogoSection() {
 
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground">Size</label>
-              <span className="text-xs tabular-nums text-muted-foreground">{logo.size}px</span>
+              <label className="text-xs font-medium text-muted-foreground">
+                Size
+              </label>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {logo.size}px
+              </span>
             </div>
             <Slider
+              aria-label="Size"
               min={32}
               max={400}
               step={4}
@@ -591,10 +608,15 @@ function LogoSection() {
 
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground">Margin</label>
-              <span className="text-xs tabular-nums text-muted-foreground">{logo.margin}px</span>
+              <label className="text-xs font-medium text-muted-foreground">
+                Margin
+              </label>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {logo.margin}px
+              </span>
             </div>
             <Slider
+              aria-label="Margin"
               min={0}
               max={200}
               step={2}
@@ -605,12 +627,15 @@ function LogoSection() {
 
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground">Opacity</label>
-              <span className="text-xs tabular-nums text-muted-foreground">
+              <label className="text-xs font-medium text-muted-foreground">
+                Opacity
+              </label>
+              <span className="text-xs text-muted-foreground tabular-nums">
                 {Math.round(logo.opacity * 100)}%
               </span>
             </div>
             <Slider
+              aria-label="Opacity"
               min={0}
               max={1}
               step={0.05}

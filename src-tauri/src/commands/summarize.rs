@@ -93,7 +93,7 @@ pub async fn summarize_sermon(
     .await
 }
 
-async fn request_summary(
+pub(super) async fn request_summary(
     client: &reqwest::Client,
     api_key: &str,
     content: String,

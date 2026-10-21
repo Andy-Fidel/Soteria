@@ -1,33 +1,28 @@
 import { create } from "zustand"
 import { load, type Store } from "@tauri-apps/plugin-store"
 import { emit } from "@tauri-apps/api/event"
+import { invoke } from "@tauri-apps/api/core"
 import {
   type CalibrationInsets,
   IDENTITY_INSETS,
 } from "@/lib/projector-calibration"
-import { DEFAULT_HIGHLIGHT_COLOR, normalizeHighlightColor } from "@/lib/text-highlights"
+import {
+  DEFAULT_HIGHLIGHT_COLOR,
+  normalizeHighlightColor,
+} from "@/lib/text-highlights"
 
 type SttProvider = "deepgram" | "whisper" | "assemblyai"
 
-export interface BrandConfig {
-  churchName: string | null
-  logoPath: string | null        // app/sessions logo
-  blankImagePath: string | null  // projector blank-slide image
-  blankVideoPath?: string | null
-  blankBackground?: "video" | "image"
-  momoImagePath: string | null
-  jesusImagePath: string | null
-}
-
-const DEFAULT_BRAND: BrandConfig = {
-  churchName: null,
-  logoPath: null,
-  blankImagePath: null,
-  momoImagePath: null,
-  jesusImagePath: null,
-}
+import {
+  DEFAULT_CHURCH_PROFILE,
+  loadChurchProfile,
+  type BrandConfig,
+} from "@/lib/church-profile"
+export type { BrandConfig } from "@/lib/church-profile"
+const DEFAULT_BRAND = DEFAULT_CHURCH_PROFILE
 
 interface SettingsState {
+  settingsHydrated: boolean
   deepgramApiKey: string | null
   assemblyAiApiKey: string | null
   claudeApiKey: string | null
@@ -80,6 +75,7 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
+  settingsHydrated: false,
   deepgramApiKey: null,
   assemblyAiApiKey: null,
   claudeApiKey: null,
@@ -122,12 +118,14 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setCooldownMs: (cooldownMs) => set({ cooldownMs }),
   setAutoSplitLongVerses: (autoSplitLongVerses) => set({ autoSplitLongVerses }),
   setSplitWordThreshold: (splitWordThreshold) => set({ splitWordThreshold }),
-  setDefaultHighlightColor: (defaultHighlightColor) => set({ defaultHighlightColor }),
+  setDefaultHighlightColor: (defaultHighlightColor) =>
+    set({ defaultHighlightColor }),
   setOnboardingComplete: (onboardingComplete) => set({ onboardingComplete }),
   setSttProvider: (sttProvider) => set({ sttProvider }),
   setEnabledHymnals: (enabledHymnals) => set({ enabledHymnals }),
   setRecordAudio: (recordAudio) => set({ recordAudio }),
-  setProjectorCalibration: (projectorCalibration) => set({ projectorCalibration }),
+  setProjectorCalibration: (projectorCalibration) =>
+    set({ projectorCalibration }),
   setBrand: (brand) => set({ brand }),
 }))
 
@@ -207,16 +205,25 @@ export async function hydrateSettings(): Promise<void> {
     if (braveApiKey) s.setBraveApiKey(braveApiKey)
     if (localImageFolder) s.setLocalImageFolder(localImageFolder)
     if (sttProvider) s.setSttProvider(sttProvider)
+    else if (!onboardingComplete && !deepgramApiKey && !assemblyAiApiKey) {
+      const provider = await invoke<SttProvider>("get_default_stt_provider")
+        .catch(() => "deepgram" as const)
+      s.setSttProvider(provider)
+      await store.set("sttProvider", provider)
+      await store.save()
+    }
     if (onboardingComplete) s.setOnboardingComplete(true)
     if (gain != null) s.setGain(gain)
     if (audioDeviceId) s.setAudioDeviceId(audioDeviceId)
     if (autoMode != null) s.setAutoMode(autoMode)
-    if (confidenceThreshold != null) s.setConfidenceThreshold(confidenceThreshold)
+    if (confidenceThreshold != null)
+      s.setConfidenceThreshold(confidenceThreshold)
     if (cooldownMs != null) s.setCooldownMs(cooldownMs)
     if (Array.isArray(enabledHymnals) && enabledHymnals.length > 0) {
       s.setEnabledHymnals(enabledHymnals)
     }
-    if (typeof recordAudio === "boolean") useSettingsStore.setState({ recordAudio })
+    if (typeof recordAudio === "boolean")
+      useSettingsStore.setState({ recordAudio })
     if (
       projectorCalibration &&
       typeof projectorCalibration === "object" &&
@@ -224,25 +231,30 @@ export async function hydrateSettings(): Promise<void> {
     ) {
       s.setProjectorCalibration(projectorCalibration)
     }
-    if (brand && typeof brand === "object") {
-      s.setBrand({
-        churchName: typeof brand.churchName === "string" ? brand.churchName : null,
-        logoPath: typeof brand.logoPath === "string" ? brand.logoPath : null,
-        blankImagePath: typeof brand.blankImagePath === "string" ? brand.blankImagePath : null,
-        blankVideoPath: typeof brand.blankVideoPath === "string" ? brand.blankVideoPath : null,
-        blankBackground: brand.blankBackground === "image" || brand.blankBackground === "video" ? brand.blankBackground : brand.blankImagePath ? "image" : "video",
-        momoImagePath: typeof brand.momoImagePath === "string" ? brand.momoImagePath : null,
-        jesusImagePath: typeof brand.jesusImagePath === "string" ? brand.jesusImagePath : null,
-      })
+    const profile = loadChurchProfile(brand, onboardingComplete === true)
+    s.setBrand(profile)
+    if (
+      (brand && brand.profileVersion !== 2) ||
+      (!brand && onboardingComplete)
+    ) {
+      await store.set("brand", profile)
+      await store.save()
     }
-    if (autoSplitLongVerses != null) s.setAutoSplitLongVerses(autoSplitLongVerses)
+    if (autoSplitLongVerses != null)
+      s.setAutoSplitLongVerses(autoSplitLongVerses)
     if (splitWordThreshold != null) {
-      const clamped = Math.max(20, Math.min(200, Math.round(splitWordThreshold)))
+      const clamped = Math.max(
+        20,
+        Math.min(200, Math.round(splitWordThreshold))
+      )
       s.setSplitWordThreshold(clamped)
     }
-    if (defaultHighlightColor) s.setDefaultHighlightColor(normalizeHighlightColor(defaultHighlightColor))
+    if (defaultHighlightColor)
+      s.setDefaultHighlightColor(normalizeHighlightColor(defaultHighlightColor))
   } catch {
     console.warn("[settings] Failed to load persisted settings, using defaults")
+  } finally {
+    useSettingsStore.setState({ settingsHydrated: true })
   }
 }
 
@@ -252,6 +264,7 @@ export async function persistOnboardingComplete(): Promise<void> {
   try {
     const store = await getStore()
     await store.set("onboardingComplete", true)
+    await store.save()
   } catch {
     console.warn("[settings] Failed to persist onboarding state")
   }
@@ -273,7 +286,9 @@ export function persistGain(gain: number): void {
 }
 
 /** Persist audio device ID to disk. */
-export async function persistAudioDeviceId(deviceId: string | null): Promise<void> {
+export async function persistAudioDeviceId(
+  deviceId: string | null
+): Promise<void> {
   useSettingsStore.getState().setAudioDeviceId(deviceId)
   try {
     const store = await getStore()
@@ -303,7 +318,9 @@ export async function persistDeepgramApiKey(key: string | null): Promise<void> {
 }
 
 /** Persist the AssemblyAI API key to disk. */
-export async function persistAssemblyAiApiKey(key: string | null): Promise<void> {
+export async function persistAssemblyAiApiKey(
+  key: string | null
+): Promise<void> {
   useSettingsStore.getState().setAssemblyAiApiKey(key)
   try {
     const store = await getStore()
@@ -399,7 +416,9 @@ export async function persistBraveApiKey(key: string | null): Promise<void> {
 }
 
 /** Persist local image folder path to disk. */
-export async function persistLocalImageFolder(path: string | null): Promise<void> {
+export async function persistLocalImageFolder(
+  path: string | null
+): Promise<void> {
   useSettingsStore.getState().setLocalImageFolder(path)
   try {
     const store = await getStore()
@@ -433,7 +452,9 @@ export async function persistAutoMode(autoMode: boolean): Promise<void> {
 }
 
 /** Persist confidence threshold to disk. */
-export async function persistConfidenceThreshold(threshold: number): Promise<void> {
+export async function persistConfidenceThreshold(
+  threshold: number
+): Promise<void> {
   useSettingsStore.getState().setConfidenceThreshold(threshold)
   try {
     const store = await getStore()
@@ -466,7 +487,9 @@ export async function persistSplitWordThreshold(n: number): Promise<void> {
   }
 }
 
-export async function persistDefaultHighlightColor(color: string): Promise<void> {
+export async function persistDefaultHighlightColor(
+  color: string
+): Promise<void> {
   const normalized = normalizeHighlightColor(color)
   useSettingsStore.getState().setDefaultHighlightColor(normalized)
   try {
@@ -514,7 +537,7 @@ export async function persistRecordAudio(value: boolean): Promise<void> {
  *  output updates live. `editing` drives the on-projector calibration overlay. */
 export async function persistProjectorCalibration(
   insets: CalibrationInsets,
-  editing: boolean,
+  editing: boolean
 ): Promise<void> {
   useSettingsStore.getState().setProjectorCalibration(insets)
   void emit("projector:calibration", { insets, editing }).catch(() => {})
@@ -527,17 +550,27 @@ export async function persistProjectorCalibration(
   }
 }
 
-/** Persist a brand-config patch (merged over current) to disk. */
-export async function persistBrandConfig(patch: Partial<BrandConfig>): Promise<void> {
-  const next = { ...useSettingsStore.getState().brand, ...patch }
-  useSettingsStore.getState().setBrand(next)
-  try {
-    const store = await getStore()
-    await store.set("brand", next)
-    await store.save()
-  } catch {
-    console.warn("[settings] Failed to persist brand config")
-  }
+// Serialize profile writes so two controls cannot overwrite each other's changes.
+let profileWrites: Promise<unknown> = Promise.resolve()
+/** Persist a profile patch before exposing it to the app. */
+export function persistBrandConfig(
+  patch: Partial<BrandConfig>
+): Promise<boolean> {
+  const operation = profileWrites.then(async () => {
+    const next = { ...useSettingsStore.getState().brand, ...patch }
+    try {
+      const store = await getStore()
+      await store.set("brand", next)
+      await store.save()
+      useSettingsStore.getState().setBrand(next)
+      return true
+    } catch {
+      console.warn("[settings] Failed to persist church profile")
+      return false
+    }
+  })
+  profileWrites = operation
+  return operation
 }
 
 export type { SttProvider }

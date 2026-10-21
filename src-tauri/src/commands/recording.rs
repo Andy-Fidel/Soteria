@@ -239,6 +239,16 @@ fn delete_recording(
     for segment in list_segments(dir).map_err(|error| error.to_string())? {
         remove_recording_file(&segment)?;
     }
+    // Prepared sermon copies belong to this recording and must be deleted too.
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries {
+            let path = entry.map_err(|error| error.to_string())?.path();
+            if path.file_name().and_then(|name| name.to_str()).is_some_and(|name|
+                name == "sermon-edit.json" || (name.starts_with("sermon-") && (name.ends_with(".mp3") || name.ends_with(".tmp")))) {
+                remove_recording_file(&path)?;
+            }
+        }
+    }
     remove_recording_file(&final_path)?;
     remove_recording_file(&dir.join("audio.mp3.concat-tmp"))?;
     let entries = match std::fs::read_dir(dir) {
@@ -292,10 +302,15 @@ mod tests {
         db.set_session_audio_path(session.id, audio_path.to_str().unwrap())
             .unwrap();
 
+        let derived = dir.path().join("sermon-abcdef.mp3");
+        std::fs::write(&derived, b"prepared copy").unwrap();
+        std::fs::write(dir.path().join("sermon-edit.json"), b"{}").unwrap();
         delete_recording(&crate::state::AppState::new(), &db, session.id, dir.path()).unwrap();
         let reloaded = db.get_session(session.id).unwrap();
         assert_eq!(reloaded.audio_path, None);
         assert!(!audio_path.exists());
+        assert!(!derived.exists());
+        assert!(!dir.path().join("sermon-edit.json").exists());
     }
 
     #[test]

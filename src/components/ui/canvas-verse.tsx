@@ -1,4 +1,7 @@
-import { getSpeakerPortraitUrl, SPEAKER_LOGO_MARK } from "@/lib/speaker-portrait"
+import {
+  getSpeakerPortraitUrl,
+  SPEAKER_LOGO_MARK,
+} from "@/lib/speaker-portrait"
 import { drawImageSlide } from "@/lib/image-slide-renderer"
 import { startLoopingVideo, drawVideoCover } from "@/lib/looping-video"
 import { useRef, useEffect, useState, memo } from "react"
@@ -7,6 +10,7 @@ import type { ImageSlide, BroadcastTheme, VerseRenderData } from "@/types"
 import { cn } from "@/lib/utils"
 import { renderAndReport } from "@/lib/canvas-render-result"
 
+const imageUsers = new Map<string, number>()
 const sharedImageCache = new Map<string, HTMLImageElement>()
 const pendingImageLoads = new Map<string, Promise<HTMLImageElement>>()
 
@@ -28,12 +32,13 @@ function ensureImage(url: string, onReady?: () => void) {
   }
   const req = loadImage(url)
     .then((img) => {
-      sharedImageCache.set(url, img)
+      if ((imageUsers.get(url) ?? 0) > 0) sharedImageCache.set(url, img)
       onReady?.()
       return img
     })
     .finally(() => pendingImageLoads.delete(url))
   pendingImageLoads.set(url, req)
+  void req.catch(() => console.warn("[canvas] Could not load image"))
 }
 
 interface CanvasVerseProps {
@@ -54,8 +59,8 @@ export const CanvasVerse = memo(function CanvasVerse({
   fullscreenImage = null,
   blankLogo = false,
   blankVideoUrl = null,
-  blankLogoLabel = "Adenta Campus",
-  blankLogoUrl = "/EWC-White.png",
+  blankLogoLabel = "Manna",
+  blankLogoUrl = "/manna-logo.png",
   className,
   onRenderResult,
 }: CanvasVerseProps) {
@@ -96,15 +101,46 @@ export const CanvasVerse = memo(function CanvasVerse({
     ctx.scale(dpr, dpr)
     const scale = displayW / theme.resolution.width
 
-    const drawFullscreenImage = (cx: CanvasRenderingContext2D, w: number, h: number) => {
+    const drawFullscreenImage = (
+      cx: CanvasRenderingContext2D,
+      w: number,
+      h: number
+    ) => {
       if (!fullscreenImage) return
-      drawImageSlide(cx, sharedImageCache.get(fullscreenImage.url), fullscreenImage, w, h, sharedImageCache.get(getSpeakerPortraitUrl(fullscreenImage) ?? ""), sharedImageCache.get(SPEAKER_LOGO_MARK))
+      drawImageSlide(
+        cx,
+        sharedImageCache.get(fullscreenImage.url),
+        fullscreenImage,
+        w,
+        h,
+        sharedImageCache.get(getSpeakerPortraitUrl(fullscreenImage) ?? ""),
+        sharedImageCache.get(SPEAKER_LOGO_MARK)
+      )
     }
 
+    const usedImages = new Set(
+      [
+        theme.background.type === "image"
+          ? theme.background.image?.url
+          : undefined,
+        theme.logo?.url,
+        fullscreenImage?.url,
+        getSpeakerPortraitUrl(fullscreenImage),
+        getSpeakerPortraitUrl(fullscreenImage) ? SPEAKER_LOGO_MARK : undefined,
+        blankLogo ? blankLogoUrl : undefined,
+      ].filter((url): url is string => Boolean(url))
+    )
+    usedImages.forEach((url) =>
+      imageUsers.set(url, (imageUsers.get(url) ?? 0) + 1)
+    )
     let videoLoop: ReturnType<typeof startLoopingVideo> | undefined
     let active = true
 
-    const drawBlankLogo = (cx: CanvasRenderingContext2D, w: number, h: number) => {
+    const drawBlankLogo = (
+      cx: CanvasRenderingContext2D,
+      w: number,
+      h: number
+    ) => {
       cx.fillStyle = "#000"
       cx.fillRect(0, 0, w, h)
       if (drawVideoCover(cx, videoLoop?.video ?? null, w, h)) return
@@ -128,19 +164,43 @@ export const CanvasVerse = memo(function CanvasVerse({
       cx.scale(dpr, dpr)
       if (fullscreenImage) {
         onRenderResult?.(null)
-        drawFullscreenImage(cx, theme.resolution.width * scale, theme.resolution.height * scale)
+        drawFullscreenImage(
+          cx,
+          theme.resolution.width * scale,
+          theme.resolution.height * scale
+        )
         return
       }
       if (blankLogo) {
         onRenderResult?.(null)
-        drawBlankLogo(cx, theme.resolution.width * scale, theme.resolution.height * scale)
+        drawBlankLogo(
+          cx,
+          theme.resolution.width * scale,
+          theme.resolution.height * scale
+        )
         return
       }
       renderAndReport(
-        () => renderVerse(cx, theme, verse, { scale, imageCache: sharedImageCache, collectWordHits: Boolean(onRenderResult) }),
-        onRenderResult,
+        () =>
+          renderVerse(cx, theme, verse, {
+            scale,
+            imageCache: sharedImageCache,
+            collectWordHits: Boolean(onRenderResult),
+          }),
+        onRenderResult
       )
     }
+
+    void Promise.all([
+      document.fonts.load(
+        `${theme.verseText.fontWeight} 16px "${theme.verseText.fontFamily}"`
+      ),
+      document.fonts.load(
+        `${theme.reference.fontWeight} 16px "${theme.reference.fontFamily}"`
+      ),
+    ])
+      .then(rerender)
+      .catch(() => {})
 
     if (blankLogo && blankVideoUrl && !fullscreenImage) {
       videoLoop = startLoopingVideo(blankVideoUrl, rerender, rerender)
@@ -166,18 +226,52 @@ export const CanvasVerse = memo(function CanvasVerse({
 
     if (fullscreenImage) {
       onRenderResult?.(null)
-      drawFullscreenImage(ctx, theme.resolution.width * scale, theme.resolution.height * scale)
+      drawFullscreenImage(
+        ctx,
+        theme.resolution.width * scale,
+        theme.resolution.height * scale
+      )
     } else if (blankLogo) {
       onRenderResult?.(null)
-      drawBlankLogo(ctx, theme.resolution.width * scale, theme.resolution.height * scale)
+      drawBlankLogo(
+        ctx,
+        theme.resolution.width * scale,
+        theme.resolution.height * scale
+      )
     } else {
       renderAndReport(
-        () => renderVerse(ctx, theme, verse, { scale, imageCache: sharedImageCache, collectWordHits: Boolean(onRenderResult) }),
-        onRenderResult,
+        () =>
+          renderVerse(ctx, theme, verse, {
+            scale,
+            imageCache: sharedImageCache,
+            collectWordHits: Boolean(onRenderResult),
+          }),
+        onRenderResult
       )
     }
-    return () => { active = false; videoLoop?.stop() }
-  }, [theme, verse, fullscreenImage, blankLogo, blankLogoLabel, blankLogoUrl, blankVideoUrl, containerWidth, onRenderResult])
+    return () => {
+      active = false
+      videoLoop?.stop()
+      usedImages.forEach((url) => {
+        const users = (imageUsers.get(url) ?? 1) - 1
+        if (users > 0) imageUsers.set(url, users)
+        else {
+          imageUsers.delete(url)
+          sharedImageCache.delete(url)
+        }
+      })
+    }
+  }, [
+    theme,
+    verse,
+    fullscreenImage,
+    blankLogo,
+    blankLogoLabel,
+    blankLogoUrl,
+    blankVideoUrl,
+    containerWidth,
+    onRenderResult,
+  ])
 
   return (
     <div ref={containerRef} className={cn("w-full", className)}>

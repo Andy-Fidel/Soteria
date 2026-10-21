@@ -2,7 +2,6 @@ import { toast } from "sonner"
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import {
-  formatSummaryAsMarkdown,
   summarizeTranscript,
   summaryFromJson,
   summaryToJson,
@@ -17,12 +16,18 @@ import type {
 import { SummaryTab } from "./session-detail/(tabs)/summary-tab"
 import { TranscriptTab } from "./session-detail/(tabs)/transcript-tab"
 import { DetectionsTab } from "./session-detail/(tabs)/detections-tab"
+import { SlidesTab } from "./session-detail/(tabs)/slides-tab"
 import { StatsTab } from "./session-detail/(tabs)/stats-tab"
 import { SessionMetadata } from "./session-detail/(components)/session-metadata"
 import { SessionExportMenu } from "./session-detail/(components)/session-export-menu"
 import { useTranscriptEditor } from "./session-detail/(hooks)/use-transcript-editor"
+import { useSharingDrafts } from "./session-detail/(hooks)/use-sharing-drafts"
+import { SharingTab } from "./session-detail/(tabs)/sharing-tab"
 import type { DetailTab } from "./session-detail/(lib)/types"
 import { SessionHeader } from "./session-detail/(components)/session-header"
+import { sessionStartedAtMs } from "./session-detail/(lib)/transcript-presentation"
+import { sessionSlideTitle } from "./session-detail/(lib)/session-slide-title"
+import { exportSummary } from "./session-detail/(lib)/summary-export"
 
 interface SessionDetailProps {
   sessionId: number
@@ -56,6 +61,7 @@ function SessionDetailContent({
   const [summaryCopied, setSummaryCopied] = useState(false)
   const [showAllDetections, setShowAllDetections] = useState(false)
   const editor = useTranscriptEditor(transcript, setTranscript)
+  const sharing = useSharingDrafts(sessionId)
   useEffect(() => {
     let cancelled = false
     Promise.all([
@@ -145,14 +151,26 @@ function SessionDetailContent({
     }
   }
 
-  const handleCopySummary = () => {
+  const handleCopySummary = async () => {
     if (summary) {
-      const text = formatSummaryAsMarkdown(summary)
-      navigator.clipboard.writeText(text)
-      setSummaryCopied(true)
-      setTimeout(() => setSummaryCopied(false), 2000)
+      try {
+        await exportSummary("clipboard", summary, session?.speaker)
+        setSummaryCopied(true)
+        setTimeout(() => setSummaryCopied(false), 2000)
+      } catch (error) {
+        toast.error(
+          `Could not copy summary: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
     }
   }
+
+  const artworkTitle = sessionSlideTitle(
+    session,
+    sessionTitle,
+    sharing.draft.title,
+    summary?.title || summary?.topic
+  )
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -189,15 +207,35 @@ function SessionDetailContent({
           </div>
         )}
         {!loading && tab === "summary" && (
-          <SummaryTab
+          <>
+            <SummaryTab
+              summary={summary}
+              summarizing={summarizing}
+              summaryError={summaryError}
+              summaryCopied={summaryCopied}
+              transcript={transcript}
+              session={session}
+              handleSummarize={handleSummarize}
+              handleCopySummary={handleCopySummary}
+            />
+            <button
+              className="mx-4 mb-5 text-xs font-medium text-primary underline underline-offset-4"
+              onClick={() => setTab("slides")}
+            >
+              View saved session slides
+            </button>
+          </>
+        )}
+        {!loading && (tab === "public-recap" || tab === "sms") && (
+          <SharingTab
+            key={`${tab}-${audioNonce}`}
+            kind={tab}
+            startedAtMs={sessionStartedAtMs(session?.startedAt)}
+            sharing={sharing}
             summary={summary}
+            title={artworkTitle}
+            speaker={session?.speaker}
             summarizing={summarizing}
-            summaryError={summaryError}
-            summaryCopied={summaryCopied}
-            transcript={transcript}
-            session={session}
-            handleSummarize={handleSummarize}
-            handleCopySummary={handleCopySummary}
           />
         )}
         {!loading && tab === "transcript" && (
@@ -205,6 +243,7 @@ function SessionDetailContent({
             session={session}
             sessionId={sessionId}
             audioNonce={audioNonce}
+            artworkTitle={artworkTitle}
             transcript={transcript}
             editor={editor}
           />
@@ -214,6 +253,14 @@ function SessionDetailContent({
             detections={detections}
             showAllDetections={showAllDetections}
             onToggle={() => setShowAllDetections((v) => !v)}
+          />
+        )}
+        {!loading && tab === "slides" && (
+          <SlidesTab
+            key={sessionId}
+            sessionId={sessionId}
+            title={artworkTitle}
+            speaker={session?.speaker ?? null}
           />
         )}
         {!loading && tab === "stats" && (

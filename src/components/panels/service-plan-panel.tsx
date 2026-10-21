@@ -1,6 +1,6 @@
 // src/components/panels/service-plan-panel.tsx
 import { useState } from "react"
-import { CalendarDaysIcon, FolderIcon } from "lucide-react"
+import { CalendarDaysIcon } from "lucide-react"
 import { DragDropProvider, type DragEndEvent } from "@dnd-kit/react"
 import { useSortable, isSortable } from "@dnd-kit/react/sortable"
 import { useServicePlan } from "@/hooks/use-service-plan"
@@ -9,8 +9,6 @@ import { handlePlanKeyDown } from "@/components/service-plan/(lib)/keyboard"
 import { AddItemMenu } from "@/components/service-plan/add-item-menu"
 import { ServicePlanItem } from "./service-plan-item"
 import { ServicePlanItemEditor } from "./service-plan-item-editor"
-import { TemplateManager } from "@/components/service-plan/template-manager"
-import { Button } from "@/components/ui/button"
 import type { PlanItem } from "@/types"
 import { useSessionStore, useTranscriptStore, useSettingsStore } from "@/stores"
 import { getPlanItemThumbnail } from "@/components/service-plan/(lib)/plan-item-thumbnail"
@@ -21,7 +19,6 @@ export function ServicePlanPanel() {
     useServicePlan()
   const presentedItemId = useServicePlanStore(s => s.presentedItemId)
   const [editing, setEditing] = useState<PlanItem | null>(null)
-  const [templateManagerOpen, setTemplateManagerOpen] = useState(false)
   const activeSession = useSessionStore((s) => s.activeSession)
   const pendingServiceStart = useSessionStore((s) => s.pendingServiceStart)
   const sessionsMode = useSessionStore((s) => s.sessionsMode)
@@ -62,18 +59,7 @@ export function ServicePlanPanel() {
         <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Service Plan
         </span>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            onClick={() => setTemplateManagerOpen(true)}
-          >
-            <FolderIcon className="size-3.5" />
-            Templates
-          </Button>
-          <AddItemMenu onEdit={setEditing} />
-        </div>
+        <AddItemMenu onEdit={setEditing} />
       </div>
 
       <DragDropProvider onDragEnd={handleDragEnd}>
@@ -99,7 +85,6 @@ export function ServicePlanPanel() {
       </DragDropProvider>
 
       <ServicePlanItemEditor item={editing} onClose={() => setEditing(null)} />
-      <TemplateManager open={templateManagerOpen} onOpenChange={setTemplateManagerOpen} />
     </div>
   )
 }

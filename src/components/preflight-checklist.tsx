@@ -1,4 +1,5 @@
 import { probeAudioLevel } from "./preflight-audio-probe"
+import { prepareSpeechReadiness } from "@/lib/speech-readiness"
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { useSettingsStore } from "@/stores"
@@ -38,11 +39,8 @@ function PreflightChecklistContent({ onOpenChange, onStart }: Omit<PreflightChec
     const runChecks = async () => {
       const settings = useSettingsStore.getState()
       const cloud = settings.sttProvider !== "whisper"
-      const speechConnection = cloud
-        ? invoke<boolean>("prepare_stt_connection", { provider: settings.sttProvider })
-            .then(() => ({ status: "pass" as const, detail: "Connection prepared. Listening starts when you start the service." }))
-            .catch(() => ({ status: "warning" as const, detail: "Could not prepare the connection. We’ll retry when you start." }))
-        : Promise.resolve(null)
+      const speechConnection = prepareSpeechReadiness(settings.sttProvider,
+        settings.sttProvider === "deepgram" ? settings.deepgramApiKey : settings.assemblyAiApiKey)
       const results: CheckItem[] = []
 
       // Check 1: Audio device
@@ -94,8 +92,8 @@ function PreflightChecklistContent({ onOpenChange, onStart }: Omit<PreflightChec
       } else {
         results.push({
           label: "Whisper (Local)",
-          status: "pass",
-          detail: "Local speech recognition — no API key needed",
+          status: "checking",
+          detail: "Loading the offline speech model…",
           icon: <Key className="size-4" />,
         })
       }
@@ -120,7 +118,8 @@ function PreflightChecklistContent({ onOpenChange, onStart }: Omit<PreflightChec
         icon: <Volume2 className="size-4" />,
       }
 
-      if (connectionResult) results[results.length - 1] = {label: "Speech Connection", ...connectionResult, icon: <CheckCircle2 className="size-4" />}
+      if (cloud) results[results.length - 1] = {label: "Speech Connection", ...connectionResult, icon: <CheckCircle2 className="size-4" />}
+      else results[1] = { label: "Whisper (Local)", ...connectionResult, icon: <Key className="size-4" /> }
       if (cancelled) return
       setChecks(results)
     }

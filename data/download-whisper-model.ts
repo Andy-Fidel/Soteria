@@ -1,7 +1,7 @@
 /**
- * Downloads the Whisper large-v3-turbo Q8_0 GGML model for local speech-to-text.
+ * Downloads the platform default Whisper GGML model for local speech-to-text.
  *
- * Model: ggml-large-v3-turbo-q8_0.bin (~394MB)
+ * Mac: ggml-small.en-q8_0.bin (~264MB); Windows: ggml-base.en.bin (~148MB)
  * Source: https://huggingface.co/ggerganov/whisper.cpp
  *
  * Run: bun run download:whisper
@@ -12,9 +12,9 @@ import { existsSync, mkdirSync, createWriteStream } from "node:fs"
 
 const PROJECT_ROOT = join(import.meta.dir, "..")
 const MODELS_DIR = join(PROJECT_ROOT, "models", "whisper")
-const MODEL_FILE = "ggml-large-v3-turbo-q8_0.bin"
+const MODEL_FILE = process.platform === "win32" ? "ggml-base.en.bin" : "ggml-small.en-q8_0.bin"
 const MODEL_PATH = join(MODELS_DIR, MODEL_FILE)
-const MODEL_URL = `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${MODEL_FILE}`
+const MODEL_URL = `https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/${MODEL_FILE}`
 
 async function main() {
   if (existsSync(MODEL_PATH)) {

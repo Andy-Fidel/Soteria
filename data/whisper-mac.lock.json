@@ -1,0 +1,10 @@
+{
+  "speech": {
+    "model": "Small English Q8",
+    "language": "en",
+    "source_revision": "5359861c739e955e79d9a303bcbc70fb988958b1"
+  },
+  "files": {
+    "models/whisper/ggml-small.en-q8_0.bin": "67a179f608ea6114bd3fdb9060e762b588a3fb3bd00c4387971be4d177958067"
+  }
+}

@@ -5,13 +5,15 @@ mod menu;
 #[cfg(feature = "onnx")]
 mod semantic_resources;
 mod state;
+#[cfg(feature = "package-check")]
+mod package_check;
 
 use rhema_notes::SessionDb;
 use std::sync::Mutex;
 
 use hymnals::{HymnalDef, HYMNALS};
 
-/// Compile-time flavor marker ("minimal" or "full"). Set by `build.rs` from
+/// Compile-time flavor marker ("minimal", "standard", or "full"). Set by `build.rs` from
 /// the `MANNA_FLAVOR` env var at build time; defaults to "minimal".
 pub const FLAVOR: &str = env!("MANNA_FLAVOR");
 
@@ -20,20 +22,27 @@ fn get_flavor() -> &'static str {
     FLAVOR
 }
 
-/// Resolve a bundled resource path. Checks `resource_dir/<rel>` first
-/// (production install); falls back to `$CARGO_MANIFEST_DIR/../<rel>` (dev mode).
+#[tauri::command]
+fn print_summary(window: tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("Summary printing is only available in the main window.".to_owned());
+    }
+    #[cfg(desktop)]
+    return window.print().map_err(|error| error.to_string());
+    #[cfg(not(desktop))]
+    Err("Summary printing requires the desktop app.".to_owned())
+}
+
+/// Release builds resolve only installed resources. Development builds can also
+/// resolve files from the checkout; a missing release resource must stay missing.
 fn resolve_resource(app: &tauri::App, rel: &str) -> std::path::PathBuf {
     use tauri::Manager;
-    app.path()
-        .resource_dir()
-        .ok()
-        .map(|p| p.join(rel))
-        .filter(|p| p.exists())
-        .unwrap_or_else(|| {
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("..")
-                .join(rel)
-        })
+    let bundled = app.path().resource_dir().unwrap_or_default().join(rel);
+    if cfg!(debug_assertions) && !bundled.exists() {
+        return std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..").join(rel);
+    }
+    bundled
 }
 
 #[derive(serde::Deserialize)]
@@ -223,10 +232,16 @@ async fn warm_connection_pool() {
 #[expect(clippy::too_many_lines, reason = "app setup is inherently complex")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let checking_package = cfg!(feature = "package-check")
+        && std::env::args().any(|argument| argument == "--verify-package");
     // Load .env files — src-tauri/.env, project root ../.env, and ../.env.local
-    dotenvy::dotenv().ok();
-    dotenvy::from_filename("../.env").ok();
-    dotenvy::from_filename("../.env.local").ok();
+    if !checking_package {
+        dotenvy::dotenv().ok();
+        dotenvy::from_filename("../.env").ok();
+        dotenvy::from_filename("../.env.local").ok();
+    }
+    let context = tauri::generate_context!();
+    let application_identifier = context.config().identifier.clone();
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -247,12 +262,18 @@ pub fn run() {
         .manage(Mutex::new(rhema_detection::ReadingMode::new()))
         .manage(Mutex::new(commands::remote::OscRuntime::new()))
         .manage(Mutex::new(commands::remote::HttpRuntime::new()))
+        .manage(commands::sms::SmsRuntime::default())
+        .manage(commands::sermon_audio::AudioEditRuntime::default())
         .manage(Mutex::new({
             let app_data = dirs::data_dir()
                 .unwrap_or_else(|| std::path::PathBuf::from("."))
-                .join("com.manna.app");
-            std::fs::create_dir_all(&app_data).ok();
-            let db_path = app_data.join("manna.db");
+                .join(application_identifier);
+            let db_path = if checking_package {
+                std::path::PathBuf::from(":memory:")
+            } else {
+                std::fs::create_dir_all(&app_data).ok();
+                app_data.join("manna.db")
+            };
             // Tauri's setup() hasn't run yet, so a plugin-dialog message box
             // isn't available here. Print to stderr and exit cleanly with a
             // non-zero code so the user sees a readable message instead of a
@@ -276,6 +297,7 @@ pub fn run() {
             quit_app,
             open_devtools,
             get_flavor,
+            print_summary,
             commands::bible::list_translations,
             commands::bible::list_books,
             commands::bible::get_chapter,
@@ -298,6 +320,8 @@ pub fn run() {
             commands::audio::record_audio_clip,
             commands::stt::start_transcription,
             commands::stt::prepare_stt_connection,
+            commands::stt::local::get_default_stt_provider,
+            commands::stt::local::prepare_local_speech,
             commands::stt::stop_transcription,
             commands::stt::get_stt_status,
             commands::stt::set_recording_paused,
@@ -307,6 +331,27 @@ pub fn run() {
             commands::stt::verify_claude_key,
             commands::stt::verify_deepseek_key,
             commands::summarize::summarize_sermon,
+            commands::sharing::generate_sharing_draft,
+            commands::sharing::alternatives::generate_sms_alternatives,
+            commands::sharing::get_sharing_draft,
+            commands::sharing::save_sharing_draft,
+            commands::publishing::get_session_publication,
+            commands::publishing::publish_session_recap,
+            commands::publishing::generate_linked_sms,
+            commands::sermon_audio::get_sermon_audio,
+            commands::sermon_audio::suggest_sermon_audio,
+            commands::sermon_audio::prepare_sermon_audio,
+            commands::sermon_audio::read_prepared_sermon_audio,
+            commands::sms::get_comms360_settings,
+            commands::sms::save_comms360_settings,
+            commands::sms::get_test_sms_batch,
+            commands::sms::preview_test_sms,
+            commands::sms::send_test_sms,
+            commands::sms::refresh_test_sms,
+            commands::sms::list::get_contact_list_sms,
+            commands::sms::list::preview_contact_list_sms,
+            commands::sms::list::send_contact_list_sms,
+            commands::sms::list::refresh_contact_list_sms,
             commands::summarize::generate_live_notes,
             commands::images::search_pexels,
             commands::images::search_unsplash,
@@ -391,6 +436,7 @@ pub fn run() {
             commands::service_plan::plan_update_template_notes,
             commands::service_plan::plan_delete_template,
             commands::service_plan::plan_get,
+            commands::service_plan::get_session_slides,
             commands::service_plan::plan_add_item,
             commands::service_plan::plan_update_item,
             commands::service_plan::plan_reorder_item,
@@ -403,7 +449,7 @@ pub fn run() {
             commands::assets::delete_brand_asset,
             commands::images::import_library_image,
         ])
-        .setup(|app| {
+        .setup(move |app| {
             use tauri::Manager;
 
             // Hold a keepawake assertion for the app's lifetime so the laptop
@@ -610,6 +656,22 @@ pub fn run() {
                 log::info!("Built without 'onnx' feature — semantic detection disabled.");
             }
 
+            #[cfg(feature = "package-check")]
+            if checking_package {
+                // Exit before frontend startup, settings hydration or provider warm-up.
+                let result = tauri::async_runtime::block_on(package_check::verify(app));
+                match result {
+                    Ok(report) => {
+                        println!("MANNA_PACKAGE_CHECK={report}");
+                        std::process::exit(0);
+                    }
+                    Err(error) => {
+                        eprintln!("MANNA_PACKAGE_CHECK_FAILED={error}");
+                        std::process::exit(1);
+                    }
+                }
+            }
+
             // Seed hymnals into songs table — respects enabledHymnals setting,
             // idempotent via per-hymnal seed_version check.
             let enabled = read_enabled_hymnals(app).unwrap_or_else(|| {
@@ -651,7 +713,7 @@ pub fn run() {
                 log::error!("[menu] failed to emit menu-event: {e}");
             }
         })
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }
 

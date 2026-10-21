@@ -160,3 +160,11 @@ pub fn plan_save_session_as_template(
         .save_session_as_template(session_id, &name, notes.as_deref())
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn get_session_slides(
+    db: State<'_, DbState>,
+    session_id: i64,
+) -> Result<Vec<rhema_notes::SessionSlide>, String> {
+    lock(&db)?.get_session_slides(session_id).map_err(|e| e.to_string())
+}

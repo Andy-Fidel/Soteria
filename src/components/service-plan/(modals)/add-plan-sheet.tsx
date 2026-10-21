@@ -1,6 +1,10 @@
 import { CLOSING_SLIDE } from "../(lib)/closing-slide"
 import { PRAYER_SLIDE } from "../(lib)/prayer-slide"
-import { IMAGE_TEXT_PRESETS } from "../(lib)/image-text-slide"
+import {
+  applyProfilePreset,
+  profileTitlePresets,
+  profileWelcomeSlide,
+} from "../(lib)/profile-slide-presets"
 import { XIcon } from "lucide-react"
 import {
   Drawer,
@@ -13,8 +17,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { useSettingsStore } from "@/stores/settings-store"
 import { resolveBrandAsset } from "@/lib/brand"
+import { givingSlide } from "@/lib/giving-slide"
 import type { PlanItemPayload } from "@/types"
-import { WELCOME_SLIDE, WELCOME_MOTION_SLIDE } from "../(lib)/welcome-slide"
+import { WELCOME_MOTION_SLIDE } from "../(lib)/welcome-slide"
 import { JESUS_SLIDES } from "../(lib)/jesus-slides"
 
 interface Props {
@@ -32,36 +37,43 @@ export function AddPlanSheet({ open, onOpenChange, adding, onAdd }: Props) {
     payload: PlanItemPayload
   }> = [
     { label: "Prayer", image: PRAYER_SLIDE.imageUrl!, payload: PRAYER_SLIDE },
-    ...IMAGE_TEXT_PRESETS.map((payload) => ({
+    ...profileTitlePresets(brand).map((payload) => ({
       label: payload.imageLabel!,
       image: payload.imageUrl!,
       payload,
     })),
-    {
-      label: "EWC Adenta — Welcome",
-      image: WELCOME_SLIDE.imageUrl!,
-      payload: WELCOME_SLIDE,
-    },
+    profileWelcomeSlide(brand),
     {
       label: "Welcome — Motion",
       image: WELCOME_MOTION_SLIDE.imageUrl!,
       payload: WELCOME_MOTION_SLIDE,
     },
     {
-      label: "MoMo",
-      image: resolveBrandAsset("momo", brand.momoImagePath),
+      label: "Giving",
+      image: givingSlide(brand).url,
       payload: { type: "momo" },
     },
     {
       label: "Thank You — Closing",
-      image: CLOSING_SLIDE.imageUrl!,
-      payload: CLOSING_SLIDE,
+      image: applyProfilePreset(brand, "closing", CLOSING_SLIDE).imageUrl!,
+      payload: applyProfilePreset(brand, "closing", CLOSING_SLIDE),
     },
-    ...JESUS_SLIDES.map((payload) => ({
-      label: payload.imageLabel!,
-      image: payload.imageUrl!,
-      payload,
-    })),
+    ...JESUS_SLIDES.map((original, index) => {
+      const payload =
+        index === 0
+          ? applyProfilePreset(brand, "jesus", {
+              ...original,
+              ...(brand.jesusImagePath
+                ? { imageUrl: resolveBrandAsset("jesus", brand.jesusImagePath) }
+                : {}),
+            })
+          : original
+      return {
+        label: payload.imageLabel!,
+        image: payload.imageUrl!,
+        payload,
+      }
+    }),
   ]
 
   return (

@@ -24,13 +24,11 @@ it("restores the chosen video and mode after settings are reloaded", async () =>
     blankVideoPath: "/managed/worship.mp4",
     blankBackground: "video",
   })
-  useSettingsStore
-    .getState()
-    .setBrand({
-      ...useSettingsStore.getState().brand,
-      blankVideoPath: null,
-      blankBackground: "image",
-    })
+  useSettingsStore.getState().setBrand({
+    ...useSettingsStore.getState().brand,
+    blankVideoPath: null,
+    blankBackground: "image",
+  })
   await hydrateSettings()
   expect(useSettingsStore.getState().brand).toMatchObject({
     blankVideoPath: "/managed/worship.mp4",
@@ -45,5 +43,41 @@ it("keeps a legacy custom blank image active until the operator chooses video", 
   expect(useSettingsStore.getState().brand).toMatchObject({
     blankImagePath: "/managed/church.png",
     blankBackground: "image",
+  })
+})
+
+it("keeps giving details after reload without restoring the EWC payment image", async () => {
+  disk.set("brand", { churchName: "Existing church" })
+  const { useSettingsStore, persistBrandConfig, hydrateSettings } =
+    await import("./settings-store")
+  await hydrateSettings()
+  expect(useSettingsStore.getState().brand.momoImagePath).toBe(
+    "/service-slides/momo.png"
+  )
+  expect(
+    await persistBrandConfig({
+      momoImagePath: null,
+      givingNumber: "0123456789",
+      givingAccountName: "Example Church",
+    })
+  ).toBe(true)
+  await hydrateSettings()
+  expect(useSettingsStore.getState().brand).toMatchObject({
+    momoImagePath: null,
+    givingNumber: "0123456789",
+    givingAccountName: "Example Church",
+  })
+})
+it("serializes separate profile edits without dropping either field", async () => {
+  const { persistBrandConfig, hydrateSettings, useSettingsStore } =
+    await import("./settings-store")
+  await Promise.all([
+    persistBrandConfig({ churchName: "Example Church" }),
+    persistBrandConfig({ givingNumber: "0123456789" }),
+  ])
+  await hydrateSettings()
+  expect(useSettingsStore.getState().brand).toMatchObject({
+    churchName: "Example Church",
+    givingNumber: "0123456789",
   })
 })

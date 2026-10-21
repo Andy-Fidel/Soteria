@@ -64,3 +64,8 @@ scripts/hymnals/.cache/
 
 # Local service-plan preview page
 /add-sheet-check.html
+
+# Verified, generated installer resources and internal installer copies
+/build-resources/
+/artifacts/
+__pycache__/

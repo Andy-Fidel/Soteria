@@ -5,12 +5,14 @@ import { GeniusCredential } from "../(components)/genius-credential"
 import { PexelsCredential } from "../(components)/pexels-credential"
 import { UnsplashCredential } from "../(components)/unsplash-credential"
 import { BraveCredential } from "../(components)/brave-credential"
+import { Comms360Credential } from "../(components)/comms360-credential"
 export function ApiKeysSection() {
   return (
     <div className="flex flex-col gap-6">
       <DeepgramCredential />
       <AssemblyCredential />
       <DeepseekCredential />
+      <Comms360Credential />
       <GeniusCredential />
       <PexelsCredential />
       <UnsplashCredential />

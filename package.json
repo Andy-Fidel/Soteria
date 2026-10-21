@@ -1,9 +1,11 @@
 {
   "name": "manna",
   "private": true,
-  "version": "0.1.0-rc2",
+  "version": "0.1.0-rc3",
   "type": "module",
   "scripts": {
+    "package:prepare": "python3 scripts/prepare-standard-package.py",
+    "package:mac:internal": "bun scripts/build-internal-mac.ts",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:typed": "tsc -b && vite build",
@@ -14,6 +16,7 @@
     "tauri": "tauri",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:microphone-recovery": "bun run test:run src/stores/transcript-store.test.ts && cargo test --offline --manifest-path src-tauri/Cargo.toml -p rhema-audio -p rhema-stt && cargo test --offline --manifest-path src-tauri/Cargo.toml --lib commands::stt && cargo test --offline --manifest-path src-tauri/Cargo.toml --test microphone_recovery",
     "download:bible-data": "bun run data/download-sources.ts",
     "build:bible": "bun run data/build-bible-db.ts",
     "download:model": "bun run data/download-model.ts",
@@ -28,7 +31,9 @@
     "setup:minimal": "bun run data/prepare-embeddings.ts --phases=venv,bible-data,build-db,export-verses",
     "setup:semantic": "bun run data/prepare-embeddings.ts --phases=onnx,precompute",
     "setup:whisper": "bun run data/prepare-embeddings.ts --phases=whisper",
-    "prep:hymnals": "bun scripts/prep-hymnals.ts"
+    "prep:hymnals": "bun scripts/prep-hymnals.ts",
+    "package:mac:signed": "bun scripts/build-signed-mac.ts",
+    "package:windows": "bun scripts/build-windows.ts"
   },
   "dependencies": {
     "@dnd-kit/react": "^0.3.2",
@@ -81,6 +86,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^16.5.0",
+    "jsdom": "26.1.0",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "typescript": "~5.9.3",

@@ -77,8 +77,8 @@ pub(super) struct AudioPart {
 }
 
 #[derive(Default, Deserialize, Serialize)]
-pub(super) struct Timeline {
-    pub parts: Vec<AudioPart>,
+pub(crate) struct Timeline {
+    pub(super) parts: Vec<AudioPart>,
 }
 
 #[derive(Debug, Serialize)]

@@ -1,6 +1,6 @@
 use crate::db::BibleDb;
 use crate::error::BibleError;
-use crate::models::{Book, QuotationVerse, SearchVerse, Translation, Verse};
+use crate::models::{Book, QuotationVerse, SearchVerse, Translation, Verse, VerseLocation};
 
 impl BibleDb {
     /// Look up a verse by its database primary key (verses.id).
@@ -169,6 +169,30 @@ impl BibleDb {
         }
     }
 
+    /// Load only numeric verse coordinates for translations in the given language.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the database lock is poisoned, like the other lookup methods.
+    pub fn load_verse_locations(&self, language: &str) -> Result<Vec<VerseLocation>, BibleError> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT v.id, v.book_number, v.chapter, v.verse \
+             FROM verses v \
+             JOIN translations t ON v.translation_id = t.id \
+             WHERE t.language = ?1",
+        )?;
+        let rows = stmt.query_map([language], |row| {
+            Ok(VerseLocation {
+                id: row.get(0)?,
+                book_number: row.get(1)?,
+                chapter: row.get(2)?,
+                verse: row.get(3)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
     /// Load all verses for one translation for client-side context search indexing.
     pub fn load_translation_verses_for_search(
         &self,
@@ -231,5 +255,55 @@ impl BibleDb {
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+}
+
+#[cfg(test)]
+mod location_tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    fn database() -> BibleDb {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        // No verse text or book-name columns: this lookup needs numeric metadata only.
+        conn.execute_batch(
+            "CREATE TABLE translations (id INTEGER PRIMARY KEY, language TEXT);
+             CREATE TABLE verses (id INTEGER PRIMARY KEY, translation_id INTEGER,
+                                  book_number INTEGER, chapter INTEGER, verse INTEGER);
+             INSERT INTO translations VALUES (1, 'en'), (2, 'en'), (3, 'en'), (4, 'fr');
+             INSERT INTO verses VALUES (1, 1, 1, 1, 1), (2, 2, 1, 1, 1),
+                 (9000000000, 3, 43, 3, 16), (4, 4, 1, 1, 1), (5, 99, 1, 1, 1);",
+        ).unwrap();
+        BibleDb { conn: Mutex::new(conn) }
+    }
+
+    #[test]
+    fn locations_keep_each_english_translation_and_full_width_ids() {
+        let db = database();
+        let mut rows = db.load_verse_locations("en").unwrap();
+        rows.sort_by_key(|v| v.id);
+        assert_eq!(rows, vec![
+            crate::VerseLocation { id: 1, book_number: 1, chapter: 1, verse: 1 },
+            crate::VerseLocation { id: 2, book_number: 1, chapter: 1, verse: 1 },
+            crate::VerseLocation { id: 9_000_000_000, book_number: 43, chapter: 3, verse: 16 },
+        ]);
+    }
+
+    #[test]
+    fn locations_filter_by_language() {
+        assert_eq!(database().load_verse_locations("fr").unwrap(), vec![
+            crate::VerseLocation { id: 4, book_number: 1, chapter: 1, verse: 1 },
+        ]);
+    }
+
+    #[test]
+    fn unavailable_language_has_no_locations() {
+        assert!(database().load_verse_locations("missing").unwrap().is_empty());
+    }
+
+    #[test]
+    fn invalid_database_returns_error() {
+        let db = BibleDb { conn: Mutex::new(rusqlite::Connection::open_in_memory().unwrap()) };
+        assert!(db.load_verse_locations("en").is_err());
     }
 }

@@ -34,10 +34,20 @@ describe("resolveChurchName", () => {
 it("defaults Blank to the bundled video while preserving an existing custom still image", async () => {
   const { resolveBlankBackground } = await import("./brand")
   expect(resolveBlankBackground({ blankImagePath: null })).toEqual({
-    imageUrl: "/EWC-White.png", videoUrl: "/backgrounds/light-refractions.mp4",
+    imageUrl: "/manna-logo.png",
+    videoUrl: "/backgrounds/light-refractions.mp4",
   })
-  expect(resolveBlankBackground({ blankImagePath: "/brand/blank.png" }).videoUrl).toBeNull()
-  const chosen = resolveBlankBackground({ blankImagePath: null, blankBackground: "video", blankVideoPath: "/brand/loop.mp4" })
+  expect(
+    resolveBlankBackground({ blankImagePath: "/brand/blank.png" }).videoUrl
+  ).toBeNull()
+  const chosen = resolveBlankBackground({
+    blankImagePath: null,
+    blankBackground: "video",
+    blankVideoPath: "/brand/loop.mp4",
+  })
   expect(chosen.videoUrl).toContain(encodeURIComponent("/brand/loop.mp4"))
-  expect(resolveBlankBackground({ blankImagePath: null, blankBackground: "image" }).videoUrl).toBeNull()
+  expect(
+    resolveBlankBackground({ blankImagePath: null, blankBackground: "image" })
+      .videoUrl
+  ).toBeNull()
 })

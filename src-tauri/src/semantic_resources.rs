@@ -25,7 +25,7 @@ pub fn add_translations(
     let Some(db) = db else {
         return Box::new(base);
     };
-    let Ok(verses) = db.load_all_verses_for_quotation(Some("en")) else {
+    let Ok(verses) = db.load_verse_locations("en") else {
         return Box::new(base);
     };
     let known_ids: std::collections::HashSet<_> = verses.iter().map(|v| v.id).collect();
@@ -71,4 +71,46 @@ pub fn add_translations(
         return indexes.remove(0);
     }
     Box::new(MultiTranslationIndex::new(indexes, mapping))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn base_index() -> HnswVectorIndex {
+        HnswVectorIndex::from_vecs(vec![vec![1.0]], vec![42], 1).unwrap()
+    }
+
+    #[test]
+    fn missing_database_preserves_base_index() {
+        let index = add_translations(
+            base_index(),
+            None,
+            Path::new("missing-model"),
+            Path::new("missing-tokenizer"),
+            "missing",
+            1,
+            |path| PathBuf::from(path),
+        );
+        assert_eq!(index.len(), 1);
+        assert_eq!(index.search(&[1.0], 1).unwrap()[0].verse_id, 42);
+    }
+
+    #[test]
+    fn metadata_query_error_preserves_base_index() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("empty.db"), []).unwrap();
+        let db = BibleDb::open(&temp.path().join("empty.db")).unwrap();
+        let index = add_translations(
+            base_index(),
+            Some(&db),
+            Path::new("missing-model"),
+            Path::new("missing-tokenizer"),
+            "missing",
+            1,
+            |path| PathBuf::from(path),
+        );
+        assert_eq!(index.len(), 1);
+        assert_eq!(index.search(&[1.0], 1).unwrap()[0].verse_id, 42);
+    }
 }

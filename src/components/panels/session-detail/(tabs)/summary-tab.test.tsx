@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 import { parseSummary } from "@/lib/summarize"
 import { SummaryTab } from "./summary-tab"
+import { load } from "cheerio"
 
 const props = {
   summary: null,
@@ -102,5 +103,56 @@ describe("session summary tab", () => {
     )
     expect(error).toContain("Service unavailable")
     expect(error).toContain("Retry")
+  })
+
+  it("keeps the saved summary readable while a replacement is being generated", () => {
+    const summary = parseSummary(
+      JSON.stringify({ title: "Saved teaching", big_idea: "Keep this visible" })
+    )
+    const $ = load(
+      renderToStaticMarkup(
+        <SummaryTab {...props} summary={summary} summarizing />
+      )
+    )
+    expect($.text()).toContain("Keep this visible")
+    expect($.text()).toContain("Summarizing transcript")
+    expect($('button[title="Regenerate"]').attr("disabled")).toBeDefined()
+  })
+
+  it("puts takeaways before the outline and provides accessible collapsed details", () => {
+    const summary = parseSummary(
+      JSON.stringify({
+        title: "A sure hope",
+        takeaways: ["Keep hoping"],
+        sermon_flow: {
+          main_points: [
+            { point: "Trust the anchor", explanation: "First explanation" },
+            { point: "Keep going", explanation: "Second explanation" },
+          ],
+        },
+      })
+    )
+    const $ = load(
+      renderToStaticMarkup(<SummaryTab {...props} summary={summary} />)
+    )
+    const headings = $("h2")
+      .map((_, heading) => $(heading).text())
+      .get()
+    expect(headings.indexOf("Carry these with you")).toBeGreaterThanOrEqual(0)
+    expect(headings.indexOf("Carry these with you")).toBeLessThan(
+      headings.indexOf("Sermon outline")
+    )
+    const triggers = $("h3 > button[aria-expanded]")
+    expect(triggers).toHaveLength(2)
+    expect(triggers.eq(0).attr("aria-expanded")).toBe("true")
+    expect(triggers.eq(1).attr("aria-expanded")).toBe("false")
+    const panelId = triggers.eq(1).attr("aria-controls")!
+    const panel = $("[id]").filter((_, el) => $(el).attr("id") === panelId)
+    expect(panel.attr("inert")).toBeDefined()
+    expect(panel.attr("aria-hidden")).toBe("true")
+    expect(panel.text()).toContain("Second explanation")
+    expect(
+      $("button").filter((_, el) => $(el).text() === "Expand all")
+    ).toHaveLength(1)
   })
 })

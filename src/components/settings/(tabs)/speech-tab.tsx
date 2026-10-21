@@ -86,8 +86,8 @@ export function SpeechSection() {
                 Local (Whisper)
               </span>
               <p className="text-[0.625rem] leading-relaxed text-muted-foreground">
-                Runs Whisper large-v3-turbo locally on your device. Fully
-                offline, no API key needed. Audio never leaves your machine.
+                Transcribes English on your device. Windows includes Base English;
+                Mac includes Small English. No speech API key or internet is needed.
               </p>
             </div>
           </label>

@@ -4,7 +4,12 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { TextProperties } from "@/components/broadcast/text-properties"
 import { BackgroundProperties } from "@/components/broadcast/background-properties"
 import { LayoutProperties } from "@/components/broadcast/layout-properties"
-import { TypeIcon, PaletteIcon, LayoutIcon, MousePointerClickIcon } from "lucide-react"
+import {
+  TypeIcon,
+  PaletteIcon,
+  LayoutIcon,
+  MousePointerClickIcon,
+} from "lucide-react"
 
 export function PropertiesPanel() {
   const draftTheme = useBroadcastStore((s) => s.draftTheme)
@@ -26,18 +31,22 @@ export function PropertiesPanel() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="text" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <Tabs
+        key={draftTheme.id}
+        defaultValue="text"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
         <div className="shrink-0 px-4 pt-3">
           <TabsList variant="default" className="w-full rounded-full">
-            <TabsTrigger value="text" className="rounded-full gap-1.5">
+            <TabsTrigger value="text" className="gap-1.5 rounded-full">
               <TypeIcon className="size-3.5" />
               Text
             </TabsTrigger>
-            <TabsTrigger value="background" className="rounded-full gap-1.5">
+            <TabsTrigger value="background" className="gap-1.5 rounded-full">
               <PaletteIcon className="size-3.5" />
               Background
             </TabsTrigger>
-            <TabsTrigger value="layout" className="rounded-full gap-1.5">
+            <TabsTrigger value="layout" className="gap-1.5 rounded-full">
               <LayoutIcon className="size-3.5" />
               Layout
             </TabsTrigger>

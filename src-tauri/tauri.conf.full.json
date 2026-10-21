@@ -7,7 +7,7 @@
       "../models/qwen3-embedding-0.6b-int8/model_quantized.onnx": "models/qwen3-embedding-0.6b-int8/model_quantized.onnx",
       "../embeddings/kjv-qwen3-0.6b.bin": "embeddings/kjv-qwen3-0.6b.bin",
       "../embeddings/kjv-qwen3-0.6b-ids.bin": "embeddings/kjv-qwen3-0.6b-ids.bin",
-      "../models/whisper/ggml-large-v3-turbo-q8_0.bin": "models/whisper/ggml-large-v3-turbo-q8_0.bin",
+      "../models/whisper/ggml-small.en-q8_0.bin": "models/whisper/ggml-small.en-q8_0.bin",
       "../embeddings/translation-indexes/": "embeddings/translation-indexes/",
       "../models/fallback-minilm/": "models/fallback-minilm/"
     }

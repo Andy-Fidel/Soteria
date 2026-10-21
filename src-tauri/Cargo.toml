@@ -29,7 +29,7 @@ missing_panics_doc = "allow"
 
 [package]
 name = "app"
-version = "0.1.0-rc2"
+version = "0.1.0-rc3"
 description = "Rhema - Real-Time AI Bible Verse Detection"
 authors = ["Faithful"]
 license = "MIT"
@@ -84,6 +84,8 @@ rusqlite = { version = "0.34", features = ["bundled"] }
 default = ["whisper", "onnx"]
 whisper = ["rhema-stt/whisper"]
 onnx = ["rhema-detection/onnx"]
+# Internal installers can verify the real packaged app without microphone/API use.
+package-check = ["onnx"]
 
 [lints]
 workspace = true

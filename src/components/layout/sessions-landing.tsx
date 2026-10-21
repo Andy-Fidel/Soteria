@@ -71,7 +71,12 @@ export function SessionsLanding() {
     return sessions.filter((s) => {
       if (seriesFilter && s.seriesName !== seriesFilter) return false
       if (!q) return true
-      const hay = [s.title, s.speaker ?? "", s.seriesName ?? "", s.summary ?? ""]
+      const hay = [
+        s.title,
+        s.speaker ?? "",
+        s.seriesName ?? "",
+        s.summary ?? "",
+      ]
         .join(" ")
         .toLowerCase()
       return hay.includes(q)
@@ -81,7 +86,7 @@ export function SessionsLanding() {
   const pageCount = Math.max(1, Math.ceil(visibleSessions.length / PAGE_SIZE))
   const pagedSessions = useMemo(
     () => visibleSessions.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
-    [visibleSessions, page],
+    [visibleSessions, page]
   )
 
   useEffect(() => {
@@ -92,8 +97,11 @@ export function SessionsLanding() {
     listSessions()
       .then((s) =>
         setSessions(
-          [...s].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-        ),
+          [...s].sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )
+        )
       )
       .catch(() => setSessions([]))
   }
@@ -114,7 +122,7 @@ export function SessionsLanding() {
         .map(async (s) => {
           const stat = await fetchSessionStats(s)
           return [s.id, stat] as const
-        }),
+        })
     ).then((entries) => {
       if (cancelled || entries.length === 0) return
       setStats((prev) => {
@@ -208,11 +216,16 @@ export function SessionsLanding() {
       />
       {workspaceUnlocked && sessionsMode && (
         <div className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-card/95 px-4 py-2 backdrop-blur">
-          <Button variant="ghost" size="sm" onClick={() => closeSessions()} className="gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => closeSessions()}
+            className="gap-1.5"
+          >
             <ArrowLeftIcon className="size-3.5" />
             Back to workspace
           </Button>
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
             Sessions
           </span>
           <div className="w-[120px]" />
@@ -220,13 +233,15 @@ export function SessionsLanding() {
       )}
 
       {/* Top-right Settings shortcut — landing has no toolbar otherwise. */}
-      <div className="absolute right-4 top-4 z-20">
+      <div className="absolute top-4 right-4 z-20">
         <Button
           variant="ghost"
           size="icon-sm"
           title="Settings"
           onClick={() => {
-            void import("@/lib/settings-dialog").then(({ openSettings }) => openSettings())
+            void import("@/lib/settings-dialog").then(({ openSettings }) =>
+              openSettings()
+            )
           }}
         >
           <SettingsIcon className="size-4" />
@@ -236,10 +251,19 @@ export function SessionsLanding() {
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-12">
         <header className="flex flex-col items-center gap-3 text-center">
           <div className="rounded-full bg-card p-2 ring-2 ring-primary/30 ring-offset-4 ring-offset-background">
-            <img src={resolveBrandAsset("logo", brand.logoPath)} alt={resolveChurchName(brand.churchName)} className="size-16 rounded-full" />
+            <img
+              src={resolveBrandAsset("logo", brand.logoPath)}
+              alt={resolveChurchName(brand.churchName)}
+              className="size-16 rounded-full"
+            />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Welcome to {resolveChurchName(brand.churchName)}
+            {brand.campusName && (
+              <span className="mt-2 block text-sm font-normal text-muted-foreground">
+                {brand.campusName}
+              </span>
+            )}
           </h1>
           <p className="max-w-md text-sm text-muted-foreground">
             Start a new service to begin live detection, or open a past session
@@ -251,7 +275,7 @@ export function SessionsLanding() {
 
         <section className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            <h2 className="text-sm font-semibold tracking-wider text-muted-foreground uppercase">
               Past sessions
             </h2>
             <span className="text-xs text-muted-foreground/70">
@@ -284,7 +308,9 @@ export function SessionsLanding() {
                   {seriesPills.map((s) => (
                     <button
                       key={s}
-                      onClick={() => setSeriesFilter(s === seriesFilter ? null : s)}
+                      onClick={() =>
+                        setSeriesFilter(s === seriesFilter ? null : s)
+                      }
                       className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
                         seriesFilter === s
                           ? "bg-primary text-primary-foreground"
@@ -350,7 +376,10 @@ export function SessionsLanding() {
         </section>
       </div>
 
-      <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Delete session?</DialogTitle>
@@ -358,14 +387,21 @@ export function SessionsLanding() {
               {deleteTarget ? (
                 <>
                   This will permanently delete{" "}
-                  <span className="font-medium text-foreground">{deleteTarget.title}</span>{" "}
-                  along with its transcript, detections, and summary. This cannot be undone.
+                  <span className="font-medium text-foreground">
+                    {deleteTarget.title}
+                  </span>{" "}
+                  along with its transcript, detections, and summary. This
+                  cannot be undone.
                 </>
               ) : null}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+            >
               Cancel
             </Button>
             <Button
@@ -407,7 +443,9 @@ function SessionCard({
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-foreground">{session.title}</p>
+          <p className="truncate text-sm font-medium text-foreground">
+            {session.title}
+          </p>
           <p className="truncate text-[11px] text-muted-foreground">
             {session.date}
             {session.speaker ? ` · ${session.speaker}` : ""}
@@ -429,7 +467,7 @@ function SessionCard({
           type="button"
           onClick={onDelete}
           title="Delete session"
-          className="shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/15 hover:text-destructive group-hover:opacity-100"
+          className="shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/15 hover:text-destructive"
         >
           <Trash2Icon className="size-3.5" />
         </button>
@@ -438,7 +476,9 @@ function SessionCard({
       {stats && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
           {stats.durationMinutes != null && (
-            <Chip icon={<ClockIcon className="size-3" />}>{formatDuration(stats.durationMinutes)}</Chip>
+            <Chip icon={<ClockIcon className="size-3" />}>
+              {formatDuration(stats.durationMinutes)}
+            </Chip>
           )}
           {stats.detectionCount > 0 && (
             <Chip icon={<BookOpenIcon className="size-3" />}>
@@ -446,10 +486,15 @@ function SessionCard({
             </Chip>
           )}
           {stats.presentedCount > 0 && (
-            <Chip icon={<TvIcon className="size-3" />}>{stats.presentedCount} shown</Chip>
+            <Chip icon={<TvIcon className="size-3" />}>
+              {stats.presentedCount} shown
+            </Chip>
           )}
           {stats.hasSummary && (
-            <Chip icon={<SparklesIcon className="size-3 text-primary" />} highlight>
+            <Chip
+              icon={<SparklesIcon className="size-3 text-primary" />}
+              highlight
+            >
               {stats.topVerse ? `Summary · ${stats.topVerse}` : "Summary ready"}
             </Chip>
           )}
@@ -490,10 +535,14 @@ function formatDuration(min: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
-async function fetchSessionStats(session: SermonSession): Promise<SessionRowStats> {
+async function fetchSessionStats(
+  session: SermonSession
+): Promise<SessionRowStats> {
   try {
     type DetRow = { wasPresented: boolean }
-    const detections = await invoke<DetRow[]>("get_session_detections", { sessionId: session.id })
+    const detections = await invoke<DetRow[]>("get_session_detections", {
+      sessionId: session.id,
+    })
     const presentedCount = detections.filter((d) => d.wasPresented).length
     const summary = summaryFromJson(session.summary)
     const topVerse = summary?.key_verses?.[0]?.reference ?? null

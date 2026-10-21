@@ -1,25 +1,39 @@
+import { useId, type ReactNode } from "react"
+
 export function SummaryCard({
   title,
   tone = "default",
   children,
+  action,
 }: {
   title: string
   tone?: "default" | "primary" | "accent"
-  children: React.ReactNode
+  children: ReactNode
+  action?: ReactNode
 }) {
-  const border =
+  const headingId = useId()
+  const treatment =
     tone === "primary"
-      ? "border-primary/30 bg-primary/5"
+      ? "border-l-3 border-primary pl-5"
       : tone === "accent"
-        ? "border-amber-500/25 bg-amber-500/5"
-        : "border-border bg-muted/20"
+        ? "rounded-lg bg-primary/5 p-5 sm:p-6"
+        : ""
   return (
-    <div className={`flex flex-col gap-2 rounded-lg border p-3 ${border}`}>
-      <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-        {title}
-      </span>
+    <section
+      aria-labelledby={headingId}
+      className={`flex min-w-0 flex-col gap-4 ${treatment}`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2
+          id={headingId}
+          className="text-lg leading-snug font-semibold tracking-tight"
+        >
+          {title}
+        </h2>
+        {action}
+      </div>
       {children}
-    </div>
+    </section>
   )
 }
 
@@ -33,11 +47,11 @@ export function SummaryField({
   compact?: boolean
 }) {
   return (
-    <div className={compact ? "mt-2" : ""}>
-      <p className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+    <div className={compact ? "mt-5" : ""}>
+      <h3 className="text-sm leading-relaxed font-semibold text-foreground">
         {label}
-      </p>
-      <p className="mt-1 text-xs leading-relaxed text-foreground/85">{value}</p>
+      </h3>
+      <p className="mt-1 text-sm leading-relaxed text-foreground">{value}</p>
     </div>
   )
 }

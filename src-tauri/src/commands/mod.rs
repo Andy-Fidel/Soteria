@@ -13,8 +13,13 @@ pub mod session;
 pub mod songs;
 pub mod stt;
 pub mod summarize;
+pub mod sharing;
+pub mod publishing;
+pub mod sms;
 pub mod themes;
 
 pub mod sermon_title;
 
 pub mod video_assets;
+
+pub mod sermon_audio;

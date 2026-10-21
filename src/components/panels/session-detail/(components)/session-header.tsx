@@ -8,6 +8,9 @@ import {
   MicIcon,
   BookOpenIcon,
   BarChart3Icon,
+  ImagesIcon,
+  GlobeIcon,
+  MessageSquareIcon,
 } from "lucide-react"
 import type { DetailTab } from "../(lib)/types"
 interface SessionHeaderProps {
@@ -68,26 +71,42 @@ export function SessionHeader({
         {metadata}
       </div>
       {/* Tabs */}
-      <div className="flex shrink-0 gap-1 border-b border-border px-3 py-1.5">
-        {(["summary", "transcript", "detections", "stats"] as const).map(
-          (t) => (
-            <button
-              key={t}
-              onClick={() => onTabChange(t)}
-              className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors ${
-                tab === t
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted/50"
-              }`}
-            >
-              {t === "summary" && <SparklesIcon className="size-3" />}
-              {t === "transcript" && <MicIcon className="size-3" />}
-              {t === "detections" && <BookOpenIcon className="size-3" />}
-              {t === "stats" && <BarChart3Icon className="size-3" />}
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          )
-        )}
+      <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-3 py-1.5">
+        {(
+          [
+            "summary",
+            "public-recap",
+            "sms",
+            "transcript",
+            "detections",
+            "slides",
+            "stats",
+          ] as const
+        ).map((t) => (
+          <button
+            key={t}
+            onClick={() => onTabChange(t)}
+            aria-current={tab === t ? "page" : undefined}
+            className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium whitespace-nowrap transition-colors ${
+              tab === t
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted/50"
+            }`}
+          >
+            {t === "summary" && <SparklesIcon className="size-3" />}
+            {t === "public-recap" && <GlobeIcon className="size-3" />}
+            {t === "sms" && <MessageSquareIcon className="size-3" />}
+            {t === "transcript" && <MicIcon className="size-3" />}
+            {t === "detections" && <BookOpenIcon className="size-3" />}
+            {t === "slides" && <ImagesIcon className="size-3" />}
+            {t === "stats" && <BarChart3Icon className="size-3" />}
+            {t === "public-recap"
+              ? "Public Recap"
+              : t === "sms"
+                ? "SMS"
+                : t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
       </div>
     </>
   )

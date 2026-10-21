@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "model": "MiniLM-L6-v2",
+  "dimension": 384,
+  "files": {
+    "data/rhema.db": "f2b2ac6912c7705849ca04da3cb2d364a37b998d07759b49de1eb8b090ee658c",
+    "embeddings/translation-indexes/kjv-minilm-l6-v2-niv-ids.bin": "42d9552dac4584fa41cfdd721bbebe3923e407191fb2c4acd95eb9292c3bf4d7",
+    "embeddings/translation-indexes/kjv-minilm-l6-v2-niv.bin": "020a3ea43f4a1a2bdc6f37de323b96f36f11192403bca9a7c412e5b5fa0f0964",
+    "embeddings/translation-indexes/kjv-minilm-l6-v2-niv.json": "6c5b7f2ddaadcbd60d192bc1b56ce23d2d5dc34fd732263150cf9bd527d588f3",
+    "embeddings/translation-indexes/kjv-minilm-l6-v2-nlt-ids.bin": "a154b7ab09b7f04a24da1c112298b55dce662d8d794e5dcdc6640f7393e15013",
+    "embeddings/translation-indexes/kjv-minilm-l6-v2-nlt.bin": "dc3727277f5d9d70db5b3ed3a53e9091fd97e519a19e8f78a16cc72d923bae1c",
+    "embeddings/translation-indexes/kjv-minilm-l6-v2-nlt.json": "6af973de092c274efb7309b5f090eb3040d4ce00a490acff9da66afba1171f64",
+    "models/fallback-minilm/kjv-minilm-l6-v2-ids.bin": "97c12518f7d28b95d19eaa2de083af40eb3ae9beec0af5af3879d6524f566f82",
+    "models/fallback-minilm/kjv-minilm-l6-v2.bin": "b0194a58a7f6a39ed376fe3dccd23511af7cf7450ad7fd41ca2e0be7f9790eb8",
+    "models/fallback-minilm/model.onnx": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452",
+    "models/fallback-minilm/tokenizer.json": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+  }
+}

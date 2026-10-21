@@ -86,16 +86,16 @@ export function drawImageSlide(
     return lines
   }
   if (overlay) {
-    const maxWidth = imageWidth * 0.84
+    const maxWidth = imageWidth * (overlay.layout === "title" ? 0.72 : 0.84)
     const safeBottom = top + imageHeight * 0.54
     let factor = 1
     for (let attempt = 0; attempt < 40; attempt++) {
       lines.length = 0
       if (overlay.layout === "title") {
-        const fontSize = imageWidth * 0.098 * factor
+        const fontSize = imageWidth * 0.069 * factor
         const lineHeight = fontSize * 1.02
-        ctx.font = `600 ${fontSize}px "Inter Variable", Arial, sans-serif`
-        ctx.letterSpacing = `${-fontSize * 0.035}px`
+        ctx.font = `700 ${fontSize}px "Inter Variable", Arial, sans-serif`
+        ctx.letterSpacing = `${-fontSize * 0.055}px`
         const titleLines = wrap(ctx, overlay.title.toUpperCase(), maxWidth)
         const speakerLines = (showPortrait ? "" : overlay.body)
           .toUpperCase()
@@ -109,7 +109,7 @@ export function drawImageSlide(
           lines.push({
             text,
             x: width / 2,
-            y: top + imageHeight * 0.06 + index * lineHeight,
+            y: top + imageHeight * 0.065 + index * lineHeight,
             fontSize,
             lineHeight,
           })
@@ -150,16 +150,50 @@ export function drawImageSlide(
     ctx.textAlign = "center"
     ctx.textBaseline = "top"
     for (const line of lines) {
+      const softenedTitle = overlay.layout === "title" && line.align !== "left"
       ctx.fillStyle =
         line.align === "left" ? "rgba(236, 223, 193, 0.7)" : "#ecdfc1"
-      ctx.font = `${line.align === "left" ? 400 : 600} ${line.fontSize}px "Inter Variable", Arial, sans-serif`
-      ctx.letterSpacing = `${-line.fontSize * 0.035}px`
+      ctx.font = `${line.align === "left" ? 400 : softenedTitle ? 700 : 600} ${line.fontSize}px "Inter Variable", Arial, sans-serif`
+      ctx.letterSpacing = `${-line.fontSize * (softenedTitle ? 0.055 : 0.035)}px`
       ctx.textAlign = line.align ?? "center"
-      ctx.fillText(line.text, line.x, line.y)
+      if (softenedTitle) {
+        drawSoftenedTitle(ctx, line.text, line.x, line.y, imageWidth)
+      } else {
+        ctx.fillText(line.text, line.x, line.y)
+      }
     }
   }
   ctx.restore()
   return lines
+}
+
+function drawSoftenedTitle(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  imageWidth: number
+) {
+  // Match the approved 1.5px trail at a 720px preview width, including on WebKit
+  // versions without Canvas filter support. No noise or animation is added.
+  const blur = imageWidth * (1.5 / 720)
+  const alpha = ctx.globalAlpha
+  const weights = [
+    0.1353, 0.3247, 0.6065, 0.8825, 1, 0.8825, 0.6065, 0.3247, 0.1353,
+  ]
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
+  ctx.save()
+  weights.forEach((weight, index) => {
+    ctx.globalAlpha = (alpha * 0.85 * weight) / totalWeight
+    ctx.fillText(text, x + ((index - 4) / 2 + 1.27) * blur, y)
+  })
+  ctx.globalAlpha = alpha
+  ctx.shadowColor = "rgba(236, 223, 193, 0.48)"
+  ctx.shadowBlur = imageWidth * (6 / 720)
+  ctx.shadowOffsetX = 0
+  ctx.shadowOffsetY = 0
+  ctx.fillText(text, x, y)
+  ctx.restore()
 }
 
 function wrap(
