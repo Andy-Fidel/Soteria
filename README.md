@@ -229,3 +229,19 @@ embeddings/            Local verse vectors and translation indexes
 Use the [backlog](docs/BACKLOG.md) for planned work and the linked verification records for the current release limits. Historical design plans are context, not a current feature checklist.
 
 See [LICENSE](LICENSE). Upstream attribution: [openbezal/rhema](https://github.com/openbezal/rhema).
+
+## Preparing an internal release draft
+
+Use **Actions → Release (draft only) → Run workflow** on the branch/commit you want to test. Enable `prepare_draft`, then supply the existing verified resource release and archive SHA256. The app version in `package.json` must match `src-tauri/tauri.conf.json`. Use a new version for each new draft; existing tags, drafts and published releases are never overwritten.
+
+This workflow builds the standard Windows x64 package with Base English and an Apple Silicon **Manna Internal** DMG with Small English Q8. Both include MiniLM and KJV/NIV/NLT detection resources. The Mac job downloads the speech model from its pinned revision and verifies its locked checksum. The Windows build uses the existing verified resource archive. It does not rebuild Bible data or indexes from network sources.
+
+Each platform runs source tests and installs its package into a fresh directory to check local speech and scripture detection. The release helper binds each installer to its installed-test hash, version, source commit and workflow run. Both platforms must pass before a new **draft prerelease** is created with installers, test receipts, a manifest and `SHA256SUMS.txt`.
+
+These CI packages are internal candidates: Windows is unsigned; Mac uses an ad-hoc identity and a separate internal app identifier. The existing Developer ID signed/notarized Mac installer is not changed. No signing secrets are exported or used, no update feed is generated, and no workflow publishes the draft automatically. A version tag alone does not start this release workflow.
+
+Before manually publishing anything, resolve publisher signing, NDI eligibility, Bible/media permissions, Windows speech performance and real-device microphone/projector testing. A draft being created is not public-release approval. Do not publish the current internal candidates as the finished release.
+
+The same Actions entry still supports the separate Windows build, installed-EXE retest and speech diagnostics options. Leave `prepare_draft` off when using those options. A run with no options selected runs only the Python packaging/release checks.
+
+The new workflow must be present in the commit used for a release. Until it is merged into the repository's default branch, select the working branch explicitly; older commits still contain the old release workflow.

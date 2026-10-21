@@ -1,11 +1,12 @@
-name: Release
+name: Release (draft only)
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
+      prepare_draft:
+        description: Build both standard packages and prepare an unpublished draft
+        type: boolean
+        default: false
       windows_installer_run:
         description: Retest an existing internal unsigned installer from this run ID
         type: string
@@ -24,370 +25,41 @@ on:
         description: SHA256 of the verified source resource archive
         type: string
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
-  build:
-    if: ${{ !inputs.windows_standard && !inputs.windows_speech_probe && !inputs.windows_installer_run }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-14
-            flavor: minimal
-          - os: windows-latest
-            flavor: minimal
-          # macos-full skipped for v1 — GitHub macos-14 hosted runners cap MPS
-          # allocations at ~1 GB regardless of 7 GB physical RAM, causing OOM
-          # during Qwen3 KJV precompute. Options for later:
-          #  (a) macos-14-xlarge paid runner with real MPS
-          #  (b) manual local build + upload full DMG as release asset
-          #  (c) switch to CPU path with smaller batch_size (still likely times out)
-    runs-on: ${{ matrix.os }}
+  validate:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
         with:
-          workspaces: "./src-tauri -> target"
+          python-version: '3.11'
+      - run: python -m unittest discover -s scripts -p 'test_*.py'
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install frontend deps
-        run: bun install
-
-      - name: Run setup recipe
-        shell: bash
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          # Disable PyTorch MPS watermark — GitHub macos-14 runners have 7 GB RAM
-          # but MPS caps allocations at ~50% by default, triggering OOM during
-          # Qwen3 KJV precompute. 0.0 removes the cap (may OOM on truly tiny boxes,
-          # but CI has headroom). No effect on non-macOS runners.
-          PYTORCH_MPS_HIGH_WATERMARK_RATIO: "0.0"
-        run: |
-          if [ "$FLAVOR" = "full" ]; then
-            bun run setup:all
-          else
-            bun run setup:minimal
-          fi
-
-      - name: Download Windows NDI runtime
-        if: runner.os == 'Windows'
-        run: bun run download:ndi-sdk --platform windows
-
-      - name: Build Tauri
-        shell: bash
-        env:
-          MANNA_FLAVOR: ${{ matrix.flavor }}
-          FLAVOR: ${{ matrix.flavor }}
-          RUNNER_OS: ${{ runner.os }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          # Windows: disable default Cargo features (drops 'whisper' feature to
-          # avoid esaxx-rs/whisper-rs-sys CRT mismatch LNK1319). macOS keeps
-          # whisper since users may want local STT on full flavor later.
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            # --no-default-features is a cargo flag, not Tauri's. Forward via --.
-            # --bundles nsis restricts to NSIS installer (MSI rejects -rc1 pre-release tags).
-            bun run tauri build --bundles nsis --config "src-tauri/tauri.conf.${FLAVOR}.json" -- --no-default-features
-          else
-            # macOS: restrict to dmg (skip app.tar.gz which the updater-free path doesn't need).
-            bun run tauri build --bundles dmg --config "src-tauri/tauri.conf.${FLAVOR}.json"
-          fi
-
-      - name: Rename installer (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-        run: |
-          cd src-tauri/target/release/bundle/dmg
-          VERSION=$(node -p "require(process.cwd() + '/../../../../../package.json').version")
-          for f in *.dmg; do
-            mv "$f" "Manna-${VERSION}-${FLAVOR}-macos.dmg"
-          done
-
-      - name: Rename installer (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-        run: |
-          cd src-tauri/target/release/bundle/nsis
-          VERSION=$(node -p "require(process.cwd() + '/../../../../../package.json').version")
-          for f in *.exe; do
-            mv "$f" "Manna-${VERSION}-${FLAVOR}-windows.exe"
-          done
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: installer-${{ matrix.os }}-${{ matrix.flavor }}
-          path: |
-            src-tauri/target/release/bundle/dmg/*.dmg
-            src-tauri/target/release/bundle/nsis/*.exe
-          if-no-files-found: error
-          retention-days: 7
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+  windows-checks:
+    needs: validate
+    if: ${{ !inputs.prepare_draft }}
     permissions:
       contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install frontend deps (for tauri CLI)
-        run: bun install --frozen-lockfile
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: installers
-          merge-multiple: true
-
-      - name: Generate changelog
-        uses: orhun/git-cliff-action@v4
-        id: cliff
-        with:
-          config: cliff.toml
-          args: --latest --strip header
-
-      - name: Save changelog to file
-        shell: bash
-        env:
-          NOTES: ${{ steps.cliff.outputs.content }}
-        run: |
-          printf '%s' "$NOTES" > release-notes.md
-
-      - name: Build updater manifests
-        shell: bash
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          NOTES_CONTENT="$(cat release-notes.md)"
-          for flavor in minimal full; do
-            # Skip flavors with no installers (e.g. full is skipped on CI for v1).
-            if ! ls installers/**/*-"$flavor"-*.dmg installers/**/*-"$flavor"-*.exe 2>/dev/null | grep -q .; then
-              echo "No installers for flavor=$flavor — skipping manifest"
-              continue
-            fi
-            python3 scripts/build-updater-manifest.py \
-              --version "$VERSION" \
-              --flavor "$flavor" \
-              --installers installers/ \
-              --notes "$NOTES_CONTENT" \
-              --output "latest-$flavor.json"
-          done
-
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            installers/**/*.dmg
-            installers/**/*.exe
-            latest-minimal.json
-            latest-full.json
-          fail_on_unmatched_files: false
-          body_path: release-notes.md
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
-
-  windows-standard:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.windows_standard }}
-    runs-on: windows-2022
-    permissions:
-      contents: write # Read authenticated draft build-resource assets; never publish them.
-    env:
-      CMAKE_TOOLCHAIN_FILE: ${{ github.workspace }}/scripts/windows-cpu.cmake
-      CMAKE_POLICY_VERSION_MINIMUM: '3.5'
-      STATIC_VCRUNTIME: 'false'
-      MANNA_FLAVOR: standard
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: './src-tauri -> target'
-          key: windows-offline-cpu-v1
-          cache-on-failure: true
-      - run: bun install --frozen-lockfile
-      - name: Download verified build resources
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RESOURCE_RELEASE: ${{ inputs.resource_release }}
-          RESOURCE_SHA256: ${{ inputs.resource_sha256 }}
-        run: |
-          if ($env:RESOURCE_RELEASE -notmatch '^windows-build-resources-[a-zA-Z0-9.-]+$') { throw 'Invalid build resource release' }
-          if ($env:RESOURCE_SHA256 -notmatch '^[a-f0-9]{64}$') { throw 'Missing resource checksum' }
-          New-Item -ItemType Directory -Force artifacts/source | Out-Null
-          gh release download $env:RESOURCE_RELEASE --repo $env:GITHUB_REPOSITORY --pattern windows-standard-sources.zip --dir artifacts/source
-          if ($LASTEXITCODE -ne 0) { throw 'Build resource download failed' }
-          if ((Get-FileHash artifacts/source/windows-standard-sources.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:RESOURCE_SHA256) { throw 'Build resource checksum mismatch' }
-          Expand-Archive artifacts/source/windows-standard-sources.zip -DestinationPath artifacts/windows-sources
-      - run: bun run download:ndi-sdk --platform windows
-      - run: python -m unittest discover -s scripts -p test_standard_package.py
-      - run: python -m unittest discover -s scripts -p test_windows_verifier.py
-      - run: bun run test:run
-      - run: bun run lint
-      - name: Build internal NSIS installer
-        id: windows_installer
-        run: bun run package:windows artifacts/windows-sources
-      - name: Test native Windows code with local speech and inference
-        run: cargo test --manifest-path src-tauri/Cargo.toml --workspace --release --target x86_64-pc-windows-msvc --no-default-features --features onnx,whisper,package-check --locked
-      - name: Generate local speech fixture
-        shell: pwsh
-        run: |
-          powershell.exe -NoProfile -File scripts/generate-windows-speech.ps1 -OutputPath "$env:GITHUB_WORKSPACE/artifacts/speech.wav"
-          if ($LASTEXITCODE -ne 0) { throw 'Speech fixture generation failed' }
-          python -c "import wave,pathlib; w=wave.open('artifacts/speech.wav'); assert (w.getnchannels(),w.getsampwidth(),w.getframerate())==(1,2,16000); pathlib.Path('artifacts/speech.s16le').write_bytes(w.readframes(w.getnframes()))"
-      - name: Install and test offline speech and scripture detection
-        shell: pwsh
-        run: |
-          $installer = Get-ChildItem src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe | Select-Object -First 1
-          if (!$installer) { throw 'Installer missing' }
-          python scripts/verify-installed-windows.py $installer.FullName --speech-audio artifacts/speech.s16le --install-dir artifacts/installed/Manna --report artifacts/windows-installed-check.json
-          if ($LASTEXITCODE -ne 0) { throw 'Installed app checks failed' }
-      - name: Save internal unsigned installer
-        if: ${{ always() && steps.windows_installer.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: manna-windows-internal-unsigned
-          path: |
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
-            artifacts/windows-installed-check.json
-          if-no-files-found: error
-          retention-days: 14
-
-  windows-installed-check:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.windows_installer_run }}
-    runs-on: windows-2022
-    permissions:
       actions: read
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: python -m unittest discover -s scripts -p test_windows_verifier.py
-      - name: Download existing internal installer
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-          INSTALLER_RUN: ${{ inputs.windows_installer_run }}
-        run: |
-          if ($env:INSTALLER_RUN -notmatch '^[0-9]+$') { throw 'Invalid installer run ID' }
-          gh run download $env:INSTALLER_RUN --repo $env:GITHUB_REPOSITORY --name manna-windows-internal-unsigned --dir artifacts/installer
-          if ($LASTEXITCODE -ne 0) { throw 'Installer download failed' }
-      - name: Generate local speech fixture
-        shell: pwsh
-        run: |
-          powershell.exe -NoProfile -File scripts/generate-windows-speech.ps1 -OutputPath "$env:GITHUB_WORKSPACE/artifacts/speech.wav"
-          if ($LASTEXITCODE -ne 0) { throw 'Speech fixture generation failed' }
-          python -c "import wave,pathlib; w=wave.open('artifacts/speech.wav'); assert (w.getnchannels(),w.getsampwidth(),w.getframerate())==(1,2,16000); pathlib.Path('artifacts/speech.s16le').write_bytes(w.readframes(w.getnframes()))"
-      - name: Verify the exact installed EXE
-        shell: pwsh
-        run: |
-          $installer = Get-ChildItem artifacts/installer -Recurse -Filter *.exe | Select-Object -First 1
-          if (!$installer) { throw 'Installer missing' }
-          python scripts/verify-installed-windows.py $installer.FullName --speech-audio artifacts/speech.s16le --install-dir artifacts/installed/Manna --report artifacts/windows-installed-check.json
-          if ($LASTEXITCODE -ne 0) { throw 'Installed app checks failed' }
-      - name: Save installed verification reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-installed-verification
-          path: |
-            artifacts/windows-installed-check.json
-            artifacts/windows-native-check.json
-          if-no-files-found: warn
-          retention-days: 14
+    uses: ./.github/workflows/windows-package.yml
+    with:
+      windows_standard: ${{ inputs.windows_standard }}
+      windows_speech_probe: ${{ inputs.windows_speech_probe }}
+      windows_installer_run: ${{ inputs.windows_installer_run }}
+      resource_release: ${{ inputs.resource_release }}
+      resource_sha256: ${{ inputs.resource_sha256 }}
 
-  windows-speech-probe:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.windows_speech_probe }}
-    runs-on: windows-2022
+  standard-draft:
+    needs: validate
+    if: ${{ inputs.prepare_draft }}
     permissions:
-      contents: write # Read authenticated draft build-resource assets; never publish them.
-    env:
-      CMAKE_TOOLCHAIN_FILE: ${{ github.workspace }}/scripts/windows-cpu.cmake
-      CMAKE_POLICY_VERSION_MINIMUM: '3.5'
-      STATIC_VCRUNTIME: 'false'
-      MANNA_FLAVOR: standard
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: './src-tauri -> target'
-          key: windows-offline-cpu-v1
-          cache-on-failure: true
-      - run: bun install --frozen-lockfile
-      - name: Download verified build resources
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RESOURCE_RELEASE: ${{ inputs.resource_release }}
-          RESOURCE_SHA256: ${{ inputs.resource_sha256 }}
-        run: |
-          if ($env:RESOURCE_RELEASE -notmatch '^windows-build-resources-[a-zA-Z0-9.-]+$') { throw 'Invalid build resource release' }
-          if ($env:RESOURCE_SHA256 -notmatch '^[a-f0-9]{64}$') { throw 'Missing resource checksum' }
-          New-Item -ItemType Directory -Force artifacts/source | Out-Null
-          gh release download $env:RESOURCE_RELEASE --repo $env:GITHUB_REPOSITORY --pattern windows-standard-sources.zip --dir artifacts/source
-          if ($LASTEXITCODE -ne 0) { throw 'Build resource download failed' }
-          if ((Get-FileHash artifacts/source/windows-standard-sources.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:RESOURCE_SHA256) { throw 'Build resource checksum mismatch' }
-          Expand-Archive artifacts/source/windows-standard-sources.zip -DestinationPath artifacts/windows-sources
-      - name: Generate local speech fixture
-        shell: pwsh
-        run: |
-          powershell.exe -NoProfile -File scripts/generate-windows-speech.ps1 -OutputPath "$env:GITHUB_WORKSPACE/artifacts/speech.wav"
-          if ($LASTEXITCODE -ne 0) { throw 'Speech fixture generation failed' }
-          python -c "import wave,pathlib; w=wave.open('artifacts/speech.wav'); assert (w.getnchannels(),w.getsampwidth(),w.getframerate())==(1,2,16000); pathlib.Path('artifacts/speech.s16le').write_bytes(w.readframes(w.getnframes()))"
-      - name: Measure scalar and SSE3 kernels
-        run: python scripts/probe-windows-speech.py
-      - name: Save speech diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-speech-diagnostics
-          path: artifacts/speech-probe/
-          if-no-files-found: warn
-          retention-days: 14
+      contents: write
+      actions: read
+    uses: ./.github/workflows/draft-release.yml
+    with:
+      resource_release: ${{ inputs.resource_release }}
+      resource_sha256: ${{ inputs.resource_sha256 }}
