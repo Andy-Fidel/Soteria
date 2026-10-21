@@ -6,7 +6,7 @@ Verified 21 October 2026 on `codex/windows-offline-installer`.
 
 [Workflow 39619275252](https://github.com/uxderrick/Manna/actions/runs/39619275252) passed from source commit `1624bba0c89405e9aff4aaa0ab37aad867dedc74`.
 
-[The resulting RC3 draft](https://github.com/uxderrick/Manna/releases/tag/untagged-9b4bafb828e3c9b1352b) remains `draft=true`, `prerelease=true`, with no publication date. Its target commit matches both platform receipts. All seven uploaded asset digests were compared with `SHA256SUMS.txt`; both installer digests match their installed-test receipts. No `latest*.json` update feed was created.
+[The resulting RC3 draft](https://github.com/uxderrick/Manna/releases/tag/untagged-9b4bafb828e3c9b1352b) remains `draft=true`, `prerelease=true`, with no publication date. Its target commit matches both platform receipts. Release file digests match `SHA256SUMS.txt`; the checksum file itself also matches GitHub’s asset digest. Both installer digests match their installed-test receipts. No `latest*.json` update feed was created.
 
 | Candidate | Bytes | SHA256 |
 | --- | ---: | --- |
