@@ -216,11 +216,12 @@ pub async fn start_transcription(
     let mut session_dir: Option<std::path::PathBuf> = None;
     if record_audio.unwrap_or(true) {
         if let Some(sid) = session_id {
-            let dir = dirs::data_dir()
-                .unwrap_or_else(|| std::path::PathBuf::from("."))
-                .join("com.manna.app")
-                .join("sessions")
-                .join(sid.to_string());
+            let db_state: State<'_, Mutex<rhema_notes::SessionDb>> = app.state();
+            let audio_path = db_state.lock().ok()
+                .and_then(|db| db.get_session(sid).ok())
+                .and_then(|session| session.audio_path);
+            let dir = crate::commands::storage::recording_dir(
+                crate::commands::storage::session_dir(&app, sid), audio_path.as_deref());
             match std::fs::create_dir_all(&dir) {
                 Ok(()) => session_dir = Some(dir),
                 Err(e) => log::warn!(

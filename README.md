@@ -39,7 +39,7 @@ The workspace has resizable panels, separate **Preview** and **On Screen** views
 
 ### Sessions, notes, and sharing
 
-Sessions persist locally and can be reopened for review. Session tools include:
+Sessions persist locally and can be reopened for review. **Settings → Storage** can change the folder for future recordings and move existing recordings; active capture must stop before changing folders. Session tools include:
 
 - Transcript review and editing, detections, statistics, notes, and optional local audio recording with transcript-linked seeking.
 - DeepSeek summaries that separate worship songs from sermon content. Generating a summary does not rewrite the saved transcript.

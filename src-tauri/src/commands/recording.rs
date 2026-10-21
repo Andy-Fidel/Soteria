@@ -5,18 +5,11 @@ use std::sync::Mutex;
 use timeline::{part_from_file, Timeline};
 
 use tauri::ipc::Response;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use rhema_notes::SessionDb;
 
-/// Resolve the per-session recording directory under app data.
-fn session_dir(session_id: i64) -> PathBuf {
-    dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("com.manna.app")
-        .join("sessions")
-        .join(session_id.to_string())
-}
+use super::storage::{recording_dir, session_dir};
 
 /// List `audio-seg-*.mp3` segment files in `dir`, sorted chronologically
 /// (filenames embed a zero-padded millisecond timestamp, so a lexical sort is
@@ -123,16 +116,17 @@ fn concat_segments(dir: &Path) -> std::io::Result<Option<PathBuf>> {
 /// `audio_path` to the final file, or clears it if no audio was produced.
 #[tauri::command]
 pub fn finalize_session_audio(
+    app: AppHandle,
     state: State<'_, Mutex<crate::state::AppState>>,
     db: State<'_, Mutex<SessionDb>>,
     session_id: i64,
 ) -> Result<Option<String>, String> {
     let state = state.lock().map_err(|error| error.to_string())?;
     state.ensure_session_audio_idle(session_id)?;
-    let dir = session_dir(session_id);
-    let final_path = concat_segments(&dir).map_err(|e| e.to_string())?;
-
     let db = db.lock().map_err(|e| e.to_string())?;
+    let session = db.get_session(session_id).map_err(|e| e.to_string())?;
+    let dir = recording_dir(session_dir(&app, session_id), session.audio_path.as_deref());
+    let final_path = concat_segments(&dir).map_err(|e| e.to_string())?;
     match &final_path {
         Some(path) => {
             db.set_session_audio_path(session_id, &path.to_string_lossy())
@@ -158,6 +152,7 @@ pub fn finalize_session_audio(
 /// renderer (tauri-apps/tauri#6375, #4826). A Blob URL seeks in-memory.
 #[tauri::command]
 pub fn read_session_audio(
+    app: AppHandle,
     db: State<'_, Mutex<SessionDb>>,
     session_id: i64,
 ) -> Result<Response, String> {
@@ -167,7 +162,7 @@ pub fn read_session_audio(
         session
             .audio_path
             .map(PathBuf::from)
-            .unwrap_or_else(|| session_dir(session_id).join("audio.mp3"))
+            .unwrap_or_else(|| session_dir(&app, session_id).join("audio.mp3"))
     };
     let bytes = std::fs::read(&path)
         .map_err(|e| format!("Failed to read audio {}: {e}", path.display()))?;
@@ -178,6 +173,7 @@ pub fn read_session_audio(
 /// An empty timeline identifies a legacy recording; the player uses started_at.
 #[tauri::command]
 pub fn get_session_audio_timeline(
+    app: AppHandle,
     db: State<'_, Mutex<SessionDb>>,
     session_id: i64,
 ) -> Result<Vec<timeline::AudioSpan>, String> {
@@ -187,7 +183,7 @@ pub fn get_session_audio_timeline(
             .map_err(|error| error.to_string())?
             .audio_path
             .map(PathBuf::from)
-            .unwrap_or_else(|| session_dir(session_id).join("audio.mp3"))
+            .unwrap_or_else(|| session_dir(&app, session_id).join("audio.mp3"))
     };
     let dir = path.parent().ok_or("Audio path has no parent directory")?;
     let final_bytes = std::fs::metadata(&path)
@@ -202,13 +198,16 @@ pub fn get_session_audio_timeline(
 /// segments) and clear the `audio_path` column. Idempotent.
 #[tauri::command]
 pub fn delete_session_audio(
+    app: AppHandle,
     state: State<'_, Mutex<crate::state::AppState>>,
     db: State<'_, Mutex<SessionDb>>,
     session_id: i64,
 ) -> Result<(), String> {
     let state = state.lock().map_err(|error| error.to_string())?;
     let db = db.lock().map_err(|error| error.to_string())?;
-    delete_recording(&state, &db, session_id, &session_dir(session_id))
+    let session = db.get_session(session_id).map_err(|e| e.to_string())?;
+    let dir = recording_dir(session_dir(&app, session_id), session.audio_path.as_deref());
+    delete_recording(&state, &db, session_id, &dir)
 }
 
 fn remove_recording_file(path: &Path) -> Result<(), String> {
