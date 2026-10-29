@@ -43,7 +43,7 @@ permissions:
 
 jobs:
   windows-standard:
-    if: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.windows_standard }}
+    if: ${{ inputs.windows_standard }}
     runs-on: windows-2022
     permissions:
       contents: write # Read authenticated draft build-resource assets; never publish them.

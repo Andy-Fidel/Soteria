@@ -1,4 +1,5 @@
 name: Build Soteria Windows offline installer
+# Runs the reusable package job for this build branch.
 
 on:
   push:
