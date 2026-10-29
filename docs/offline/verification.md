@@ -62,8 +62,8 @@ SOTERIA_OFFLINE_RESOURCE_DIR=/absolute/path/to/Resources \
 The pinned ONNX dependency's default binary distribution does not provide the
 runtime needed by this Intel Mac build. The full semantic desktop build therefore
 remains blocked here; no library downgrade was made. Standard full-resource
-Mac/Windows configurations were checked, but this does not claim a Windows or
-Apple Silicon installer was built in this run.
+Mac/Windows configurations were checked during this initial phase. The subsequent
+Windows build below passed; an Apple Silicon installer has not been built in this run.
 
 A Whisper-only Intel debug preview was built. A real model-load test exposed a
 native Metal null-device dereference (`ggml_backend_metal_device_acq`). Readiness
@@ -83,6 +83,33 @@ native services are unavailable and disables local-provider selection.
 - Measure sustained transcription throughput and latency on the intended hardware.
 - Rehearse projection, recording, ending/reopening sessions and disconnected
   restart on the actual deployment machine.
-- Build and validate a release installer, then complete platform signing and
-  notarization checks before distribution. A local debug preview is not a signed
+- Complete the remaining platform release builds and signing/notarization checks
+  before distribution. A local debug preview is not a signed
   production release.
+
+## Windows x64 installer — 29 October 2026
+
+The [Windows build](https://github.com/Andy-Fidel/Soteria/actions/runs/40907092062)
+succeeded at source commit `2ee83a845d7a57cc8bb671ca0a387388ef886b1c`.
+It produced an unsigned NSIS installer with the Soteria logo and name, Base English
+speech, MiniLM semantic detection, KJV/NIV/NLT, app-local Microsoft C++ runtime
+DLLs, and WebView2's offline installer. Candidate update endpoints are disabled.
+
+- 528 frontend tests, ESLint and the frontend production build passed on Windows.
+- 411 native tests passed with `onnx,whisper,package-check` enabled.
+- The exact EXE was silently installed and launched with a restricted runtime PATH.
+- Installed speech recognition returned a transcript from locally generated audio.
+- Installed Bible lookup, direct references, quotations and semantic detection passed.
+- Resource checksums remained unchanged; the check reported no provider calls.
+- Installed Microsoft runtime files and NDI library loading were checked.
+
+The tested artifact is available as
+[release-staged-windows](https://github.com/Andy-Fidel/Soteria/actions/runs/40907092062/artifacts/12913626896).
+It contains the installer and `checks-windows.json`, which records the installer
+checksum, source revision and full installed-app results. Artifact retention is
+14 days; retain a local copy. The ZIP's SHA256 is
+`bdd8c8a85eed1c4fa4e30e4496be705a79392facaec7d012b9f1f7ffed3d5185`.
+
+This is an unsigned candidate. Physical microphone, reconnection, sustained speech
+throughput, projector use and disconnected installation/restart on the destination
+PC still need rehearsal. The generated-audio test does not validate microphone hardware.
