@@ -173,3 +173,18 @@ Synthetic tests cover corrupt/missing resources, failed downloads, interrupted
 publication, local-only readiness and unavailable native boundaries. Native
 packaged-app, microphone, projector and disconnected restart checks remain
 required before distributing an installer.
+
+## Windows x64 build
+
+The `Build Soteria Windows offline installer` workflow builds the Soteria source
+on a Windows 2022 runner. Inputs are checksum-verified resources from the internal
+draft resource release; the Base English speech model is independently pinned.
+The resulting NSIS installer includes WebView2's offline installer and app-local
+Microsoft C++ runtime DLLs. Candidate update endpoints are disabled.
+
+The runner installs the exact EXE and checks installed speech recognition, Bible
+lookup, quotation and semantic detection with a generated speech fixture. Reports
+and the unsigned EXE are stored in `soteria-windows-internal-unsigned` for 14 days.
+A second artifact contains release-staged filenames and checksums. No application
+release is automatically published. These automated checks do not replace a real
+microphone/projector rehearsal on the destination PC.

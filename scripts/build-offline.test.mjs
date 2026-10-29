@@ -17,3 +17,7 @@ for (const [platform, stage] of [["darwin", "standard"], ["win32", "windows-stan
 test("unsupported installer platforms fail explicitly", () => {
   assert.throws(() => offlineConfig("linux"), /Linux packaging needs separate validation/)
 })
+
+test("Windows installer includes WebView for disconnected installation", () => {
+  assert.equal(offlineConfig("win32").bundle.windows.webviewInstallMode.type, "offlineInstaller")
+})
