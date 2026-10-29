@@ -67,7 +67,11 @@ jobs:
           workspaces: './src-tauri -> target'
           key: windows-offline-cpu-v1
           cache-on-failure: true
-      - run: bun install --frozen-lockfile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
       - name: Download verified build resources
         shell: pwsh
         env:
@@ -82,6 +86,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Build resource download failed' }
           if ((Get-FileHash artifacts/source/windows-standard-sources.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:RESOURCE_SHA256) { throw 'Build resource checksum mismatch' }
           Expand-Archive artifacts/source/windows-standard-sources.zip -DestinationPath artifacts/windows-sources
+      - name: Prepare verified Windows speech resources
+        run: python scripts/setup-offline.py --source artifacts/windows-sources --destination build-resources/windows-standard --platform windows --download-speech
       - run: bun run download:ndi-sdk --platform windows
       - run: python -m unittest discover -s scripts -p test_standard_package.py
       - run: python -m unittest discover -s scripts -p test_windows_verifier.py
@@ -89,7 +95,7 @@ jobs:
       - run: bun run lint
       - name: Build internal NSIS installer
         id: windows_installer
-        run: bun run package:windows artifacts/windows-sources
+        run: bun run package:windows build-resources/windows-standard
       - name: Test native Windows code with local speech and inference
         run: cargo test --manifest-path src-tauri/Cargo.toml --workspace --release --target x86_64-pc-windows-msvc --no-default-features --features onnx,whisper,package-check --locked
       - name: Generate local speech fixture
@@ -103,16 +109,17 @@ jobs:
         run: |
           $installer = Get-ChildItem src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe | Select-Object -First 1
           if (!$installer) { throw 'Installer missing' }
-          python scripts/verify-installed-windows.py $installer.FullName --speech-audio artifacts/speech.s16le --install-dir artifacts/installed/Manna --report artifacts/windows-installed-check.json
+          python scripts/verify-installed-windows.py $installer.FullName --speech-audio artifacts/speech.s16le --install-dir artifacts/installed/Soteria --report artifacts/windows-installed-check.json
           if ($LASTEXITCODE -ne 0) { throw 'Installed app checks failed' }
       - name: Save internal unsigned installer
         if: ${{ always() && steps.windows_installer.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
-          name: manna-windows-internal-unsigned
+          name: soteria-windows-internal-unsigned
           path: |
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
             artifacts/windows-installed-check.json
+            artifacts/windows-native-check.json
           if-no-files-found: error
           retention-days: 14
       - name: Stage verified Windows release files
@@ -149,7 +156,7 @@ jobs:
           INSTALLER_RUN: ${{ inputs.windows_installer_run }}
         run: |
           if ($env:INSTALLER_RUN -notmatch '^[0-9]+$') { throw 'Invalid installer run ID' }
-          gh run download $env:INSTALLER_RUN --repo $env:GITHUB_REPOSITORY --name manna-windows-internal-unsigned --dir artifacts/installer
+          gh run download $env:INSTALLER_RUN --repo $env:GITHUB_REPOSITORY --name soteria-windows-internal-unsigned --dir artifacts/installer
           if ($LASTEXITCODE -ne 0) { throw 'Installer download failed' }
       - name: Generate local speech fixture
         shell: pwsh
@@ -162,7 +169,7 @@ jobs:
         run: |
           $installer = Get-ChildItem artifacts/installer -Recurse -Filter *.exe | Select-Object -First 1
           if (!$installer) { throw 'Installer missing' }
-          python scripts/verify-installed-windows.py $installer.FullName --speech-audio artifacts/speech.s16le --install-dir artifacts/installed/Manna --report artifacts/windows-installed-check.json
+          python scripts/verify-installed-windows.py $installer.FullName --speech-audio artifacts/speech.s16le --install-dir artifacts/installed/Soteria --report artifacts/windows-installed-check.json
           if ($LASTEXITCODE -ne 0) { throw 'Installed app checks failed' }
       - name: Save installed verification reports
         if: always()
@@ -200,7 +207,11 @@ jobs:
           workspaces: './src-tauri -> target'
           key: windows-offline-cpu-v1
           cache-on-failure: true
-      - run: bun install --frozen-lockfile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
       - name: Download verified build resources
         shell: pwsh
         env:

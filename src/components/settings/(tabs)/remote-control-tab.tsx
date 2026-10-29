@@ -187,7 +187,7 @@ export function RemoteControlSection() {
           Firewall Note
         </p>
         <p className="text-[0.625rem] leading-relaxed text-muted-foreground">
-          Your OS may block incoming connections. On macOS, allow Manna through
+          Your OS may block incoming connections. On macOS, allow Soteria through
           System Settings → Network → Firewall. On Windows, allow through
           Windows Security → Firewall → Allow an app.
         </p>

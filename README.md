@@ -1,10 +1,16 @@
-# Manna
+# Soteria
 
-Manna is a desktop app for running church services. It listens to the sermon, finds matching Bible passages, and helps an operator present scriptures, songs, slides, and announcements. Each session keeps its transcript, detections, notes, recordings, and saved slides for review and sharing.
+![Soteria](public/soteria-logo.png)
 
-Built with React, TypeScript, Tauri 2, and Rust. Manna is a fork of [openbezal/rhema](https://github.com/openbezal/rhema), extended with service planning, session review, offline speech, and church presentation workflows. Internal Rust crates retain the `rhema-` prefix.
+Soteria is a desktop app for running church services. It listens to the sermon, finds matching Bible passages, and helps an operator present scriptures, songs, slides, and announcements. Each session keeps its transcript, detections, notes, recordings, and saved slides for review and sharing.
+
+Built with React, TypeScript, Tauri 2, and Rust. Soteria is a fork of [uxderrick/Manna](https://github.com/uxderrick/Manna), originally based on [openbezal/rhema](https://github.com/openbezal/rhema), extended with service planning, session review, offline speech, and church presentation workflows. Internal Rust crates retain the `rhema-` prefix.
 
 ## Current status
+
+The platform release results below are inherited from upstream Manna; they do not
+certify the customized Soteria build. See [offline operation](docs/offline/operation.md)
+for the new resource setup, readiness checks and the Intel Mac limitation.
 
 Source version: **0.1.0-rc3**. Documentation reviewed: **21 October 2026**.
 
@@ -13,11 +19,11 @@ Source version: **0.1.0-rc3**. Documentation reviewed: **21 October 2026**.
 | Apple Silicon Mac | A signed and notarized RC3 installer passed installed-resource, offline speech, and scripture-detection checks. Physical microphone/projector checks and another-machine testing remain separate. See [offline Mac RC3](docs/testing/offline-mac-rc3.md). |
 | Windows x64 | An unsigned RC3 installer passed installed offline speech and detection checks. Publisher signing and local speech performance remain release blockers. The portable CPU build was too slow in the recorded runner tests; low-end HP/Lenovo support is not established. See [Windows candidate results](docs/testing/windows-offline-package.md). |
 | Intel Mac / Linux | No equivalent installed RC3 verification is recorded in these release reports. |
-| Browser | The full app depends on the native desktop backend. Opening the Vite interface in a browser does not provide a complete Manna installation. The separately hosted sermon recap website is a different project. |
+| Browser | The full app depends on the native desktop backend. Opening the Vite interface in a browser does not provide a complete Soteria installation. The separately hosted sermon recap website is a different project. |
 
 These are candidate verification results, not a claim that every platform or feature has passed live-service testing. For current work, see the [backlog](docs/BACKLOG.md) and [release findings](docs/reports/2026-10-20-release-readiness.md). Older changelog entries and design plans describe earlier versions.
 
-## What Manna does
+## What Soteria does
 
 ### Live scripture detection
 
@@ -34,7 +40,7 @@ The workspace has resizable panels, separate **Preview** and **On Screen** views
 - Select words in **On Screen**, then choose a highlight color to update live output. A clear-highlighting action removes highlights in one click.
 - Present songs by stanza or line. Display capitalization for God, Christ, Lord, Saviour, Savior, and Redeemer preserves the saved original lyrics.
 - Add slides from a visual gallery. Editable titles and announcements, prayer points, welcome/closing slides, giving slides, images, notes, and looping blank backgrounds support service preparation.
-- Edit slide text inside Manna, reuse backgrounds, reorder visual plan cards, and configure church branding and giving details in **Settings → Church Profile**.
+- Edit slide text inside Soteria, reuse backgrounds, reorder visual plan cards, and configure church branding and giving details in **Settings → Church Profile**.
 - Use a projector window or optional NDI broadcast output. OSC and HTTP remote-control support is also implemented.
 
 ### Sessions, notes, and sharing
@@ -46,6 +52,23 @@ Sessions persist locally and can be reopened for review. **Settings → Storage*
 - Detection of an **announced** sermon title during the live session. Eligible automatic session names and empty title slides can use it; manual names and slide edits remain protected.
 - A saved **Slides** gallery, including downloads, plus summary copy, Markdown export, and Print / PDF.
 - Sharing drafts and artwork, website recap publishing, and configured SMS distribution. Website publishing requires device-specific configuration. Original sermon-audio publishing is separate from automated recap narration on the website.
+
+## Offline resource setup
+
+For a fresh checkout, provision the complete pinned resource set before running
+local speech or semantic detection:
+
+```sh
+npm run setup:offline -- --from-upstream
+# Or use a complete resource folder without network access:
+npm run setup:offline -- --source /path/to/Resources --platform mac
+```
+
+Automatic upstream bootstrap currently runs on macOS. Windows can use a complete
+local resource folder with `--platform windows`. In the app, open **Settings →
+Offline readiness** to verify the installed resources and select local speech.
+See [offline operation and recovery](docs/offline/operation.md) for packaging,
+Windows speech preparation and disconnected testing.
 
 ## What works offline?
 
@@ -98,8 +121,8 @@ The Bible database, speech models, embedding models, and vector indexes are **no
 ### Clone and install dependencies
 
 ```sh
-git clone https://github.com/uxderrick/Manna.git
-cd Manna
+git clone https://github.com/Andy-Fidel/Soteria.git
+cd Soteria
 bun install
 ```
 
@@ -234,7 +257,7 @@ See [LICENSE](LICENSE). Upstream attribution: [openbezal/rhema](https://github.c
 
 Use **Actions → Release (draft only) → Run workflow** on the branch/commit you want to test. Enable `prepare_draft`, then supply the existing verified resource release and archive SHA256. The app version in `package.json` must match `src-tauri/tauri.conf.json`. Use a new version for each new draft; existing tags, drafts and published releases are never overwritten.
 
-This workflow builds the standard Windows x64 package with Base English and an Apple Silicon **Manna Internal** DMG with Small English Q8. Both include MiniLM and KJV/NIV/NLT detection resources. The Mac job downloads the speech model from its pinned revision and verifies its locked checksum. The Windows build uses the existing verified resource archive. It does not rebuild Bible data or indexes from network sources.
+This workflow builds the standard Windows x64 package with Base English and an Apple Silicon **Soteria Internal** DMG with Small English Q8. Both include MiniLM and KJV/NIV/NLT detection resources. The Mac job downloads the speech model from its pinned revision and verifies its locked checksum. The Windows build uses the existing verified resource archive. It does not rebuild Bible data or indexes from network sources.
 
 Each platform runs source tests and installs its package into a fresh directory to check local speech and scripture detection. The release helper binds each installer to its installed-test hash, version, source commit and workflow run. Both platforms must pass before a new **draft prerelease** is created with installers, test receipts, a manifest and `SHA256SUMS.txt`.
 

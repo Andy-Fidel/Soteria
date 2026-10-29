@@ -202,10 +202,10 @@ export function Workspace() {
           useSettingsDialogStore.getState().openSettings("help")
         },
         openDocumentation: () => {
-          openUrl("https://github.com/openbezal/rhema#readme")
+          openUrl("https://github.com/Andy-Fidel/Soteria#readme")
         },
         reportIssue: () => {
-          openUrl("https://github.com/openbezal/rhema/issues/new")
+          openUrl("https://github.com/Andy-Fidel/Soteria/issues/new")
         },
         navigateTo: (tab: string) => {
           // Plan now lives in its own pinned bottom slot — expand it if collapsed.

@@ -12,7 +12,7 @@ export function decodeThemeBackup(json: string): BroadcastTheme[] {
     value.themes.length > 100
   )
     throw new Error(
-      "Choose a Manna theme backup (version 1, up to 100 themes)."
+      "Choose a Soteria theme backup (version 1, up to 100 themes)."
     )
   return value.themes.map((item: unknown) => {
     const theme = parseBroadcastTheme(item)
@@ -62,8 +62,8 @@ export async function exportThemeBackup(themes: BroadcastTheme[]) {
   if (output.length > 64 * 1024 * 1024)
     throw new Error("Export fewer themes at once; this backup exceeds 64 MB.")
   const path = await save({
-    defaultPath: "manna-themes.json",
-    filters: [{ name: "Manna themes", extensions: ["json"] }],
+    defaultPath: "soteria-themes.json",
+    filters: [{ name: "Soteria themes", extensions: ["json"] }],
   })
   if (!path) return false
   await writeTextFile(path, output)

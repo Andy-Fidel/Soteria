@@ -6,14 +6,20 @@ import shutil
 import sqlite3
 import struct
 import tempfile
-from contextlib import closing
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_lock(speech_platform=None):
+def load_lock(speech_platform=None, source=None):
     lock = json.loads((ROOT / "data/standard-package.lock.json").read_text())
+    # The installer ships a read-only SQLite snapshot, whose header differs from
+    # the original source DB. Accept only this independently pinned published hash.
+    if source is not None:
+        snapshot = json.loads((ROOT / "data/offline-bootstrap.lock.json").read_text())["database_snapshot_sha256"]
+        database = Path(source) / "data/rhema.db"
+        if database.is_file() and digest(database) == snapshot:
+            lock["files"]["data/rhema.db"] = snapshot
     if speech_platform is not None:
         if speech_platform not in ("mac", "windows"):
             raise ValueError("Unsupported speech package platform")
@@ -36,10 +42,16 @@ def validate(source, lock):
         path = source / relative
         if not path.is_file() or digest(path) != expected:
             raise ValueError(f"Missing or changed resource: {relative}")
+    database_path = source / "data/rhema.db"
+    if any(Path(str(database_path) + suffix).exists() for suffix in ("-wal", "-shm", "-journal")):
+        raise ValueError("Bible resources must be a standalone database without journal sidecars")
+    with database_path.open("rb") as stream:
+        if stream.read(20)[18:20] != bytes((1, 1)):
+            raise ValueError("The pinned Bible database must use DELETE journal mode before packaging")
     model = source / "models/fallback-minilm/model.onnx"
     tokenizer = source / "models/fallback-minilm/tokenizer.json"
     counts = {}
-    database = sqlite3.connect((source / "data/rhema.db").resolve().as_uri() + "?mode=ro", uri=True)
+    database = sqlite3.connect(database_path.resolve().as_uri() + "?mode=ro&immutable=1", uri=True)
     try:
         for translation in ("KJV", "NIV", "NLT"):
             stem = "models/fallback-minilm/kjv-minilm-l6-v2" if translation == "KJV" else f"embeddings/translation-indexes/kjv-minilm-l6-v2-{translation.lower()}"
@@ -63,6 +75,11 @@ def validate(source, lock):
 
 
 def prepare(source, destination, lock):
+    previous = destination.with_name(destination.name + ".previous")
+    if previous.exists():
+        if destination.exists() or not (previous / "standard-package.json").is_file():
+            raise ValueError(f"Previous resource backup needs review before setup can continue: {previous}")
+        previous.rename(destination)
     counts = validate(source, lock)
     destination.parent.mkdir(parents=True, exist_ok=True)
     # Only replace an existing directory owned by this script.
@@ -74,32 +91,42 @@ def prepare(source, destination, lock):
         for relative in lock["files"]:
             target = stage / relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            if relative == "data/rhema.db":
-                with closing(sqlite3.connect((source / relative).resolve().as_uri() + "?mode=ro", uri=True)) as original:
-                    with closing(sqlite3.connect(target)) as snapshot:
-                        original.backup(snapshot)
-                        snapshot.execute("PRAGMA journal_mode=DELETE")
-            else:
-                shutil.copyfile(source / relative, target)
+            # Validation requires a pinned, standalone DELETE-mode DB. Copy it
+            # byte-for-byte: SQLite backup rewrites its header differently across hosts.
+            shutil.copyfile(source / relative, target)
         manifest = dict(version=1, model="MiniLM-L6-v2", dimension=384, translations=counts, files={relative: digest(stage / relative) for relative in lock["files"]})
         if "speech" in lock:
             manifest["speech"] = lock["speech"]
         (stage / "standard-package.json").write_text(json.dumps(manifest, indent=2) + "\n")
-        validate(stage, manifest)
+        validate(stage, lock)
         if destination.exists():
-            shutil.rmtree(destination)
-        stage.rename(destination)
+            destination.rename(previous)
+        try:
+            stage.rename(destination)
+        except OSError:
+            if previous.exists():
+                previous.rename(destination)
+            raise
+        if previous.exists():
+            shutil.rmtree(previous)
     return manifest
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", type=Path, default=ROOT)
+    existing = ROOT / "build-resources/standard"
+    parser.add_argument("--source", type=Path, default=existing if (existing / "standard-package.json").is_file() else ROOT)
     parser.add_argument("--destination", type=Path, default=ROOT / "build-resources/standard")
     speech = parser.add_mutually_exclusive_group()
     speech.add_argument("--with-whisper-mac", action="store_true")
     speech.add_argument("--with-whisper-windows", action="store_true")
     args = parser.parse_args()
-    lock = load_lock("mac" if args.with_whisper_mac else "windows" if args.with_whisper_windows else None)
+    speech_platform = "mac" if args.with_whisper_mac else "windows" if args.with_whisper_windows else None
+    # Revalidating the staged offline pack must not silently drop its speech model.
+    manifest_path = args.source / "standard-package.json"
+    if speech_platform is None and manifest_path.is_file():
+        speech_model = json.loads(manifest_path.read_text()).get("speech", {}).get("model")
+        speech_platform = {"Small English Q8": "mac", "Base English": "windows"}.get(speech_model)
+    lock = load_lock(speech_platform, args.source)
     manifest = prepare(args.source, args.destination, lock)
     print(json.dumps({"destination": str(args.destination), "translations": manifest["translations"], "bytes": sum((args.destination / relative).stat().st_size for relative in manifest["files"])}))

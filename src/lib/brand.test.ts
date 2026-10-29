@@ -21,21 +21,21 @@ describe("resolveBrandAsset", () => {
 })
 
 describe("resolveChurchName", () => {
-  it("falls back to Manna when null/empty/whitespace", () => {
-    expect(resolveChurchName(null)).toBe("Manna")
-    expect(resolveChurchName("")).toBe("Manna")
-    expect(resolveChurchName("   ")).toBe("Manna")
+  it("falls back to Soteria when null/empty/whitespace", () => {
+    expect(resolveChurchName(null)).toBe("Soteria")
+    expect(resolveChurchName("")).toBe("Soteria")
+    expect(resolveChurchName("   ")).toBe("Soteria")
   })
   it("returns the trimmed name when set", () => {
     expect(resolveChurchName("  Grace Chapel  ")).toBe("Grace Chapel")
   })
 })
 
-it("defaults Blank to the bundled video while preserving an existing custom still image", async () => {
+it("defaults Blank to the Soteria logo while preserving explicit background choices", async () => {
   const { resolveBlankBackground } = await import("./brand")
   expect(resolveBlankBackground({ blankImagePath: null })).toEqual({
-    imageUrl: "/manna-logo.png",
-    videoUrl: "/backgrounds/light-refractions.mp4",
+    imageUrl: "/soteria-logo.png",
+    videoUrl: null,
   })
   expect(
     resolveBlankBackground({ blankImagePath: "/brand/blank.png" }).videoUrl

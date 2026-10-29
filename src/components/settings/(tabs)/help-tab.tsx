@@ -11,7 +11,7 @@ export function HelpSection() {
     <div className="space-y-6">
       <div className="space-y-1">
         <p className="text-sm text-muted-foreground">
-          Resources to help you get the most out of Manna.
+          Resources to help you get the most out of Soteria.
         </p>
       </div>
 
@@ -47,7 +47,7 @@ export function HelpSection() {
           <div>
             <p className="text-sm font-medium">Updates</p>
             <p className="text-xs text-muted-foreground">
-              Manna auto-checks daily. Click below for an immediate check.
+              Check for updates while connected. Startup does not contact the update server.
             </p>
           </div>
           <Button

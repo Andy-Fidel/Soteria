@@ -1,6 +1,6 @@
 //! User-selectable storage location for session recordings.
 //!
-//! By default recordings live under `<app-data>/com.manna.app/sessions/`. The
+//! By default recordings live under `<app-data>/<configured-app-id>/sessions/`. The
 //! user can point them at any writable directory (an external drive, a synced
 //! folder) from Settings → Storage; the choice persists as `recordingsRoot` in
 //! tauri-plugin-store's `settings.json`, which is also where the frontend
@@ -49,10 +49,14 @@ fn ensure_not_recording(state: &Mutex<AppState>) -> Result<MutexGuard<'_, AppSta
 }
 
 /// Directory holding all per-session recording folders, absent any override.
-pub fn default_recordings_root() -> PathBuf {
+pub fn default_recordings_root(app: &AppHandle) -> PathBuf {
+    recordings_root_for_identifier(&app.config().identifier)
+}
+
+fn recordings_root_for_identifier(identifier: &str) -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("com.manna.app")
+        .join(identifier)
         .join("sessions")
 }
 
@@ -70,7 +74,7 @@ fn stored_recordings_root(app: &AppHandle) -> Option<PathBuf> {
 /// Directory holding all per-session recording folders, honoring the user's
 /// choice. Falls back to the default root when no override is set.
 pub fn recordings_root(app: &AppHandle) -> PathBuf {
-    stored_recordings_root(app).unwrap_or_else(default_recordings_root)
+    stored_recordings_root(app).unwrap_or_else(|| default_recordings_root(app))
 }
 
 /// Directory for one session's recording segments and final `audio.mp3`.
@@ -101,7 +105,7 @@ pub struct RecordingsLocation {
 /// Report where recordings are being written, for the Storage settings panel.
 #[tauri::command]
 pub fn get_recordings_location(app: AppHandle) -> RecordingsLocation {
-    let default_path = default_recordings_root();
+    let default_path = default_recordings_root(&app);
     let path = recordings_root(&app);
     RecordingsLocation {
         is_default: path == default_path,
@@ -565,4 +569,15 @@ mod tests {
             .unwrap();
         assert!(ensure_not_recording(&state).is_ok());
     }
+
+    #[test]
+    fn default_recordings_are_isolated_by_application_identity() {
+        let production = recordings_root_for_identifier("com.soteria.app");
+        let preview = recordings_root_for_identifier("com.soteria.internal");
+        let upstream = recordings_root_for_identifier("com.manna.app");
+        assert_ne!(production, preview);
+        assert_ne!(production, upstream);
+        assert!(production.ends_with("com.soteria.app/sessions"));
+    }
+
 }

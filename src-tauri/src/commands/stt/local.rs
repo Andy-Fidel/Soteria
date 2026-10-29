@@ -32,15 +32,17 @@ fn resolve_model(bundle: &Path, development: Option<&Path>) -> Result<PathBuf, S
     {
         return Ok(path);
     }
-    Err("The offline speech model is missing. Reinstall Manna, or choose a cloud provider in Settings → Speech Recognition.".into())
+    Err("The offline speech model is missing. Reinstall Soteria, or choose a cloud provider in Settings → Speech Recognition.".into())
 }
 
 pub fn model_path(app: &AppHandle) -> Result<PathBuf, String> {
     let bundle = app.path().resource_dir().map_err(|e| e.to_string())?;
     let development = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let staged = development.join("build-resources/standard");
+    let local_root = if staged.join(model_relative()).is_file() { &staged } else { &development };
     resolve_model(
         &bundle,
-        cfg!(debug_assertions).then_some(development.as_path()),
+        cfg!(debug_assertions).then_some(local_root.as_path()),
     )
 }
 

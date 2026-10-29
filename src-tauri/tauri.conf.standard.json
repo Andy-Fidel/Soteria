@@ -9,7 +9,7 @@
   },
   "plugins": {
     "updater": {
-      "endpoints": ["https://github.com/uxderrick/Manna/releases/latest/download/latest-standard.json"]
+      "endpoints": ["https://github.com/Andy-Fidel/Soteria/releases/latest/download/latest-standard.json"]
     }
   }
 }

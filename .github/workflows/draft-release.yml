@@ -148,7 +148,7 @@ jobs:
         run: |
           dmg=$(find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name '*.dmg' -print -quit)
           test -n "$dmg"
-          python3 scripts/verify-installed-mac.py "$dmg" --app-name 'Manna Internal' --identifier com.manna.internal --install-dir artifacts/installed --report artifacts/mac-installed-check.json --speech-audio artifacts/speech.s16le
+          python3 scripts/verify-installed-mac.py "$dmg" --app-name 'Soteria Internal' --identifier com.soteria.internal --install-dir artifacts/installed --report artifacts/mac-installed-check.json --speech-audio artifacts/speech.s16le
           python3 scripts/release-draft.py stage --platform mac --installer "$dmg" --report artifacts/mac-installed-check.json --output artifacts/release-staged --version "$VERSION" --source "$GITHUB_SHA" --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
       - uses: actions/upload-artifact@v4
         with:

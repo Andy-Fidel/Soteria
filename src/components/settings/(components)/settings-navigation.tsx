@@ -1,3 +1,4 @@
+import { OfflineSection } from "../offline"
 import type { SettingsSection } from "@/lib/settings-dialog"
 import {
   MicIcon,
@@ -39,6 +40,7 @@ export const navItems: {
   group: NavGroup
   icon: React.ReactNode
 }[] = [
+  { name: "Offline readiness", id: "offline", group: "Setup", icon: <HardDriveIcon strokeWidth={2} /> },
   {
     name: "Audio",
     id: "audio",
@@ -122,6 +124,7 @@ export const navGroups: NavGroup[] = [
 ]
 
 export const sectionTitles: Record<NavSection, string> = {
+  offline: "Offline Readiness",
   audio: "Audio",
   speech: "Speech Recognition",
   bible: "Bible Translation",
@@ -137,6 +140,7 @@ export const sectionTitles: Record<NavSection, string> = {
 }
 
 export const sectionComponents: Record<NavSection, React.FC> = {
+  offline: OfflineSection,
   audio: AudioSection,
   speech: SpeechSection,
   bible: BibleSection,

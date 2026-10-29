@@ -29,7 +29,7 @@ for (const file of dlls) {
 }
 const signCommand = process.env.MANNA_WINDOWS_SIGN_COMMAND
 if (process.env.MANNA_REQUIRE_WINDOWS_SIGNING === "true" && !signCommand) throw new Error("Windows publisher signing is required but not configured.")
-const config = { ...standard, bundle: { ...standard.bundle, ...windows.bundle, resources,
+const config = { ...standard, plugins: { updater: { endpoints: [] } }, bundle: { ...standard.bundle, ...windows.bundle, resources,
   windows: { ...windows.bundle.windows, ...(signCommand ? { signCommand } : {}) } } }
 // whisper-rs-sys does not track changes to the external CMake toolchain file.
 // Rebuild it so a cache cannot retain old optimization or CPU requirements.

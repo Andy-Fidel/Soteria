@@ -8,6 +8,7 @@ import { ResumeSessionDialog } from "@/components/resume-session-dialog"
 import { SettingsDialog } from "@/components/settings-dialog"
 import { Toaster } from "sonner"
 import { GettingStartedDialog } from "@/components/onboarding/(modals)/getting-started-dialog"
+import { AppLogo } from "@/components/app-logo"
 
 export function App() {
   useRemoteControl()
@@ -32,7 +33,12 @@ export function App() {
     })
   }, [])
 
-  if (!hydrated) return <div className="p-6 text-sm text-muted-foreground">Opening Manna…</div>
+  if (!hydrated) return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-sm text-muted-foreground">
+      <AppLogo className="h-auto w-60 max-w-full rounded-xl" />
+      <p role="status">Opening Soteria…</p>
+    </div>
+  )
 
   return (
     <>

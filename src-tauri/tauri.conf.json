@@ -1,18 +1,18 @@
 {
   "$schema": "../../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Manna",
+  "productName": "Soteria",
   "version": "0.1.0-rc3",
-  "identifier": "com.manna.app",
+  "identifier": "com.soteria.app",
   "build": {
     "frontendDist": "../build",
     "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "bun run dev",
-    "beforeBuildCommand": "bun run build"
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
   },
   "app": {
     "windows": [
       {
-        "title": "Manna",
+        "title": "Soteria",
         "width": 1280,
         "height": 800,
         "minWidth": 1024,
@@ -60,7 +60,7 @@
       "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk0OUQ4QjY4MDJERTgyMQpSV1FoNkMyQXR0aEpDVkREWTBXMDdNa3lpMWNXOFdmaTJZL1BvejVNajg4R2ZkdkhIaEhvcGRDQgo=",
       "endpoints": [
-        "https://github.com/uxderrick/Manna/releases/latest/download/latest-minimal.json"
+        "https://github.com/uxderrick/Soteria/releases/latest/download/latest-minimal.json"
       ]
     }
   }

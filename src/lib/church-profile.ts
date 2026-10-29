@@ -75,6 +75,7 @@ export const DEFAULT_CHURCH_PROFILE: BrandConfig = {
   churchName: null,
   logoPath: null,
   blankImagePath: null,
+  blankBackground: "image",
   momoImagePath: null,
   jesusImagePath: null,
   givingProvider: "",
@@ -113,7 +114,7 @@ export function loadChurchProfile(
         ? saved.blankBackground
         : string("blankImagePath")
           ? "image"
-          : "video",
+          : DEFAULT_CHURCH_PROFILE.blankBackground,
     momoImagePath:
       string("momoImagePath") || (legacy ? "/service-slides/momo.png" : null),
     jesusImagePath: string("jesusImagePath"),

@@ -4,6 +4,7 @@ import { LiveIndicator } from "@/components/ui/live-indicator"
 import { Badge } from "@/components/ui/badge"
 import { MicIcon, PaletteIcon, CastIcon, SunIcon, MoonIcon, SettingsIcon, ArchiveIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { AppLogo } from "@/components/app-logo"
 import { openSettings } from "@/lib/settings-dialog"
 import { BroadcastSettings } from "@/components/broadcast/broadcast-settings"
 import { useAudioStore, useTranscriptStore, useBroadcastStore, useSessionStore } from "@/stores"
@@ -22,9 +23,7 @@ export function TransportBar() {
     >
       {/* Left: Logo + Plan Badge */}
       <div className="flex items-center gap-2.5">
-        <span className="text-sm font-semibold tracking-tight text-foreground">
-          Rhema
-        </span>
+        <AppLogo className="h-10 w-15 rounded" />
         <Badge variant="outline" className="text-[0.5625rem] uppercase">
           Free
         </Badge>

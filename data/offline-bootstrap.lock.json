@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "release": "v0.1.0-rc3",
+  "mac": {
+    "url": "https://github.com/uxderrick/Manna/releases/download/v0.1.0-rc3/Manna-0.1.0-rc3-standard-macos-arm64-adhoc.dmg",
+    "sha256": "a0768a3f3c5448c14797a43746d33e6294e215cb2a4007471a2c19dba29cb6e8",
+    "bytes": 558655320
+  },
+  "database_snapshot_sha256": "f4df299c79e55155e12c5edfdf752c0dfb5d885f18607335a95bc898a2a5c932",
+  "receipt": {
+    "url": "https://github.com/uxderrick/Manna/releases/download/v0.1.0-rc3/release-manifest.json",
+    "sha256": "b272b6f82400c3438f24892c3dcbb584e56a5725820d7601dd85c9907bc0916f"
+  }
+}

@@ -11,7 +11,7 @@
         "installMode": "currentUser"
       },
       "webviewInstallMode": {
-        "type": "embedBootstrapper",
+        "type": "offlineInstaller",
         "silent": true
       }
     }

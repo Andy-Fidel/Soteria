@@ -30,7 +30,7 @@ async fn copy_video(src: &Path, directory: &Path) -> Result<String, String> {
     let dest = directory.join(format!("{}.{}", uuid::Uuid::new_v4(), extension));
     tokio::fs::copy(src, &dest)
         .await
-        .map_err(|_| "Could not copy the video into Manna storage.")?;
+        .map_err(|_| "Could not copy the video into Soteria storage.")?;
     Ok(dest.to_string_lossy().into_owned())
 }
 

@@ -66,7 +66,7 @@ def main() -> int:
     ap.add_argument("--output", required=True, type=Path)
     ap.add_argument(
         "--base-url",
-        default="https://github.com/uxderrick/Manna/releases/download",
+        default="https://github.com/Andy-Fidel/Soteria/releases/download",
     )
     args = ap.parse_args()
 

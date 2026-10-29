@@ -1,6 +1,8 @@
 import { useSettingsStore, persistOnboardingComplete } from "@/stores/settings-store"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { AppLogo } from "@/components/app-logo"
+import { openSettings } from "@/lib/settings-dialog"
 
 export function GettingStartedDialog() {
   const hydrated = useSettingsStore((s) => s.settingsHydrated)
@@ -11,10 +13,11 @@ export function GettingStartedDialog() {
   return (
     <Dialog open onOpenChange={(open) => { if (!open) void persistOnboardingComplete() }}>
       <DialogContent className="max-w-md">
-        <DialogTitle>Welcome to Manna</DialogTitle>
+        <AppLogo className="mx-auto h-auto w-48 rounded-lg" />
+        <DialogTitle>Welcome to Soteria</DialogTitle>
         <DialogDescription>
           {provider === "whisper"
-            ? "English speech recognition and Bible search are included. No extra download or speech API key is needed."
+            ? "Local English speech and Bible search can work without internet. Check offline readiness to verify this installation."
             : "Choose your speech provider in Settings → Speech Recognition. Cloud speech needs your own API key."}
         </DialogDescription>
         <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed">
@@ -23,6 +26,10 @@ export function GettingStartedDialog() {
           <li>Connect a projector and use the projector control to choose its screen.</li>
           <li>AI titles and summaries are optional. Add your AI key in Settings → API Keys when you need them.</li>
         </ol>
+        <Button variant="outline" onClick={() => {
+          void persistOnboardingComplete()
+          openSettings("offline")
+        }}>Check offline readiness</Button>
         <Button onClick={() => void persistOnboardingComplete()}>Got it</Button>
       </DialogContent>
     </Dialog>

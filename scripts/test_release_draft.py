@@ -22,7 +22,7 @@ class DraftTests(unittest.TestCase):
 
     def fixture(self, platform):
         extension = '.exe' if platform == 'windows' else '.dmg'
-        installer = self.root / (f'Manna_{VERSION}_{platform}' + extension)
+        installer = self.root / (f'Soteria_{VERSION}_{platform}' + extension)
         installer.write_bytes(b'installer fixture')
         report = dict(passed=True, default_speech_provider='whisper', provider_calls=False,
                       resources_unchanged=True, speech={'ready':True,'transcript':'John chapter three verse sixteen'},
@@ -40,7 +40,7 @@ class DraftTests(unittest.TestCase):
 
     def stage(self, platform, source=SHA):
         installer, report = self.fixture(platform)
-        return draft.stage(platform, installer, report, self.output, VERSION, source, 'https://github.com/uxderrick/Manna/actions/runs/123')
+        return draft.stage(platform, installer, report, self.output, VERSION, source, 'https://github.com/uxderrick/Soteria/actions/runs/123')
 
     def test_changed_installer_is_rejected_before_staging(self):
         installer, report = self.fixture('windows')
@@ -65,7 +65,7 @@ class DraftTests(unittest.TestCase):
 
     def test_different_version_with_same_prefix_is_rejected(self):
         installer, report = self.fixture('windows')
-        renamed = installer.with_name('Manna_0.1.0-rc30_windows.exe')
+        renamed = installer.with_name('Soteria_0.1.0-rc30_windows.exe')
         installer.rename(renamed)
         with self.assertRaisesRegex(ValueError, 'version'):
             draft.stage('windows', renamed, report, self.output, VERSION, SHA, 'run')
@@ -92,8 +92,8 @@ class DraftTests(unittest.TestCase):
         output = self.root/'release'
         draft.assemble(self.output, output, VERSION, SHA)
         names = {p.name for p in output.iterdir()}
-        self.assertEqual(names, {'Manna-0.1.0-rc3-standard-windows-x64-unsigned.exe',
-            'Manna-0.1.0-rc3-standard-macos-arm64-adhoc.dmg', 'checks-windows.json', 'checks-mac.json',
+        self.assertEqual(names, {'Soteria-0.1.0-rc3-standard-windows-x64-unsigned.exe',
+            'Soteria-0.1.0-rc3-standard-macos-arm64-adhoc.dmg', 'checks-windows.json', 'checks-mac.json',
             'SHA256SUMS.txt', 'release-notes.md', 'release-manifest.json'})
         self.assertIn('b97d800ba8d0420dc6a0342045a15a97d785bd61d4cf9902d0c334ba32ec188b', (output/'SHA256SUMS.txt').read_text())
         self.assertIn('Windows speech speed', (output/'release-notes.md').read_text())
@@ -110,7 +110,7 @@ class DraftTests(unittest.TestCase):
         output=self.root/'release'; draft.assemble(self.output, output, VERSION, SHA)
         with patch.object(draft, 'gh', return_value={'id':1,'draft':False}) as call:
             with self.assertRaisesRegex(ValueError, 'exists'):
-                draft.upload(output, 'uxderrick/Manna')
+                draft.upload(output, 'uxderrick/Soteria')
             self.assertEqual(call.call_count, 1)
 
     def test_unlisted_asset_cannot_be_uploaded(self):
@@ -119,13 +119,13 @@ class DraftTests(unittest.TestCase):
         (output/'latest-standard.json').write_text('{}')
         with patch.object(draft, 'gh', return_value=None):
             with self.assertRaisesRegex(ValueError, 'files'):
-                draft.upload(output, 'uxderrick/Manna')
+                draft.upload(output, 'uxderrick/Soteria')
 
     def test_new_release_is_created_as_draft_without_publishing(self):
         self.stage('windows'); self.stage('mac')
         output=self.root/'release'; draft.assemble(self.output, output, VERSION, SHA)
         with patch.object(draft, 'gh', side_effect=[None, None, 'draft-url']) as call:
-            self.assertEqual(draft.upload(output, 'uxderrick/Manna'), 'draft-url')
+            self.assertEqual(draft.upload(output, 'uxderrick/Soteria'), 'draft-url')
             args=call.call_args.args
             self.assertEqual(args[:3], ('release','create','v0.1.0-rc3'))
             self.assertIn('--draft', args)
@@ -137,7 +137,7 @@ class DraftTests(unittest.TestCase):
         output=self.root/'release'; draft.assemble(self.output, output, VERSION, SHA)
         with patch.object(draft, 'gh', side_effect=[None, {'object':{'sha':'b'*40}}]) as call:
             with self.assertRaisesRegex(ValueError, 'tag already exists'):
-                draft.upload(output, 'uxderrick/Manna')
+                draft.upload(output, 'uxderrick/Soteria')
             self.assertEqual(call.call_count, 2)
 
 

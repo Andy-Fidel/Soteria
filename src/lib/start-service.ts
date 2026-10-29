@@ -1,3 +1,4 @@
+import { checkLocalResources } from "./offline-readiness"
 import { invoke } from "@tauri-apps/api/core"
 import {
   useSessionStore,
@@ -16,8 +17,18 @@ interface StartServiceOptions {
  * using the user's configured STT provider. Shared between the toolbar's
  * "Start Service" button and the sessions-landing flow.
  */
-export async function startServiceFlow(opts: StartServiceOptions = {}): Promise<void> {
+let pendingStart: Promise<void> | null = null
+
+export function startServiceFlow(opts: StartServiceOptions = {}): Promise<void> {
+  pendingStart ??= startServiceOnce(opts).finally(() => { pendingStart = null })
+  return pendingStart
+}
+
+async function startServiceOnce(opts: StartServiceOptions): Promise<void> {
   try {
+    // Check before creating/promoting a session so a missing package leaves no orphan live session.
+    const unavailable = (await checkLocalResources()).find((check) => check.status === "fail")
+    if (unavailable) throw new Error(unavailable.detail)
     let active = useSessionStore.getState().activeSession
     if (!active) {
       const now = new Date()

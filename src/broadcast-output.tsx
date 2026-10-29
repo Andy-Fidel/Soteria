@@ -189,7 +189,7 @@ interface BroadcastPayload {
   notes?: NotesSlide | null
 }
 
-const BLANK_LOGO_URL = "/manna-logo.png"
+const BLANK_LOGO_URL = "/soteria-logo.png"
 
 interface AnnouncementPayload {
   text: string

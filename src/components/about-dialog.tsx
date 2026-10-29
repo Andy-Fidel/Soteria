@@ -8,6 +8,8 @@ import {
 import { useAboutDialogStore } from "@/lib/about-dialog"
 import { getVersion } from "@tauri-apps/api/app"
 import { openUrl } from "@tauri-apps/plugin-opener"
+import { AppLogo } from "@/components/app-logo"
+import { APP_REPOSITORY_URL } from "@/lib/brand"
 
 export function AboutDialog() {
   const { isOpen, closeAbout } = useAboutDialogStore()
@@ -23,10 +25,11 @@ export function AboutDialog() {
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeAbout()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle className="text-center text-xl">Manna</DialogTitle>
+          <DialogTitle className="text-center text-xl">Soteria</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-4 py-2 text-sm">
+          <AppLogo className="h-auto w-48 rounded-lg" />
           <p className="text-muted-foreground">Version {version}</p>
 
           <p className="text-center text-muted-foreground">
@@ -36,7 +39,7 @@ export function AboutDialog() {
           <div className="w-full space-y-2 rounded-lg bg-muted/50 p-3 text-xs">
             <p>
               <span className="font-medium">Credits:</span>{" "}
-              Built on{" "}
+              Based on Manna by uxderrick, built on{" "}
               <button
                 className="text-primary underline underline-offset-2"
                 onClick={() => openUrl("https://github.com/openbezal/rhema")}
@@ -56,7 +59,7 @@ export function AboutDialog() {
 
           <button
             className="text-xs text-primary underline underline-offset-2"
-            onClick={() => openUrl("https://github.com/openbezal/rhema")}
+            onClick={() => openUrl(APP_REPOSITORY_URL)}
           >
             View on GitHub
           </button>

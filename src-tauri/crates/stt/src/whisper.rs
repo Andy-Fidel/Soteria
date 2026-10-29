@@ -24,9 +24,19 @@ const MAX_BUFFER_SAMPLES: usize = 16_000 * 10;
 /// Whisper warns "input is too short" below 1s.
 const MIN_BUFFER_SAMPLES: usize = 16_000;
 
+fn context_parameters() -> WhisperContextParameters<'static> {
+    let mut parameters = WhisperContextParameters::default();
+    // The bundled Metal backend can dereference a null device on Intel Macs.
+    // Keep readiness and live inference on the same portable CPU path there.
+    if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+        parameters.use_gpu = false;
+    }
+    parameters
+}
+
 /// Verify that the local model can create a usable inference state.
 pub fn validate_model(path: &Path) -> Result<(), SttError> {
-    let context = WhisperContext::new_with_params(&path.to_string_lossy(), WhisperContextParameters::default())
+    let context = WhisperContext::new_with_params(&path.to_string_lossy(), context_parameters())
         .map_err(|e| SttError::ModelNotFound(format!("Could not load offline speech: {e}")))?;
     context.create_state().map_err(|e| SttError::ModelNotFound(format!("Could not prepare offline speech: {e}")))?;
     Ok(())
@@ -287,7 +297,7 @@ impl SttProvider for WhisperProvider {
         let inf_handle = tokio::task::spawn_blocking(move || {
             let ctx = match WhisperContext::new_with_params(
                 &model_path.to_string_lossy(),
-                WhisperContextParameters::default(),
+                context_parameters(),
             ) {
                 Ok(ctx) => ctx,
                 Err(e) => {
@@ -383,5 +393,15 @@ impl SttProvider for WhisperProvider {
 
     fn name(&self) -> &'static str {
         "whisper"
+    }
+}
+
+#[cfg(all(test, target_os = "macos", target_arch = "x86_64"))]
+mod intel_cpu_tests {
+    use super::context_parameters;
+
+    #[test]
+    fn intel_mac_model_loading_uses_cpu_to_avoid_null_metal_device() {
+        assert!(!context_parameters().use_gpu);
     }
 }

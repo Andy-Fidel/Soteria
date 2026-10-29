@@ -66,7 +66,7 @@ describe("slide PNG downloads", () => {
     expect(urls).toEqual([
       "/bg.png",
       "/service-slides/pastor-john-kennedy-starburst.png",
-      "/EWC-White.png",
+      "/soteria-logo.png",
     ])
     expect(drawImageSlide).toHaveBeenCalledWith(
       expect.anything(),

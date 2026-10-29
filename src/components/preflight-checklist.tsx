@@ -1,3 +1,4 @@
+import { checkLocalResources } from "@/lib/offline-readiness"
 import { probeAudioLevel } from "./preflight-audio-probe"
 import { prepareSpeechReadiness } from "@/lib/speech-readiness"
 import { useState, useEffect } from "react"
@@ -41,6 +42,7 @@ function PreflightChecklistContent({ onOpenChange, onStart }: Omit<PreflightChec
       const cloud = settings.sttProvider !== "whisper"
       const speechConnection = prepareSpeechReadiness(settings.sttProvider,
         settings.sttProvider === "deepgram" ? settings.deepgramApiKey : settings.assemblyAiApiKey)
+      const localResources = checkLocalResources()
       const results: CheckItem[] = []
 
       // Check 1: Audio device
@@ -110,7 +112,7 @@ function PreflightChecklistContent({ onOpenChange, onStart }: Omit<PreflightChec
       if (cancelled) return
       setChecks([...results])
 
-      const [soundResult, connectionResult] = await Promise.all([probeAudioLevel(), speechConnection])
+      const [soundResult, connectionResult, resourceChecks] = await Promise.all([probeAudioLevel(), speechConnection, localResources])
       results[soundIndex] = {
         label: "Sound Check",
         status: soundResult.status,
@@ -121,6 +123,7 @@ function PreflightChecklistContent({ onOpenChange, onStart }: Omit<PreflightChec
       if (cloud) results[results.length - 1] = {label: "Speech Connection", ...connectionResult, icon: <CheckCircle2 className="size-4" />}
       else results[1] = { label: "Whisper (Local)", ...connectionResult, icon: <Key className="size-4" /> }
       if (cancelled) return
+      results.push(...resourceChecks.map((check) => ({ ...check, icon: <CheckCircle2 className="size-4" /> })))
       setChecks(results)
     }
 

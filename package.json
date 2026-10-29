@@ -1,5 +1,5 @@
 {
-  "name": "manna",
+  "name": "soteria",
   "private": true,
   "version": "0.1.0-rc3",
   "type": "module",
@@ -33,7 +33,10 @@
     "setup:whisper": "bun run data/prepare-embeddings.ts --phases=whisper",
     "prep:hymnals": "bun scripts/prep-hymnals.ts",
     "package:mac:signed": "bun scripts/build-signed-mac.ts",
-    "package:windows": "bun scripts/build-windows.ts"
+    "package:windows": "bun scripts/build-windows.ts",
+    "setup:offline": "python3 scripts/setup-offline.py",
+    "test:offline-setup": "python3 -m unittest discover -s scripts -p \"test_*offline*.py\"",
+    "package:offline": "node scripts/build-offline.mjs"
   },
   "dependencies": {
     "@dnd-kit/react": "^0.3.2",
@@ -43,7 +46,7 @@
     "@fontsource/geist-mono": "^5.2.7",
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/vite": "^4.2.1",
-    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/api": "~2.10.1",
     "@tauri-apps/plugin-dialog": "^2.7.0",
     "@tauri-apps/plugin-fs": "^2.5.0",
     "@tauri-apps/plugin-global-shortcut": "~2",

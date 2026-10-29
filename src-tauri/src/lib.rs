@@ -39,6 +39,9 @@ fn resolve_resource(app: &tauri::App, rel: &str) -> std::path::PathBuf {
     use tauri::Manager;
     let bundled = app.path().resource_dir().unwrap_or_default().join(rel);
     if cfg!(debug_assertions) && !bundled.exists() {
+        let staged = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../build-resources/standard").join(rel);
+        if staged.is_file() { return staged; }
         return std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..").join(rel);
     }
@@ -188,46 +191,6 @@ fn open_devtools(app: tauri::AppHandle) {
     }
 }
 
-/// Best-effort API host DNS/TLS warm-up. This HTTP client is not reused by
-/// speech WebSockets; their actual streaming transport is prepared separately.
-async fn warm_connection_pool() {
-    const HOSTS: &[&str] = &[
-        "https://api.deepgram.com",
-        "https://api.assemblyai.com",
-        "https://api.deepseek.com",
-    ];
-    let client = match reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .connect_timeout(std::time::Duration::from_secs(5))
-        .http1_only()
-        .build()
-    {
-        Ok(c) => c,
-        Err(e) => {
-            log::warn!("connection warmup: failed to build client: {e}");
-            return;
-        }
-    };
-    let tasks: Vec<_> = HOSTS
-        .iter()
-        .map(|host| {
-            let client = client.clone();
-            let host = (*host).to_string();
-            tokio::spawn(async move {
-                match client.head(&host).send().await {
-                    Ok(resp) => log::info!(
-                        "connection warmup: {host} → HTTP {}",
-                        resp.status().as_u16()
-                    ),
-                    Err(e) => log::info!("connection warmup: {host} failed: {e}"),
-                }
-            })
-        })
-        .collect();
-    for t in tasks {
-        let _ = t.await;
-    }
-}
 
 #[expect(clippy::too_many_lines, reason = "app setup is inherently complex")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -297,6 +260,7 @@ pub fn run() {
             quit_app,
             open_devtools,
             get_flavor,
+            commands::offline::get_local_resource_status,
             print_summary,
             commands::bible::list_translations,
             commands::bible::list_books,
@@ -463,8 +427,8 @@ pub fn run() {
                 .display(true)
                 .idle(true)
                 .reason("Live broadcast in progress")
-                .app_name("Manna")
-                .app_reverse_domain("com.manna.app")
+                .app_name("Soteria")
+                .app_reverse_domain("com.soteria.app")
                 .create()
             {
                 Ok(handle) => {
@@ -694,12 +658,6 @@ pub fn run() {
             let menu = menu::build(app)?;
             app.set_menu(menu)?;
 
-            // Warm TLS/HTTP connection pool to STT + AI hosts in the background.
-            // First cold request eats 6–10s of DNS + TLS handshake; prewarming
-            // makes subsequent user-initiated verify/summarize calls snappy.
-            tauri::async_runtime::spawn(async {
-                warm_connection_pool().await;
-            });
 
             Ok(())
         })

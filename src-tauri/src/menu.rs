@@ -6,13 +6,13 @@ use tauri::{App, Wry};
 /// Menu item IDs match the frontend command registry so that menu events
 /// can be dispatched directly to the corresponding handlers.
 pub fn build(app: &App) -> tauri::Result<Menu<Wry>> {
-    // ── Manna ──────────────────────────────────────────────────
+    // ── Soteria ──────────────────────────────────────────────────
     let manna_menu = Submenu::with_items(
         app,
-        "Manna",
+        "Soteria",
         true,
         &[
-            &MenuItem::with_id(app, "manna:about", "About Manna", true, None::<&str>)?,
+            &MenuItem::with_id(app, "manna:about", "About Soteria", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(
                 app,
@@ -25,7 +25,7 @@ pub fn build(app: &App) -> tauri::Result<Menu<Wry>> {
             &MenuItem::with_id(
                 app,
                 "manna:quit",
-                "Quit Manna",
+                "Quit Soteria",
                 true,
                 Some("CmdOrCtrl+Q"),
             )?,

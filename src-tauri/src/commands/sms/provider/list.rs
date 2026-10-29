@@ -46,7 +46,7 @@ impl CommsClient {
         message: &str,
         sender: &str,
     ) -> Result<ListPreview, String> {
-        let data = self.request(Method::POST, "/campaigns/sms/preview", Some(json!({"name":"Manna service recap","contactListId":list,"message":message,"senderId":sender})), None).await.map_err(|error| error.message)?;
+        let data = self.request(Method::POST, "/campaigns/sms/preview", Some(json!({"name":"Soteria service recap","contactListId":list,"message":message,"senderId":sender})), None).await.map_err(|error| error.message)?;
         let preview: ListPreview = serde_json::from_value(data)
             .map_err(|_| "Comms360 returned an incomplete list preview.")?;
         if preview.total_recipients == 0 || preview.total_recipients > 10000 {
@@ -72,7 +72,7 @@ impl CommsClient {
         sender: &str,
         key: &str,
     ) -> Result<ListAccepted, ProviderError> {
-        let data = self.request(Method::POST, "/campaigns/sms", Some(json!({"name":"Manna service recap","contactListId":list,"message":message,"senderId":sender})), Some(key)).await?;
+        let data = self.request(Method::POST, "/campaigns/sms", Some(json!({"name":"Soteria service recap","contactListId":list,"message":message,"senderId":sender})), Some(key)).await?;
         let accepted: ListAccepted = serde_json::from_value(data).map_err(|_| {
             ProviderError::unknown(
                 "Comms360 did not return a send reference. Retry only this saved submission.",

@@ -33,7 +33,7 @@ it("shows the brief offline guide once and saves its dismissal", async () => {
   const host = document.createElement("div")
   const root = createRoot(host)
   await act(async () => root.render(<GettingStartedDialog />))
-  expect(document.querySelector('[role="dialog"]')?.textContent).toContain("No extra download or speech API key")
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Check offline readiness to verify this installation.")
   const button = Array.from(document.querySelectorAll("button")).find((b) => b.textContent === "Got it")
   await act(async () => button?.click())
   expect(disk.get("onboardingComplete")).toBe(true)

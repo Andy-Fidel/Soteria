@@ -1,6 +1,7 @@
+import { APP_LOGO_URL } from "./brand"
 import type { ImageSlide } from "@/types"
 
-export const SPEAKER_LOGO_MARK = "/EWC-White.png"
+export const SPEAKER_LOGO_MARK = APP_LOGO_URL
 export const DEFAULT_SPEAKER_NAME = "Pastor John Kennedy"
 export const DEFAULT_SPEAKER_PORTRAIT =
   "/service-slides/pastor-john-kennedy-starburst.png"

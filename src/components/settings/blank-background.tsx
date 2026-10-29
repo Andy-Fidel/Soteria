@@ -99,7 +99,7 @@ export function BlankBackgroundSettings() {
             )}
           </div>
           <p className="text-[10px] text-muted-foreground">
-            MP4 with H.264 is recommended. Manna keeps a local copy and checks
+            MP4 with H.264 is recommended. Soteria keeps a local copy and checks
             that it can play.
           </p>
         </>

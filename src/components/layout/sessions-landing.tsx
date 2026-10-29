@@ -26,7 +26,8 @@ import {
 import { useSession } from "@/hooks/use-session"
 import { restoreLiveSession } from "@/lib/restore-live-session"
 import { useSessionStore, useSettingsStore } from "@/stores"
-import { resolveBrandAsset, resolveChurchName } from "@/lib/brand"
+import { resolveChurchName } from "@/lib/brand"
+import { AppLogo } from "@/components/app-logo"
 import { summaryFromJson } from "@/lib/summarize"
 import type { SermonSession } from "@/types/session"
 import { SessionDetail } from "@/components/panels/session-detail"
@@ -192,14 +193,14 @@ export function SessionsLanding() {
 
   return (
     <div className="fixed inset-0 z-40 overflow-y-auto bg-background">
-      {/* Subtle ambient pattern — inverted logo tiled, denser, radially faded. */}
+      {/* Keep the supplied artwork's aspect ratio in the ambient pattern. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 opacity-[0.06] [filter:invert(1)] dark:opacity-[0.1] dark:[filter:invert(0)]"
+        className="pointer-events-none fixed inset-0 -z-10 opacity-[0.06] dark:opacity-[0.1]"
         style={{
-          backgroundImage: "url(/manna-logo.png)",
+          backgroundImage: "url(/soteria-logo.png)",
           backgroundRepeat: "repeat",
-          backgroundSize: "80px 80px",
+          backgroundSize: "120px 80px",
           maskImage:
             "radial-gradient(closest-side at 50% 38%, black 0%, black 45%, transparent 95%)",
           WebkitMaskImage:
@@ -250,13 +251,7 @@ export function SessionsLanding() {
 
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-12">
         <header className="flex flex-col items-center gap-3 text-center">
-          <div className="rounded-full bg-card p-2 ring-2 ring-primary/30 ring-offset-4 ring-offset-background">
-            <img
-              src={resolveBrandAsset("logo", brand.logoPath)}
-              alt={resolveChurchName(brand.churchName)}
-              className="size-16 rounded-full"
-            />
-          </div>
+          <AppLogo className="h-auto w-60 max-w-full rounded-xl" />
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Welcome to {resolveChurchName(brand.churchName)}
             {brand.campusName && (

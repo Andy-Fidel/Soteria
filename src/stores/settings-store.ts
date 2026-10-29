@@ -430,13 +430,16 @@ export async function persistLocalImageFolder(
 }
 
 /** Persist STT provider to disk. */
-export async function persistSttProvider(provider: SttProvider): Promise<void> {
-  useSettingsStore.getState().setSttProvider(provider)
+export async function persistSttProvider(provider: SttProvider): Promise<boolean> {
   try {
     const store = await getStore()
     await store.set("sttProvider", provider)
+    await store.save()
+    useSettingsStore.getState().setSttProvider(provider)
+    return true
   } catch {
     console.warn("[settings] Failed to persist STT provider")
+    return false
   }
 }
 

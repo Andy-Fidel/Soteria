@@ -8,6 +8,7 @@ import {
   useSessionStore,
 } from "@/stores"
 import { Button } from "@/components/ui/button"
+import { AppLogo } from "@/components/app-logo"
 import { Badge } from "@/components/ui/badge"
 import { LevelMeter } from "@/components/ui/level-meter"
 import { LiveIndicator } from "@/components/ui/live-indicator"
@@ -123,6 +124,7 @@ export function Toolbar() {
     <div className="flex h-(--toolbar-height) items-center justify-between border-b border-border bg-card px-3">
       {/* Left side: session info */}
       <div className="flex items-center gap-2">
+        <AppLogo className="h-8 w-12 shrink-0 rounded" />
         {activeSession ? (
           <>
             {isLive && <LiveIndicator active={true} />}

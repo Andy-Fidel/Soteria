@@ -22,17 +22,3 @@ export async function checkForUpdates(manual: boolean): Promise<void> {
     else console.warn("[updater] check failed:", e)
   }
 }
-
-/** Auto-check debounced to once per 24 hours via localStorage. */
-export async function maybeAutoCheckUpdates(): Promise<void> {
-  const KEY = "manna.lastUpdateCheck"
-  const DAY_MS = 24 * 60 * 60 * 1000
-  try {
-    const last = parseInt(localStorage.getItem(KEY) ?? "0", 10)
-    if (Date.now() - last < DAY_MS) return
-    localStorage.setItem(KEY, String(Date.now()))
-    await checkForUpdates(false)
-  } catch {
-    /* ignore */
-  }
-}

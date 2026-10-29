@@ -30,10 +30,10 @@ missing_panics_doc = "allow"
 [package]
 name = "app"
 version = "0.1.0-rc3"
-description = "Rhema - Real-Time AI Bible Verse Detection"
+description = "Soteria - Offline church service presentation and scripture detection"
 authors = ["Faithful"]
 license = "MIT"
-repository = "https://github.com/openbezal/rhema"
+repository = "https://github.com/Andy-Fidel/Soteria"
 edition = "2021"
 rust-version = "1.77.2"
 

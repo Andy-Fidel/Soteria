@@ -78,7 +78,7 @@ export function AudioSection() {
           capture audio from a soundboard, video, or another app, use a virtual
           audio device like <span className="font-medium">BlackHole</span>{" "}
           (free). Set up a Multi-Output Device in macOS Audio MIDI Setup to hear
-          audio and route it to Manna simultaneously.
+          audio and route it to Soteria simultaneously.
         </div>
       </div>
 

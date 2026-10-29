@@ -17,7 +17,7 @@ const GROUP_ORDER: CommandGroupType[] = [
   "View",
   "Navigate",
   "Help",
-  "Manna",
+  "Soteria",
 ]
 
 interface CommandPaletteProps {

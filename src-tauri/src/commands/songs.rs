@@ -243,7 +243,7 @@ pub async fn search_lrclib(query: String) -> Result<Vec<LrclibHit>, String> {
     }
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
-        .user_agent("Manna/1.0 (https://github.com/openbezal/rhema)")
+        .user_agent("Soteria/1.0 (https://github.com/Andy-Fidel/Soteria)")
         .build()
         .map_err(|e| e.to_string())?;
     let resp = client
@@ -315,7 +315,7 @@ pub struct LrclibLyrics {
 pub async fn fetch_lrclib_lyrics(id: i64) -> Result<LrclibLyrics, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
-        .user_agent("Manna/1.0 (https://github.com/openbezal/rhema)")
+        .user_agent("Soteria/1.0 (https://github.com/Andy-Fidel/Soteria)")
         .build()
         .map_err(|e| e.to_string())?;
     let url = format!("https://lrclib.net/api/get/{id}");

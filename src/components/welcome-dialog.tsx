@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { AppLogo } from "@/components/app-logo"
 import { Monitor, MonitorOff } from "lucide-react"
 import { HymnalPickerStep } from "@/components/onboarding/hymnal-picker-step"
 import { ApiKeyStep } from "@/components/onboarding/api-key-step"
@@ -89,7 +90,8 @@ export function WelcomeDialog() {
       <DialogContent className="max-w-md">
         {step === "monitor" && (
           <>
-            <DialogTitle className="text-lg font-semibold">Welcome to Manna</DialogTitle>
+            <AppLogo className="mx-auto h-auto w-48 rounded-lg" />
+            <DialogTitle className="text-lg font-semibold">Welcome to Soteria</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
               Real-time Bible verse detection for live sermons.
             </DialogDescription>

@@ -1,5 +1,9 @@
 import { convertFileSrc } from "@tauri-apps/api/core"
 
+export const APP_NAME = "Soteria"
+export const APP_LOGO_URL = "/soteria-logo.png"
+export const APP_REPOSITORY_URL = "https://github.com/Andy-Fidel/Soteria"
+
 // `logo`  = app/sessions logo (landing screen, window chrome).
 // `blank` = projector blank-slide image (shown on the broadcast when idle).
 // These are intentionally distinct assets with distinct defaults.
@@ -7,8 +11,8 @@ export type BrandAssetKind = "logo" | "blank" | "momo" | "jesus"
 
 /** Bundled fallback assets (served from `public/`). Used when no override is set. */
 export const BRAND_DEFAULTS: Record<BrandAssetKind, string> = {
-  logo: "/manna-logo.png",
-  blank: "/manna-logo.png",
+  logo: APP_LOGO_URL,
+  blank: APP_LOGO_URL,
   momo: "/service-slides/giving-placeholder.svg",
   jesus: "/service-slides/jesus-motion.png",
 }
@@ -27,7 +31,7 @@ export function resolveBrandAsset(
 /** Church display name with a sensible fallback. */
 export function resolveChurchName(name: string | null): string {
   const trimmed = name?.trim()
-  return trimmed && trimmed.length > 0 ? trimmed : "Manna"
+  return trimmed && trimmed.length > 0 ? trimmed : APP_NAME
 }
 
 export function resolveBlankBackground(brand: {
@@ -36,7 +40,7 @@ export function resolveBlankBackground(brand: {
   blankBackground?: "video" | "image"
 }): { imageUrl: string; videoUrl: string | null } {
   const mode =
-    brand.blankBackground ?? (brand.blankImagePath ? "image" : "video")
+    brand.blankBackground ?? (brand.blankVideoPath ? "video" : "image")
   return {
     imageUrl: resolveBrandAsset("blank", brand.blankImagePath),
     videoUrl:

@@ -59,8 +59,8 @@ export const CanvasVerse = memo(function CanvasVerse({
   fullscreenImage = null,
   blankLogo = false,
   blankVideoUrl = null,
-  blankLogoLabel = "Manna",
-  blankLogoUrl = "/manna-logo.png",
+  blankLogoLabel = "Soteria",
+  blankLogoUrl = "/soteria-logo.png",
   className,
   onRenderResult,
 }: CanvasVerseProps) {

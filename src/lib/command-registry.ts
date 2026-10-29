@@ -1,7 +1,7 @@
 import { useSessionStore } from "@/stores"
 
 export type CommandGroup =
-  | "Manna"
+  | "Soteria"
   | "Session"
   | "Broadcast"
   | "View"
@@ -52,10 +52,10 @@ export function createCommands(actions: {
   navigateTo: (tab: string) => void
 }): AppCommand[] {
   return [
-    // Manna
-    { id: "manna:about", label: "About Manna", group: "Manna", execute: actions.openAbout },
-    { id: "manna:preferences", label: "Preferences…", group: "Manna", shortcut: "⌘,", execute: actions.openPreferences },
-    { id: "manna:quit", label: "Quit Manna", group: "Manna", shortcut: "⌘Q", execute: actions.quitApp },
+    // Soteria
+    { id: "manna:about", label: "About Soteria", group: "Soteria", execute: actions.openAbout },
+    { id: "manna:preferences", label: "Preferences…", group: "Soteria", shortcut: "⌘,", execute: actions.openPreferences },
+    { id: "manna:quit", label: "Quit Soteria", group: "Soteria", shortcut: "⌘Q", execute: actions.quitApp },
 
     // Session
     { id: "session:new", label: "New Session…", group: "Session", shortcut: "⌘N", execute: actions.newSession },

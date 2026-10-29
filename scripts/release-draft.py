@@ -43,7 +43,7 @@ def stage(platform, installer, report_path, destination, version, source, run_ur
     actual = digest(installer)
     if report.get(hash_key) != actual:
         raise ValueError('Installer hash differs from installed test')
-    name = f'Manna-{version}-standard-{suffix}'
+    name = f'Soteria-{version}-standard-{suffix}'
     destination.mkdir(parents=True, exist_ok=True)
     target = destination / name
     if target.exists() or (destination/f'checks-{platform}.json').exists():
@@ -65,7 +65,7 @@ def assemble(staged, destination, version, source):
         receipt = json.loads(path.read_text(encoding='utf-8'))
         if receipt['version'] != version or receipt['source_commit'] != source or receipt['platform'] != platform:
             raise ValueError('Installer source or version differs from release')
-        expected = f'Manna-{version}-standard-{PLATFORMS[platform][1]}'
+        expected = f'Soteria-{version}-standard-{PLATFORMS[platform][1]}'
         if receipt['installer'] != expected or digest(staged/expected) != receipt['sha256']:
             raise ValueError('Staged installer name or hash changed')
         receipts.append(receipt)
@@ -79,7 +79,7 @@ def assemble(staged, destination, version, source):
     manifest = dict(version=version, tag=f'v{version}', source_commit=source, draft=True,
                     prerelease=True, public_release_ready=False, installers=receipts)
     (destination/'release-manifest.json').write_text(json.dumps(manifest, indent=2)+'\n', encoding='utf-8')
-    notes = f'''# Manna {version} — internal standard package candidate
+    notes = f'''# Soteria {version} — internal standard package candidate
 
 **Draft only. Not ready for public distribution.**
 
@@ -137,7 +137,7 @@ def upload(bundle, repository):
     if gh('api', f'repos/{repository}/git/ref/tags/{tag}') is not None:
         raise ValueError('Release tag already exists; refusing to reuse it')
     expected_files = {'SHA256SUMS.txt', 'release-manifest.json', 'release-notes.md', 'checks-windows.json', 'checks-mac.json'}
-    expected_files.update(f"Manna-{manifest['version']}-standard-{data[1]}" for data in PLATFORMS.values())
+    expected_files.update(f"Soteria-{manifest['version']}-standard-{data[1]}" for data in PLATFORMS.values())
     if {p.name for p in bundle.iterdir()} != expected_files:
         raise ValueError('Unexpected or missing release files')
     listed = set()
@@ -150,7 +150,7 @@ def upload(bundle, repository):
         raise ValueError('Missing release file hashes')
     assets = [str(path) for path in sorted(bundle.iterdir())]
     return gh('release', 'create', tag, *assets, '--repo', repository, '--target', manifest['source_commit'],
-              '--draft', '--prerelease', '--latest=false', '--title', f"Manna {manifest['version']} — internal candidate",
+              '--draft', '--prerelease', '--latest=false', '--title', f"Soteria {manifest['version']} — internal candidate",
               '--notes-file', str(bundle/'release-notes.md'))
 
 
