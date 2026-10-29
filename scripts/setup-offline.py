@@ -129,7 +129,7 @@ def main():
         else:
             manifest = bootstrap(args.destination, args.platform, args.cache, args.download_speech)
         print(json.dumps({"destination": str(args.destination.resolve()), "speech": manifest["speech"], "translations": manifest["translations"]}, indent=2))
-        print("Offline resources are ready. Restart the desktop app, then open Settings → Offline readiness.")
+        print("Offline resources are ready. Restart the desktop app, then open Settings > Offline readiness.")
     finally:
         lock_path.unlink(missing_ok=True)
 

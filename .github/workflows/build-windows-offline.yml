@@ -4,7 +4,6 @@ name: Build Soteria Windows offline installer
 on:
   push:
     branches: [codex/windows-offline-build]
-    paths: [.github/workflows/build-windows-offline.yml]
   workflow_dispatch:
 
 permissions:

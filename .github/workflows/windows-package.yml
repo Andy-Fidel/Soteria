@@ -52,6 +52,7 @@ jobs:
       CMAKE_POLICY_VERSION_MINIMUM: '3.5'
       STATIC_VCRUNTIME: 'false'
       MANNA_FLAVOR: standard
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -192,6 +193,7 @@ jobs:
       CMAKE_POLICY_VERSION_MINIMUM: '3.5'
       STATIC_VCRUNTIME: 'false'
       MANNA_FLAVOR: standard
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
