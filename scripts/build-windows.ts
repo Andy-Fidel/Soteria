@@ -35,7 +35,7 @@ const config = { ...standard, plugins: { updater: { endpoints: [] } }, bundle: {
 // Rebuild it so a cache cannot retain old optimization or CPU requirements.
 execFileSync("cargo", ["clean", "--manifest-path", "src-tauri/Cargo.toml", "--release",
   "--target", "x86_64-pc-windows-msvc", "-p", "whisper-rs-sys"], { cwd: root, stdio: "inherit" })
-execFileSync("bun", ["run", "tauri", "build", "--ci", "--bundles", "nsis", "--target", "x86_64-pc-windows-msvc",
+execFileSync("node", [join(root, "node_modules/@tauri-apps/cli/tauri.js"), "build", "--ci", "--bundles", "nsis", "--target", "x86_64-pc-windows-msvc",
   "--config", JSON.stringify(config), "--features", "onnx,whisper,package-check", "--", "--no-default-features", "--locked"], {
   cwd: root, stdio: "inherit", env: { ...process.env, MANNA_FLAVOR: "standard", STATIC_VCRUNTIME: "false",
     CMAKE_TOOLCHAIN_FILE: join(root, "scripts/windows-cpu.cmake"), CMAKE_POLICY_VERSION_MINIMUM: "3.5" },
