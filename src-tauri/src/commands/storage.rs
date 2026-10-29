@@ -401,11 +401,11 @@ mod tests {
 
         // Bytes landed in the new root, originals are gone.
         assert_eq!(
-            std::fs::read(dest.join(format!("{a}/audio.mp3"))).unwrap(),
+            std::fs::read(dest.join(a.to_string()).join("audio.mp3")).unwrap(),
             b"AAA"
         );
         assert_eq!(
-            std::fs::read(dest.join(format!("{b}/audio.mp3"))).unwrap(),
+            std::fs::read(dest.join(b.to_string()).join("audio.mp3")).unwrap(),
             b"BBB"
         );
         assert!(!src.join(a.to_string()).exists());
@@ -415,7 +415,7 @@ mod tests {
         assert_eq!(
             reloaded.audio_path,
             Some(
-                dest.join(format!("{a}/audio.mp3"))
+                dest.join(a.to_string()).join("audio.mp3")
                     .to_string_lossy()
                     .into_owned()
             )
